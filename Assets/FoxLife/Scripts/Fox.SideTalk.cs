@@ -87,7 +87,7 @@ namespace FoxLife
             sideTimer -= dm;
             if (sideTimer > 0) return;
             sideTimer = Random.Range(25f, 55f) - pers.E * 2f;
-            if (!CanTalkWhileBusy || (IsPlayer && !G.autonomy) || needs[(int)Need.Social] > 92f) return;
+            if (!CanTalkWhileBusy || !G.AutonomyFor(home) || needs[(int)Need.Social] > 92f) return;
             if (Random.value > 0.35f + (pers.E - 5.5f) * 0.05f + (100f - needs[(int)Need.Social]) / 250f) return;
             Fox best = null; float bd = float.MaxValue;
             foreach (var f in G.foxes)

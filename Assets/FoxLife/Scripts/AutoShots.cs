@@ -8,7 +8,7 @@ namespace FoxLife
     /// Отладка: запуск с аргументом «-foxshots папка» проходит по всем режимам,
     /// сохраняет скриншоты и журнал, затем закрывает игру. В обычной игре не активен.
     /// </summary>
-    public class AutoShots : MonoBehaviour
+    public partial class AutoShots : MonoBehaviour
     {
         string dir;
         StreamWriter log;
@@ -30,6 +30,13 @@ namespace FoxLife
                     var a = new GameObject("AutoShots").AddComponent<AutoShots>();
                     a.dir = args[i + 1];
                     a.keysOnly = true;
+                }
+                else if (args[i] == "-foxnethost" || args[i] == "-foxnetjoin")
+                {
+                    var a = new GameObject("AutoShots").AddComponent<AutoShots>();
+                    a.dir = args[i + 1];
+                    a.netHost = args[i] == "-foxnethost";
+                    a.netJoin = !a.netHost;
                 }
                 else if (args[i] == "-foxwardrobe")
                 {
@@ -53,6 +60,8 @@ namespace FoxLife
             };
             if (wardrobeOnly) { StartCoroutine(WardrobeShots()); return; }
             if (keysOnly) { StartCoroutine(KeysOnly()); return; }
+            if (netHost) { StartCoroutine(NetHostTest()); return; }
+            if (netJoin) { StartCoroutine(NetJoinTest()); return; }
             StartCoroutine(Run());
             StartCoroutine(Fps());
         }

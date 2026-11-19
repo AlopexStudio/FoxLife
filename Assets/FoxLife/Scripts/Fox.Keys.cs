@@ -155,6 +155,7 @@ namespace FoxLife
         /// <summary>Приказ игрока «Постучаться»: прежние приказы идти куда-то отменяются.</summary>
         public void CommandKnock(int lotId, House.DoorLeaf door)
         {
+            if (Net.IsClient) { Net.I.SendOp(this, "knock", lotId.ToString()); return; }
             queue.RemoveAll(q => q.kind == ActKind.Move && q.byPlayer);
             if (current != null && ((current.kind == ActKind.Move && current.byPlayer) || (!current.byPlayer && current.kind != ActKind.BeTalkedTo && current.kind != ActKind.Work))) CancelCurrent(false);
             KnockAt(lotId, door, null, true);
@@ -344,7 +345,7 @@ namespace FoxLife
         {
             if (storeGroup != null || stage < LifeStage.Teen || sleeping || atWork || carried) return;
             if (current != null && (current.byPlayer || current.kind == ActKind.Social || current.kind == ActKind.BeTalkedTo || current.kind == ActKind.Work)) return;
-            if (IsPlayer && !G.autonomy) return;
+            if (!G.AutonomyFor(home)) return;
             foreach (var o in G.foxes)
             {
                 if (o == null || o == this || o.KeyTo(home) != KeyKind.Trusted || Social.Rel(this, o) >= RevokeBelow) continue;

@@ -49,7 +49,7 @@ namespace FoxLife
         public bool CanStyle(Styleable st)
         {
             if (st == null) return false;
-            if (mayorMode) return true;
+            if (Mayor) return true;
             var fox = st.GetComponentInParent<Fox>();
             if (fox != null) return IsPlayer(fox);
             var furn = st.GetComponent<Furniture>();
@@ -59,7 +59,7 @@ namespace FoxLife
             return st.transform.IsChildOf(house.PlayerLot.root);
         }
 
-        bool MayEditLot(int lot) => mayorMode || lot == House.PlayerLotId;   // наши лисички сами переодеваются ко сну и под дождь
+        bool MayEditLot(int lot) => Mayor || lot == House.PlayerLotId;   // наши лисички сами переодеваются ко сну и под дождь
         public int lastBillDay;
         int lastSocialHour = -1;
 
@@ -161,6 +161,7 @@ namespace FoxLife
 
         void ClearWorld()
         {
+            if (Net.IsHost) Net.I.Stop("Хозяин начал другую игру.");
             ClearUndo();
             pendingBefore = null;
             EndTitleScene();
@@ -183,7 +184,7 @@ namespace FoxLife
 
         void OnApplicationQuit()
         {
-            if (started) SaveSystem.Save(this);
+            if (started && !Net.IsClient) SaveSystem.Save(this); // у друга в гостях своё сохранение не трогаем
         }
 
         void SetupCameraAndLight()
@@ -271,15 +272,24 @@ namespace FoxLife
         public bool KnownToPlayer(Fox f) { if (IsPlayer(f)) return true; foreach (var o in foxes) if (o.home == House.PlayerLotId && Social.Rel(o, f) >= 20) return true; return false; }
 
         /// <summary>Запись в журнал только о своей семье — про соседей не шумим.</summary>
-        public void LogFox(Fox f, string text) { if (IsPlayer(f)) Log(text); }
-        public void LogPair(Fox a, Fox b, string text) { if (IsPlayer(a) || IsPlayer(b)) Log(text); }
-        public void AddMoneyFor(Fox f, int amount, string reason) { if (IsPlayer(f)) AddMoney(amount, reason); }
+        public void LogFox(Fox f, string text) { if (IsPlayer(f)) Log(text); else if (Net.IsHost && f != null) Net.I.LogTo(f.home, text); }
+        public void LogPair(Fox a, Fox b, string text)
+        {
+            if (IsPlayer(a) || IsPlayer(b)) Log(text);
+            if (Net.IsHost)
+            {
+                if (a != null) Net.I.LogTo(a.home, text);
+                if (b != null && (a == null || b.home != a.home)) Net.I.LogTo(b.home, text);
+            }
+        }
+        public void AddMoneyFor(Fox f, int amount, string reason) { if (IsPlayer(f)) AddMoney(amount, reason); else if (Net.IsHost && f != null) Net.I.RemoteMoney(f.home, amount, reason); }
 
         /// <summary>Платное угощение или монетка: платит только наша семья.</summary>
         public void Charge(Fox f, int amount, string reason)
         {
-            if (!IsPlayer(f) || amount <= 0) return;
-            AddMoney(-amount, $"{f.foxName}: {reason.ToLower()}");
+            if (f == null || amount <= 0) return;
+            if (IsPlayer(f)) AddMoney(-amount, $"{f.foxName}: {reason.ToLower()}");
+            else if (Net.IsHost) Net.I.RemoteMoney(f.home, -amount, $"{f.foxName}: {reason.ToLower()}");
         }
 
         public Fox CreateFox(string name, Personality p, int furPreset, Vector3 pos, float ears, float tail, float size, bool female = false, LifeStage stage = LifeStage.Adult)
@@ -385,6 +395,7 @@ namespace FoxLife
         public void SetMode(Mode m)
         {
             if (townBuilder && (m == Mode.Live || m == Mode.Create || m == Mode.Town)) return; // в строительстве города лисички не участвуют
+            if (m == Mode.Create && Net.IsClient) { Log("Создавать и менять лисичек по сети может только хозяин игры."); return; }
             CancelPlacing();
             if (m != Mode.Build && m != Mode.Style) ClearUndo(); // история правок — только пока открыт план
             SetWallTool(WallTool.None);
@@ -421,11 +432,12 @@ namespace FoxLife
 
         public void SetSpeed(int i)
         {
-            speedIndex = Mathf.Clamp(i, 0, Speeds.Length - 1);
-            if (speedIndex > 0) prevSpeed = speedIndex;
+            wantSpeed = Mathf.Clamp(i, 0, Speeds.Length - 1);
+            if (wantSpeed > 0) prevSpeed = wantSpeed;
+            if (!Net.Active) speedIndex = wantSpeed; // по сети время идёт с самой медленной из выбранных скоростей
         }
 
-        public void TogglePause() => SetSpeed(speedIndex == 0 ? prevSpeed : 0);
+        public void TogglePause() => SetSpeed(wantSpeed == 0 ? prevSpeed : 0);
 
         bool lanternsLit;
         float shownGlowK = -1f;
@@ -570,10 +582,12 @@ namespace FoxLife
             if (f.def.stair) house.Rebuild(lt);
             f.gameObject.SetActive(!FurnitureHidden(f));
             if (IsBridge(f.def)) RefreshGridAround(f);
+            Net.FurnRegistered(f);
         }
 
         void Unregister(Furniture f)
         {
+            Net.FurnUnregistered(f);
             furniture.Remove(f);
             house.grids[f.level].Clear(f);
             if (f.def.stair) house.Rebuild(house.LotById(f.lot));
@@ -1398,39 +1412,54 @@ namespace FoxLife
             UpdateSky();
             var list = new List<Fox>(foxes);
             foreach (var f in list) if (f != null) f.Tick(dt * sp, dt * sp);
-            if (Day != lastAgeDay) NewDay();
-            int hourNow = (int)(minutes / 60f);
-            if (hourNow != lastSocialHour)
+if (!Net.IsClient) // жизнь города ведёт хост; у друга — только то, что тот присылает
             {
-                lastSocialHour = hourNow;
-                foreach (var f in new List<Fox>(foxes)) if (f != null) f.MaybeDropBy();
-                // утром — что сегодня в городе
-                if (hourNow % 24 == 8)
-                    foreach (var ev in TownEvents.Today(Day))
-                    {
-                        var lot = house.lots.Find(l => l.kind == ev.place);
-                        Log($"Сегодня {TownEvents.Hours(ev)}: {ev.name} ({(lot != null ? lot.name : "")}). {ev.text}");
-                    }
-            }
-
-            if (Day > 1 && (Day - 1) % 7 == 0 && Hour >= 9f && lastBillDay != Day)
-            {
-                lastBillDay = Day;
-                float value = 0;
-                foreach (var f in furniture) if (f.lot == House.PlayerLotId) value += f.def.price;
-                int mouths = 0; foreach (var f in foxes) if (IsPlayer(f)) mouths++;
-                int bill = Mathf.RoundToInt(50 + value * 0.03f + mouths * 20);
-                AddMoney(-bill, "Счета за неделю");
-                foreach (var f in foxes) if (f.pension > 0 && IsPlayer(f)) AddMoney(f.pension, $"{f.foxName}: пенсия");
-            }
-
-            if (started)
-            {
-                autosaveTimer -= Time.unscaledDeltaTime;
-                if (autosaveTimer <= 0)
+                if (Day != lastAgeDay) NewDay();
+                int hourNow = (int)(minutes / 60f);
+                if (hourNow != lastSocialHour)
                 {
-                    autosaveTimer = AutosaveSeconds;
-                    SaveSystem.Save(this);
+                    lastSocialHour = hourNow;
+                    foreach (var f in new List<Fox>(foxes)) if (f != null) f.MaybeDropBy();
+                    // утром — что сегодня в городе
+                    if (hourNow % 24 == 8)
+                        foreach (var ev in TownEvents.Today(Day))
+                        {
+                            var lot = house.lots.Find(l => l.kind == ev.place);
+                            string today = $"Сегодня {TownEvents.Hours(ev)}: {ev.name} ({(lot != null ? lot.name : "")}). {ev.text}";
+                            Log(today);
+                            if (Net.IsHost) Net.I.LogAll(today);
+                        }
+                }
+
+                if (Day > 1 && (Day - 1) % 7 == 0 && Hour >= 9f && lastBillDay != Day)
+                {
+                    lastBillDay = Day;
+                    float value = 0;
+                    foreach (var f in furniture) if (f.lot == House.PlayerLotId) value += f.def.price;
+                    int mouths = 0; foreach (var f in foxes) if (IsPlayer(f)) mouths++;
+                    int bill = Mathf.RoundToInt(50 + value * 0.03f + mouths * 20);
+                    AddMoney(-bill, "Счета за неделю");
+                    foreach (var f in foxes) if (f.pension > 0 && IsPlayer(f)) AddMoney(f.pension, $"{f.foxName}: пенсия");
+                    // семьи друзей тоже платят по счетам
+                    if (Net.IsHost)
+                        foreach (var p in Net.I.peers)
+                        {
+                            if (p.lot < 0 || p.closed) continue;
+                            float v2 = 0; foreach (var f in furniture) if (f.lot == p.lot) v2 += f.def.price;
+                            int m2 = 0; foreach (var f in foxes) if (f.home == p.lot) m2++;
+                            Net.I.RemoteMoney(p.lot, -Mathf.RoundToInt(50 + v2 * 0.03f + m2 * 20), "Счета за неделю");
+                            foreach (var f in foxes) if (f.pension > 0 && f.home == p.lot) Net.I.RemoteMoney(p.lot, f.pension, $"{f.foxName}: пенсия");
+                        }
+                }
+
+                if (started)
+                {
+                    autosaveTimer -= Time.unscaledDeltaTime;
+                    if (autosaveTimer <= 0)
+                    {
+                        autosaveTimer = AutosaveSeconds;
+                        SaveSystem.Save(this);
+                    }
                 }
             }
 

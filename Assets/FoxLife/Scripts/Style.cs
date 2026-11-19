@@ -86,6 +86,7 @@ namespace FoxLife
             parts[part].style = s.Clone();
             MaterialFactory.Apply(parts[part].mat, parts[part].style);
             if (notify && kind != SurfaceKind.Fox && Game.I != null) Game.I.NotifyStyle();
+            Net.StyleChanged(this);
         }
 
         /// <summary>false во время загрузки, чтобы перекраска из сохранения не считалась действием игрока.</summary>

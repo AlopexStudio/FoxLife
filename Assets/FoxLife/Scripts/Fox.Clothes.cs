@@ -20,7 +20,8 @@ namespace FoxLife
             get
             {
                 if (G.ui != null && ((G.ui.clothesOpen && G.mode == Mode.Live && G.selected == this) || (G.mode == Mode.Town && G.ui.townEditing && G.ui.townEditFox == this))) return G.ui.outfitTab;
-                if (IsPlayer && !G.autoOutfits) return wornOutfit < 0 ? 0 : wornOutfit;
+                if (Net.IsClient && netWorn >= 0) return netWorn;
+                if (G.ManualOutfits(home)) return wornOutfit < 0 ? 0 : wornOutfit;
                 if (sleeping) return 1;
                 if (G.weather != null && G.weather.Raining && Level == 0 && G.house.RoomAt(0, Cell) == null) return 2;
                 return 0;
@@ -105,6 +106,7 @@ namespace FoxLife
         /// <summary>Положить вещь в наряд на это место (или убрать, если id = null).</summary>
         public void SetItem(int outfit, ClothSlot slot, string id)
         {
+            if (Net.IsClient && !Net.Applying) Net.I.SendOp(this, "item", outfit.ToString(), ((int)slot).ToString(), id);
             if (outfits == null) outfits = Wardrobe.Defaults(this);
             SyncWorn();
             var o = outfits[outfit];

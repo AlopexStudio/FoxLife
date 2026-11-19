@@ -286,6 +286,13 @@ namespace FoxLife
             {
                 ScreenMenu();
             }
+            else if (Net.I != null && Net.I.NeedsPicker)
+            {
+                WorldLabels();
+                NetPicker();
+                NetBadge();
+                Tooltip();
+            }
             else if (G.mode == Mode.Town)
             {
                 UpdatePortraits();
@@ -309,6 +316,7 @@ namespace FoxLife
                     case Mode.Style: StylePanel(); break;
                     case Mode.Create: CreatePanel(); break;
                 }
+                NetBadge();
                 Menu();
                 Tooltip();
             }

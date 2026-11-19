@@ -332,6 +332,7 @@ namespace FoxLife
         {
             if (root == null) return;
             var tree = house.trees.Find(tr => tr.st != null && tr.st.transform == root);
+            Net.PropRemoved(tree != null, tree == null ? PropKey(root) : null, tree != null ? tree.p : root.position);
             if (tree != null) house.trees.Remove(tree);
             else removedProps.Add(PropKey(root));
             Unblock(root);

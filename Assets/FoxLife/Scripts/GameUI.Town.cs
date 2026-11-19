@@ -102,9 +102,10 @@ namespace FoxLife
             if (title) TitleBackdrop();
             else Fill(new Rect(0, 0, vw, vh), new Color(0.05f, 0.1f, 0.15f, 0.45f));
             if (screen == MenuScreen.Settings) { SettingsScreen(); return; }
+            if (netPanel || (title && Net.IsClient)) { NetPanel(); return; }
             if (townChoices != null) { TownPicker(); return; }
             bool hasSave = SaveSystem.HasSave;
-            float w = title ? 360 : 420, h = confirmNew ? 330 : title ? (hasSave ? 236 : 172) : (hasSave ? 560 : 510);
+            float w = title ? 360 : 420, h = confirmNew ? 330 : title ? (hasSave ? 284 : 220) : Net.IsClient ? 300 : (hasSave ? 608 : 558) - (Net.Active ? 48 : 0);
             var r = title ? new Rect(64, vh * 0.5f - 130, w, h) : new Rect((vw - w) / 2, (vh - h) / 2, w, h);
             var oldBg = GUI.backgroundColor;
             if (title) GUI.backgroundColor = new Color(1f, 1f, 1f, 0.82f);
@@ -139,19 +140,30 @@ namespace FoxLife
                     GUILayout.Label(SaveSystem.SaveInfo ?? "", sub);
                 }
                 if (Btn("Новая игра", !hasSave, Hh(44))) Defer(() => { if (hasSave) confirmNew = true; else StartNew(); });
+                if (Btn(new GUIContent("Играть вместе", "Зайти в город к другу по сети (Radmin VPN или домашняя сеть)"), false, Hh(40))) Defer(() => netPanel = true);
                 if (Btn("Настройки", false, Hh(40))) Defer(() => { settingsFrom = MenuScreen.Title; screen = MenuScreen.Settings; });
                 if (Btn("Выйти", false, Hh(40))) Defer(Quit);
+            }
+            else if (Net.IsClient)
+            {
+                // в гостях у друга: сохраняет и меняет город хозяин
+                if (Btn("Вернуться в игру", true, Hh(42))) Defer(() => screen = MenuScreen.None);
+                if (Btn("Настройки", false, Hh(40))) Defer(() => { settingsFrom = MenuScreen.Pause; screen = MenuScreen.Settings; });
+                if (Btn(new GUIContent("Играть вместе", "Кто в игре, покинуть игру друга"), false, Hh(40))) Defer(() => netPanel = true);
+                if (Btn("Покинуть игру друга", false, Hh(40))) Defer(() => Net.I.Stop("Ты вышел(ла) из игры друга."));
+                GUILayout.Label("Пока меню открыто, у всех пауза.", sub);
             }
             else
             {
                 bool canReturn = G.mode == Mode.Town || G.Household.Count > 0;
                 if (canReturn && Btn("Вернуться в игру", true, Hh(42))) Defer(() => screen = MenuScreen.None);
                 if (Btn("Сохранить", false, Hh(40))) Defer(() => Note(G.SaveGame() ? "Сохранено!" : "Не получилось сохранить."));
+                if (G.mode != Mode.Town && Btn(new GUIContent(Net.IsHost ? "Играть вместе (игра открыта)" : "Играть вместе", "Открыть этот город для друга по сети"), Net.IsHost, Hh(40))) Defer(() => netPanel = true);
                 if (hasSave && Btn(new GUIContent("Загрузить сохранение  (" + SaveSystem.SaveInfo + ")"), false, Hh(40))) Defer(() => G.ContinueGame());
-                if (Btn(new GUIContent("Редактирование города", "Весь городок: семьи (играть за другую, создавать, переселять), участки и ландшафт, стили"), false, Hh(40))) Defer(() => G.EnterTown());
+                if (!Net.Active && Btn(new GUIContent("Редактирование города", "Весь городок: семьи (играть за другую, создавать, переселять), участки и ландшафт, стили"), false, Hh(40))) Defer(() => G.EnterTown());
                 if (Btn("Настройки", false, Hh(40))) Defer(() => { settingsFrom = MenuScreen.Pause; screen = MenuScreen.Settings; });
                 if (Btn("Новая игра", false, Hh(40))) Defer(() => confirmNew = true);
-                if (G.mode == Mode.Town && Btn(new GUIContent("Строить город", "Перестроить весь город"), false, Hh(40))) Defer(() => G.EnterTownBuilder());
+                if (G.mode == Mode.Town && !Net.Active && Btn(new GUIContent("Строить город", "Перестроить весь город"), false, Hh(40))) Defer(() => G.EnterTownBuilder());
                 if (Btn("Сохранить и выйти", false, Hh(40))) Defer(Quit);
             }
             if (!string.IsNullOrEmpty(menuNote) && Time.unscaledTime - menuNoteTime < 3f)
@@ -231,7 +243,8 @@ namespace FoxLife
             {
                 GUILayout.Space(8);
                 GUILayout.Label("Игра", sBig);
-                if (Btn(new GUIContent("Жизнь лисичек: " + Family.LifespanName(G.lifespan), "Как быстро лисички растут и стареют"), false, Hh(36)))
+                if (Net.IsClient) GUILayout.Label("По сети погоду, время суток и правила города меняет хозяин игры.", sWrap);
+                else if (Btn(new GUIContent("Жизнь лисичек: " + Family.LifespanName(G.lifespan), "Как быстро лисички растут и стареют"), false, Hh(36)))
                     Defer(() => G.lifespan = (Lifespan)(((int)G.lifespan + 1) % 4));
                 if (Btn("Свобода воли: " + (G.autonomy ? "вкл" : "выкл"), false, Hh(36))) Defer(() => G.autonomy = !G.autonomy);
                 if (Btn(new GUIContent("Наши лисички сами переодеваются: " + (G.autoOutfits ? "да" : "нет"), "Ко сну — в пижаму, под дождём — в дождевик"), false, Hh(36))) Defer(() => G.autoOutfits = !G.autoOutfits);

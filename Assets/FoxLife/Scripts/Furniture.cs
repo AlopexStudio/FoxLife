@@ -102,6 +102,8 @@ namespace FoxLife
         public float lastFinished = -99999f;
         public int level;
         public int lot = -1;   // участок, на котором стоит
+        /// <summary>Сетевой номер предмета (одинаковый у всех игроков; 0 — не в сетевой игре).</summary>
+        public int nid;
         public float boughtAt = -1f;   // когда куплен (игровые минуты); -1 — давно
 
         /// <summary>Доворот к 90° (только у построек города: мосты, фонари, статуи можно поставить наискосок).</summary>

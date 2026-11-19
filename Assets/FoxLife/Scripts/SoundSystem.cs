@@ -283,8 +283,8 @@ namespace FoxLife
             return Mathf.Clamp01(1f - (d - 6f) / 30f);
         }
 
-        public void Knock(Vector3 p) { float v = Near(p); if (sfx != null && v > 0.02f) sfx.PlayOneShot(knock, soundVolume * 0.9f * v); }
-        public void Doorbell(Vector3 p) { float v = Near(p); if (sfx != null && v > 0.02f) sfx.PlayOneShot(bell, soundVolume * 0.7f * v); }
+        public void Knock(Vector3 p) { Net.Sfx(0, p); float v = Near(p); if (sfx != null && v > 0.02f) sfx.PlayOneShot(knock, soundVolume * 0.9f * v); }
+        public void Doorbell(Vector3 p) { Net.Sfx(1, p); float v = Near(p); if (sfx != null && v > 0.02f) sfx.PlayOneShot(bell, soundVolume * 0.7f * v); }
 
         public void Thunder(float delay) { if (sfx != null) StartCoroutine(Later(delay)); }
 

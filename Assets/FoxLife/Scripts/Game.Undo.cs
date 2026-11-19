@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -243,9 +243,10 @@ namespace FoxLife
             strokeOld = null;
             bool plantsChanged = fb.Count != fa.Count || tb.Count != ta.Count;
             if (cols.Count == 0 && !plantsChanged) return;
+            NetStroke(cols, false, fb, fa, tb, ta);
             PushUndo(strokeName,
-                () => { RestoreTerrain(cols, true); RestorePlants(fa, fb, ta, tb); money -= dm; },
-                () => { RestoreTerrain(cols, false); RestorePlants(fb, fa, tb, ta); money += dm; });
+                () => { RestoreTerrain(cols, true); RestorePlants(fa, fb, ta, tb); money -= dm; NetStroke(cols, true, fa, fb, ta, tb); },
+                () => { RestoreTerrain(cols, false); RestorePlants(fb, fa, tb, ta); money += dm; NetStroke(cols, false, fb, fa, tb, ta); });
         }
 
         void RestoreTerrain(List<(int idx, Vector2 before, Vector2 after)> cols, bool toBefore)

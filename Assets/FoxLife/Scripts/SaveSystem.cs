@@ -60,6 +60,7 @@ namespace FoxLife
         public Color lightColor = new Color(1f, 0.82f, 0.58f);
         public List<StyleData> styles = new List<StyleData>();
         public float yaw;
+        public int nid;   // сетевой номер (только для игры по сети)
     }
 
     [Serializable]
@@ -261,6 +262,21 @@ namespace FoxLife
         {
             try
             {
+                File.WriteAllText(path ?? PathToSave, ToJson(g, true));
+                Touch();
+                return true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("FoxLife: не удалось сохранить: " + e);
+                return false;
+            }
+        }
+
+        /// <summary>Весь мир одной строкой JSON: для файла сохранения и для друга по сети.</summary>
+        public static string ToJson(Game g, bool pretty)
+        {
+            {
                 var s = new SaveGame
                 {
                     savedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
@@ -286,52 +302,9 @@ namespace FoxLife
                 foreach (var kv in g.storedMoney) { s.moneyGroups.Add(kv.Key); s.moneyGroupValues.Add(kv.Value); }
                 var everyone = new List<Fox>(g.foxes);
                 everyone.AddRange(g.stored);
-                foreach (var f in everyone)
-                {
-                    f.SyncWorn();
-                    var sf = new SaveFox
-                    {
-                        name = f.foxName,
-                        pers = (int[])f.pers.v.Clone(),
-                        ears = f.earSize, tail = f.tailFluff, size = f.size,
-                        needs = (float[])f.needs.Clone(),
-                        x = f.transform.position.x, y = f.transform.position.y, z = f.transform.position.z,
-                        yaw = f.transform.eulerAngles.y,
-                        styles = Styles(f.style),
-                        skillXp = (float[])f.skillXp.Clone(),
-                        skillLvl = (int[])f.skillLvl.Clone(),
-                        career = f.career != null ? f.career.id : null,
-                        careerLevel = f.careerLevel,
-                        lastWorkDay = f.lastWorkDay,
-                        performance = f.performance,
-                        wants = new List<Want>(f.wants),
-                        fearId = f.fearId,
-                        fearCooldown = f.fearCooldown,
-                        happiness = f.happiness,
-                        perks = new List<string>(f.perks),
-                        dream = f.dream,
-                        dreamsDone = new List<string>(f.dreamsDone),
-                        tallyK = new List<string>(f.tally.Keys),
-                        tallyV = new List<int>(f.tally.Values),
-                        memories = new List<Memory>(f.memories),
-                        id = f.id, mother = f.motherId, father = f.fatherId, partner = f.partnerId, babyFather = f.babyFatherId,
-                        female = f.female, married = f.married, stage = (int)f.stage, ageDays = f.ageDays, stageDays = f.stageDays,
-                        pension = f.pension, pregnantMinutes = f.pregnantMinutes,
-                        element = f.elementId, likedWeather = f.likedWeather, dislikedWeather = f.dislikedWeather,
-                        home = f.home,
-                        stored = f.storeGroup != null,
-                        group = f.storeGroup,
-                        outfits = f.outfits != null ? new List<Outfit>(f.outfits) : null,
-                    };
-                    foreach (var kv in f.romance) sf.romance.Add(new SaveRel { other = kv.Key.id, value = kv.Value });
-                    sf.keys = f.SavedKeys();
-
-                    foreach (var kv in f.rel) sf.rels.Add(new SaveRel { other = kv.Key.id, value = kv.Value });
-                    foreach (var m in f.moodlets) sf.moodlets.Add(new SaveMoodlet { name = m.name, value = m.value, minutesLeft = m.minutesLeft });
-                    s.foxes.Add(sf);
-                }
+                foreach (var f in everyone) s.foxes.Add(FoxToSave(f, false));
                 foreach (var fu in g.furniture)
-                    s.furniture.Add(new SaveFurniture { id = fu.def.id, x = fu.anchor.x, z = fu.anchor.y, rot = fu.rot, level = fu.level, bought = fu.boughtAt, light = fu.lightLevel, lightColor = fu.lightColor, styles = AllStyles(fu), yaw = fu.fineYaw });
+                    s.furniture.Add(new SaveFurniture { id = fu.def.id, x = fu.anchor.x, z = fu.anchor.y, rot = fu.rot, level = fu.level, bought = fu.boughtAt, light = fu.lightLevel, lightColor = fu.lightColor, styles = AllStyles(fu), yaw = fu.fineYaw, nid = fu.nid });
                 s.terrain = g.house.terrain.OffsetData();
                 s.paint = g.house.terrain.PaintData();
                 foreach (var fl in g.house.terrain.flowers) s.flowers.Add(new SaveFlower { x = fl.p.x, z = fl.p.z, seed = fl.seed });
@@ -343,22 +316,60 @@ namespace FoxLife
                 foreach (var st in g.house.Surfaces())
                     s.surfaces.Add(new SaveSurface { name = st.displayName, styles = Styles(st) });
                 foreach (var p in g.ui.housePalette) s.palette.Add(p.Clone());
-
-                File.WriteAllText(path ?? PathToSave, JsonUtility.ToJson(s, true));
-                Touch();
-                return true;
-            }
-            catch (Exception e)
-            {
-                Debug.LogError("FoxLife: не удалось сохранить: " + e);
-                return false;
+                return JsonUtility.ToJson(s, pretty);
             }
         }
 
-        public static System.Collections.IEnumerator LoadAsync(Game g, Action<bool> done, string path = null)
+        /// <summary>Лисичка для сохранения. allKeys — со всеми ключами (по сети), иначе только постоянные.</summary>
+        public static SaveFox FoxToSave(Fox f, bool allKeys)
+        {
+            f.SyncWorn();
+            var sf = new SaveFox
+            {
+                name = f.foxName,
+                pers = (int[])f.pers.v.Clone(),
+                ears = f.earSize, tail = f.tailFluff, size = f.size,
+                needs = (float[])f.needs.Clone(),
+                x = f.transform.position.x, y = f.transform.position.y, z = f.transform.position.z,
+                yaw = f.transform.eulerAngles.y,
+                styles = Styles(f.style),
+                skillXp = (float[])f.skillXp.Clone(),
+                skillLvl = (int[])f.skillLvl.Clone(),
+                career = f.career != null ? f.career.id : null,
+                careerLevel = f.careerLevel,
+                lastWorkDay = f.lastWorkDay,
+                performance = f.performance,
+                wants = new List<Want>(f.wants),
+                fearId = f.fearId,
+                fearCooldown = f.fearCooldown,
+                happiness = f.happiness,
+                perks = new List<string>(f.perks),
+                dream = f.dream,
+                dreamsDone = new List<string>(f.dreamsDone),
+                tallyK = new List<string>(f.tally.Keys),
+                tallyV = new List<int>(f.tally.Values),
+                memories = new List<Memory>(f.memories),
+                id = f.id, mother = f.motherId, father = f.fatherId, partner = f.partnerId, babyFather = f.babyFatherId,
+                female = f.female, married = f.married, stage = (int)f.stage, ageDays = f.ageDays, stageDays = f.stageDays,
+                pension = f.pension, pregnantMinutes = f.pregnantMinutes,
+                element = f.elementId, likedWeather = f.likedWeather, dislikedWeather = f.dislikedWeather,
+                home = f.home,
+                stored = f.storeGroup != null,
+                group = f.storeGroup,
+                outfits = f.outfits != null ? new List<Outfit>(f.outfits) : null,
+            };
+            foreach (var kv in f.romance) sf.romance.Add(new SaveRel { other = kv.Key.id, value = kv.Value });
+            sf.keys = allKeys ? new List<HouseKey>(f.keys) : f.SavedKeys();
+
+            foreach (var kv in f.rel) sf.rels.Add(new SaveRel { other = kv.Key.id, value = kv.Value });
+            foreach (var m in f.moodlets) sf.moodlets.Add(new SaveMoodlet { name = m.name, value = m.value, minutesLeft = m.minutesLeft });
+            return sf;
+        }
+
+        public static System.Collections.IEnumerator LoadAsync(Game g, Action<bool> done, string path = null, string json = null)
         {
             SaveGame s = null;
-            try { s = JsonUtility.FromJson<SaveGame>(File.ReadAllText(path ?? PathToSave)); }
+            try { s = JsonUtility.FromJson<SaveGame>(json ?? File.ReadAllText(path ?? PathToSave)); }
             catch (Exception e) { Debug.LogError("FoxLife: не удалось прочитать сохранение: " + e); }
             if (s == null || s.foxes == null) { done(false); yield break; }
             Styleable.notify = false;
@@ -475,6 +486,7 @@ namespace FoxLife
                 ApplyAllStyles(f, sf.styles);
                 f.boughtAt = sf.bought;
                 f.lightLevel = sf.light; f.lightColor = sf.lightColor;
+                if (Net.IsClient && sf.nid != 0) f.nid = sf.nid;
             }
 
             g.loadingText = "Будим лисичек…";
@@ -561,6 +573,88 @@ namespace FoxLife
             if (sel == null || !Game.IsPlayer(sel)) sel = g.Household.Count > 0 ? g.Household[0] : null;
             g.Select(sel);
             g.Log("Сохранение загружено.");
+        }
+
+        // ================= игра по сети =================
+
+        public static void ApplyStylesTo(Styleable st, List<StyleData> styles) => ApplyStyles(st, styles);
+        public static void ApplyAllStylesTo(Furniture f, List<StyleData> styles) => ApplyAllStyles(f, styles);
+        public static List<StyleData> AllStylesOf(Furniture f) => AllStyles(f);
+
+        /// <summary>Новая лисичка, о которой рассказал хост (родилась, переехала в город).</summary>
+        public static Fox SpawnNetFox(Game g, SaveFox sf)
+        {
+            var p = new Personality();
+            if (sf.pers != null && sf.pers.Length == 5) p.v = (int[])sf.pers.Clone();
+            var fox = g.CreateFox(sf.name, p, 0, new Vector3(sf.x, sf.y, sf.z), sf.ears, sf.tail, sf.size, sf.female, (LifeStage)Mathf.Clamp(sf.stage, 0, 3));
+            if (!string.IsNullOrEmpty(sf.id)) fox.id = sf.id;
+            fox.home = sf.home;
+            return fox;
+        }
+
+        /// <summary>Обновить лисичку по описанию от хоста (всё, кроме положения и нужд — они идут отдельно).</summary>
+        public static void ApplyNetFox(Fox fox, SaveFox sf, bool styles)
+        {
+            fox.foxName = sf.name;
+            if (sf.pers != null && sf.pers.Length == 5) fox.pers.v = (int[])sf.pers.Clone();
+            fox.earSize = sf.ears; fox.tailFluff = sf.tail; fox.size = sf.size;
+            fox.home = sf.home;
+            fox.female = sf.female;
+            var st = (LifeStage)Mathf.Clamp(sf.stage, 0, 3);
+            if (st != fox.stage) fox.SetStage(st, false);
+            fox.ApplyShape();
+            fox.motherId = sf.mother; fox.fatherId = sf.father; fox.partnerId = sf.partner; fox.babyFatherId = sf.babyFather;
+            fox.married = sf.married;
+            fox.ageDays = sf.ageDays; fox.stageDays = sf.stageDays; fox.pension = sf.pension;
+            fox.pregnantMinutes = sf.pregnantMinutes;
+            fox.elementId = sf.element; fox.likedWeather = sf.likedWeather; fox.dislikedWeather = sf.dislikedWeather;
+            fox.moodlets.Clear();
+            if (sf.moodlets != null) foreach (var m in sf.moodlets) fox.AddMoodlet(m.name, m.value, m.minutesLeft);
+            if (sf.skillXp != null && sf.skillXp.Length == Skills.Count) fox.skillXp = (float[])sf.skillXp.Clone();
+            if (sf.skillLvl != null && sf.skillLvl.Length == Skills.Count) fox.skillLvl = (int[])sf.skillLvl.Clone();
+            fox.career = string.IsNullOrEmpty(sf.career) ? null : Careers.Get(sf.career);
+            fox.careerLevel = fox.career != null ? Mathf.Clamp(sf.careerLevel, 0, fox.career.levels.Length - 1) : 0;
+            fox.lastWorkDay = sf.lastWorkDay;
+            fox.performance = sf.performance;
+            fox.wants.Clear();
+            if (sf.wants != null) foreach (var w in sf.wants) if (Wants.Get(w.id) != null) fox.wants.Add(w);
+            fox.fearId = string.IsNullOrEmpty(sf.fearId) ? null : sf.fearId;
+            fox.fearCooldown = sf.fearCooldown;
+            fox.happiness = sf.happiness;
+            fox.perks.Clear(); if (sf.perks != null) fox.perks.AddRange(sf.perks);
+            fox.dream = string.IsNullOrEmpty(sf.dream) ? null : sf.dream;
+            fox.dreamsDone.Clear(); if (sf.dreamsDone != null) fox.dreamsDone.AddRange(sf.dreamsDone);
+            fox.tally.Clear();
+            if (sf.tallyK != null && sf.tallyV != null) for (int i = 0; i < sf.tallyK.Count && i < sf.tallyV.Count; i++) fox.tally[sf.tallyK[i]] = sf.tallyV[i];
+            fox.memories.Clear(); if (sf.memories != null) fox.memories.AddRange(sf.memories);
+            fox.keys.Clear(); if (sf.keys != null) foreach (var k in sf.keys) if (k != null) fox.keys.Add(k);
+            var byId = new Dictionary<string, Fox>();
+            foreach (var o in Game.I.foxes) if (o != null && o.id != null) byId[o.id] = o;
+            fox.rel.Clear();
+            if (sf.rels != null) foreach (var r in sf.rels) if (r.other != null && byId.TryGetValue(r.other, out var b) && b != fox) fox.rel[b] = r.value;
+            fox.romance.Clear();
+            if (sf.romance != null) foreach (var r in sf.romance) if (r.other != null && byId.TryGetValue(r.other, out var b) && b != fox) fox.romance[b] = r.value;
+            if (!styles) return;
+            string sj = JsonUtility.ToJson(new StyleList { s = sf.styles ?? new List<StyleData>() });
+            if (sj != fox.netStyleJson) { fox.netStyleJson = sj; ApplyStyles(fox.style, sf.styles); }
+            string oj = JsonUtility.ToJson(new NetFoxStyle { outfits = sf.outfits ?? new List<Outfit>() });
+            if (oj != fox.netOutfitJson && sf.outfits != null && sf.outfits.Count == 3)
+            {
+                fox.netOutfitJson = oj;
+                fox.outfits = sf.outfits.ToArray();
+                fox.wornOutfit = -1; // переоденется в следующем кадре уже в новые вещи
+            }
+        }
+
+        /// <summary>Друг перекрасил свою лисичку или её одежду.</summary>
+        public static void ApplyNetStyle(Fox fox, NetFoxStyle d, bool clothes)
+        {
+            if (d.fur != null && d.fur.Count > 0) ApplyStyles(fox.style, d.fur);
+            if (clothes && d.outfits != null && d.outfits.Count == 3)
+            {
+                fox.outfits = d.outfits.ToArray();
+                fox.wornOutfit = -1;
+            }
         }
 
         // ================= города-файлы =================

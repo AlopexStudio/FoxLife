@@ -41,6 +41,7 @@ namespace FoxLife
         public int repaths;
         public Vector3 targetSeen;          // где был собеседник, когда прокладывали путь
         public float repathTimer;
+        public bool netDone;                // друг закончил выбирать одежду или план дома
     }
 
     /// <summary>Лисичка: внешность, нужды, настроение, отношения и свобода воли, зависящая от характера.</summary>
@@ -349,12 +350,22 @@ namespace FoxLife
         {
             bubble = text;
             bubbleTimer = seconds;
+            sayCount++;
         }
 
         // ================= главный цикл =================
 
         public void Tick(float dm, float dr)
         {
+            if (Net.IsClient)
+            {
+                // у второго игрока лисички повторяют то, что присылает хост
+                NetStep();
+                UpdateClothes();
+                Animate(dr);
+                if (bubbleTimer > 0) bubbleTimer -= Time.deltaTime;
+                return;
+            }
             if (dm > 0)
             {
                 Decay(dm);
@@ -380,7 +391,7 @@ namespace FoxLife
                         if (thinkCooldown <= 0)
                         {
                             thinkCooldown = 3f;
-                            if (G.autonomy || !IsPlayer) current = ChooseAutonomous();
+                            if (G.AutonomyFor(home)) current = ChooseAutonomous();
                         }
                     }
                 }
@@ -487,6 +498,7 @@ namespace FoxLife
 
         public void Command(FoxAction a)
         {
+            if (Net.IsClient) { if (IsPlayer) Net.I.SendCommand(this, a); return; }
             a.byPlayer = true;
             // в чужой дом — только с разрешения жильцов: сначала постучаться
             if (a.kind != ActKind.Work)
@@ -517,6 +529,12 @@ namespace FoxLife
 
         public void Cancel(FoxAction a)
         {
+            if (Net.IsClient)
+            {
+                int idx = a == current ? -1 : queue.IndexOf(a);
+                if (a == current || idx >= 0) Net.I.SendOp(this, "cancel", idx.ToString(), a.label);
+                return;
+            }
             if (a == current && a.kind == ActKind.Work)
             {
                 if (atWork) EndShift(a, true);
@@ -733,6 +751,13 @@ namespace FoxLife
                 {
                     // стоит у шкафа, пока игрок выбирает одежду
                     pose = Pose.Use;
+                    if (Net.RemoteOwned(this))
+                    {
+                        // лисичка друга: ждём, пока друг выберет одежду у себя
+                        if (!a.reacted) { a.reacted = true; Net.I.SendOpen(this, 0); }
+                        if (a.netDone) Finish(a);
+                        return;
+                    }
                     if (!a.reacted) { a.reacted = true; if (G.selected == this) { G.ui.clothesOpen = true; G.ui.outfitTab = 0; } }
                     if (!G.ui.clothesOpen || G.selected != this) { G.ui.clothesOpen = false; Finish(a); }
                     return;
@@ -741,6 +766,12 @@ namespace FoxLife
                 {
                     // стоит у мольберта, пока игрок перестраивает дом
                     pose = Pose.Use;
+                    if (Net.RemoteOwned(this))
+                    {
+                        if (!a.reacted) { a.reacted = true; Net.I.SendOpen(this, 1); }
+                        if (a.netDone) Finish(a);
+                        return;
+                    }
                     if (!a.reacted) { a.reacted = true; if (G.selected == this) G.SetMode(Mode.Build); }
                     if ((G.mode != Mode.Build && G.mode != Mode.Style) || G.selected != this) Finish(a);
                     return;

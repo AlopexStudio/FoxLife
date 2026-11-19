@@ -87,6 +87,7 @@ namespace FoxLife
 
         public void TakeJob(CareerDef c)
         {
+            if (Net.IsClient) { Net.I.SendOp(this, "takejob", c.id); return; }
             if (career != null) QuitJob(false);
             career = c;
             careerLevel = 0;
@@ -102,6 +103,7 @@ namespace FoxLife
 
         public void QuitJob(bool log = true)
         {
+            if (Net.IsClient) { Net.I.SendOp(this, "quitjob", log ? "1" : "0"); return; }
             if (career == null) return;
             if (atWork && current != null && current.kind == ActKind.Work) EndShift(current, true);
             if (log)
@@ -475,6 +477,7 @@ namespace FoxLife
 
         public bool BuyPerk(PerkDef p)
         {
+            if (Net.IsClient) { Net.I.SendOp(this, "perk", p.id); return true; }
             if (HasPerk(p.id) || happiness < p.cost) return false;
             happiness -= p.cost;
             perks.Add(p.id);

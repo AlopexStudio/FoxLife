@@ -81,6 +81,7 @@ namespace FoxLife
         /// <summary>Пригласить к себе: гость идёт к нашей двери и остаётся на пару часов.</summary>
         public void InviteOver(Fox guest)
         {
+            if (Net.IsClient) { Net.I.SendOp(this, "invite", guest.id); return; }
             int myHome = home;
             var host = this;
             var entry = HomeEntry;
@@ -108,6 +109,7 @@ namespace FoxLife
         /// <summary>Пойти вместе в кафе, парк или куда-то ещё.</summary>
         public void GoOutTogether(Fox friend, House.Lot lot)
         {
+            if (Net.IsClient) { Net.I.SendOp(this, "goout", friend.id, lot.id.ToString()); return; }
             var target = lot.entry;
             var pos = GridMap.Center(target) + Vector3.up * G.house.FloorY(0, target);
             friend.CancelCurrentPublic();
@@ -140,7 +142,7 @@ namespace FoxLife
             if (ev == null) return;
             bool first = !moodlets.Exists(m => m.name == ev.mood);
             AddMoodlet(ev.mood, 6 + (pers.E - 5) * 0.6f, 180);
-            if (first) { Remember(ev.name + ": " + lot.name); if (IsPlayer) G.Log($"{foxName}: {ev.name.ToLower()} — {lot.name}."); }
+            if (first) { Remember(ev.name + ": " + lot.name); G.LogFox(this, $"{foxName}: {ev.name.ToLower()} — {lot.name}."); }
         }
 
         public void CancelCurrentPublic()
@@ -151,7 +153,7 @@ namespace FoxLife
         /// <summary>Соседи иногда сами заглядывают к друзьям (раз в игровой час — небольшой шанс).</summary>
         public void MaybeDropBy()
         {
-            if (IsPlayer && G.autonomy == false) return;
+            if (!G.AutonomyFor(home)) return;
             if (atWork || sleeping || stage == LifeStage.Kit || current != null && current.byPlayer) return;
             float h = G.Hour;
             if (h < 10f || h > 19f || (G.weather != null && G.weather.Raining)) return;
@@ -165,7 +167,7 @@ namespace FoxLife
             if (refusedAt.TryGetValue(friend.home, out var rt) && G.minutes - rt < 240f) return; // недавно не пустили — не навязываемся
             // с ключом заходят сами, без ключа — стучат
             KnockAt(friend.home, null, null, false);
-            if (friend.IsPlayer) G.Log($"{foxName} идёт к вам в гости.");
+            G.LogFox(friend, $"{foxName} идёт к вам в гости.");
         }
     }
 }

@@ -176,6 +176,7 @@ namespace FoxLife
 
         public void EnterTown()
         {
+            if (Net.Active) { Log("Пока играем по сети, город не редактируется: сначала закрой игру для друзей."); ui.screen = GameUI.MenuScreen.None; return; }
             CancelPlacing();
             SetWallTool(WallTool.None);
             SetLandTool(LandTool.None);
