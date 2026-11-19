@@ -2,6 +2,8 @@
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 /// <summary>Меню FoxLife → Create Main Scene: создаёт сцену и настраивает проект для сборки.</summary>
 public static class FoxLifeSetup
@@ -84,10 +86,104 @@ public static class FoxLifeSetup
         AssetDatabase.SaveAssets();
     }
 
+    const string SettingsDir = "Assets/FoxLife/Settings";
+
+    /// <summary>
+    /// Настройки URP: Forward+ (много фонарей без потери скорости), тени солнца и фонарей, HDR, сглаживание
+    /// и два своих полноэкранных прохода: «антиблик» до постобработки и «миниатюра» после неё.
+    /// Сама постобработка (свечение, ACES, цвет, виньетка) — объёмом URP, его создаёт игра (PostFX.cs).
+    /// </summary>
+    [MenuItem("FoxLife/Setup URP")]
+    public static void SetupURP()
+    {
+        Directory.CreateDirectory(SettingsDir);
+        string rdPath = SettingsDir + "/FoxRenderer.asset", pPath = SettingsDir + "/FoxURP.asset";
+        var rd = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(rdPath);
+        if (rd == null)
+        {
+            rd = ScriptableObject.CreateInstance<UniversalRendererData>();
+            AssetDatabase.CreateAsset(rd, rdPath);
+        }
+        rd.renderingMode = RenderingMode.ForwardPlus;
+        if (rd.postProcessData == null)
+            rd.postProcessData = AssetDatabase.LoadAssetAtPath<PostProcessData>("Packages/com.unity.render-pipelines.universal/Runtime/Data/PostProcessData.asset");
+
+        // свои полноэкранные проходы
+        foreach (var old in rd.rendererFeatures.ToArray())
+            if (old != null && (old.name == "Антиблик" || old.name == "Миниатюра")) { rd.rendererFeatures.Remove(old); Object.DestroyImmediate(old, true); }
+        rd.rendererFeatures.RemoveAll(f => f == null);
+        Material Mat(string shader, string file)
+        {
+            string path = SettingsDir + "/" + file + ".mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null) { m = new Material(Shader.Find(shader)); AssetDatabase.CreateAsset(m, path); }
+            else m.shader = Shader.Find(shader);
+            return m;
+        }
+        void Add(string name, Material m, FullScreenPassRendererFeature.InjectionPoint at)
+        {
+            var f = ScriptableObject.CreateInstance<FullScreenPassRendererFeature>();
+            f.name = name;
+            f.injectionPoint = at;
+            f.passMaterial = m;
+            f.fetchColorBuffer = true;
+            f.requirements = ScriptableRenderPassInput.Color;
+            AssetDatabase.AddObjectToAsset(f, rd);
+            rd.rendererFeatures.Add(f);
+        }
+        Add("Антиблик", Mat("Hidden/FoxLife/Despeckle", "Despeckle"), FullScreenPassRendererFeature.InjectionPoint.BeforeRenderingPostProcessing);
+        Add("Миниатюра", Mat("Hidden/FoxLife/TiltShift", "TiltShift"), FullScreenPassRendererFeature.InjectionPoint.AfterRenderingPostProcessing);
+        EditorUtility.SetDirty(rd);
+        AssetDatabase.SaveAssets();
+        var so = new SerializedObject(rd);
+        var map = so.FindProperty("m_RendererFeatureMap");
+        map.arraySize = rd.rendererFeatures.Count;
+        for (int i = 0; i < rd.rendererFeatures.Count; i++)
+            if (AssetDatabase.TryGetGUIDAndLocalFileIdentifier(rd.rendererFeatures[i], out string _, out long id)) map.GetArrayElementAtIndex(i).longValue = id;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        var asset = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(pPath);
+        if (asset == null)
+        {
+            asset = UniversalRenderPipelineAsset.Create(rd);
+            AssetDatabase.CreateAsset(asset, pPath);
+        }
+        var ps = new SerializedObject(asset);
+        void B(string n, bool v) { var p = ps.FindProperty(n); if (p != null) p.boolValue = v; else Debug.LogWarning("FoxLife: нет поля " + n); }
+        void I(string n, int v) { var p = ps.FindProperty(n); if (p != null) p.intValue = v; else Debug.LogWarning("FoxLife: нет поля " + n); }
+        void F(string n, float v) { var p = ps.FindProperty(n); if (p != null) p.floatValue = v; else Debug.LogWarning("FoxLife: нет поля " + n); }
+        B("m_SupportsHDR", true);
+        I("m_MSAA", 4);
+        B("m_MainLightShadowsSupported", true);
+        I("m_MainLightShadowmapResolution", 2048);
+        I("m_AdditionalLightsRenderingMode", 1); // попиксельно
+        I("m_AdditionalLightsPerObjectLimit", 8);
+        B("m_AdditionalLightShadowsSupported", true);
+        I("m_AdditionalLightsShadowmapResolution", 2048);
+        F("m_ShadowDistance", 45f);
+        I("m_ShadowCascadeCount", 2);
+        F("m_Cascade2Split", 0.3f);
+        B("m_SoftShadowsSupported", true);
+        ps.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(asset);
+
+        GraphicsSettings.defaultRenderPipeline = asset;
+        int cur = QualitySettings.GetQualityLevel();
+        for (int i = 0; i < QualitySettings.names.Length; i++)
+        {
+            QualitySettings.SetQualityLevel(i, false);
+            QualitySettings.renderPipeline = asset;
+        }
+        QualitySettings.SetQualityLevel(cur, false);
+        AssetDatabase.SaveAssets();
+        Debug.Log("FoxLife: URP настроен (" + pPath + ")");
+    }
+
     [MenuItem("FoxLife/Build Windows")]
     public static void BuildWindows()
     {
         if (!File.Exists(ScenePath)) Run();
+        SetupURP();
         // туман включён в сцене — иначе Unity выбросит варианты шейдеров с туманом и погода «Туман» не будет видна
         var sc = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
         RenderSettings.fog = true;

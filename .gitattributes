@@ -8,3 +8,4 @@
 *.unity -text merge=unityyamlmerge
 *.prefab -text merge=unityyamlmerge
 *.mat -text merge=unityyamlmerge
+Build/** -text -diff

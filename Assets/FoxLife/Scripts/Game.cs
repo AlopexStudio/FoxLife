@@ -217,9 +217,7 @@ namespace FoxLife
             sun.shadowNormalBias = 0.15f;
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.skybox = null;
-            QualitySettings.shadowDistance = 45f;
-            QualitySettings.shadows = ShadowQuality.All;
-            QualitySettings.pixelLightCount = 8;
+            // тени и огни настраиваются в ассете URP (Settings/FoxURP): дальность теней 45 м, Forward+
         }
 
         void BuildDefaultFurniture()

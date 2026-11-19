@@ -7,8 +7,10 @@
 /[Mm]emoryCaptures/
 /[Rr]ecordings/
 
-# сборки и снимки автотестов
-/[Bb]uild/
+# сборка Build/FoxLife хранится в репозитории (чтобы играть без сборки); архивы и отладочное — нет
+/[Bb]uild/*.zip
+/[Bb]uild/**/*_BurstDebugInformation_DoNotShip/
+/[Bb]uild/**/*_BackUpThisFolder_ButDontShipItWithYourGame/
 /[Bb]uilds/
 /StyleTests/
 

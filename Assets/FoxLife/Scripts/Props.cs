@@ -15,13 +15,16 @@ namespace FoxLife
         /// <summary>Свет уличных фонарей (включается вечером).</summary>
         public static readonly List<Light> LampLights = new List<Light>();
 
+        /// <summary>В URP свет фонарей гаснет с расстоянием быстрее (физично), поэтому огни ярче, чем были в BIRP.</summary>
+        public const float LightK = 2.6f;
+
         static void AddLight(Transform t, Vector3 local, float range, float intensity)
         {
             var lg = new GameObject("Light");
             lg.transform.SetParent(t, false);
             lg.transform.localPosition = local;
             var l = lg.AddComponent<Light>();
-            l.type = LightType.Point; l.range = range; l.intensity = intensity;
+            l.type = LightType.Point; l.range = range; l.intensity = intensity * LightK;
             l.color = new Color(1f, 0.82f, 0.55f);
             l.renderMode = LightRenderMode.Auto;
             l.enabled = false;

@@ -1,5 +1,5 @@
 // Вода: полупрозрачная, у берега светлее и с пеной, в глубине — синее; рябь «пиксельная» (в шаг вокселя),
-// солнечные блики мягкие (без выжженных пятен), отражение неба по краю.
+// солнечные блики мягкие (без выжженных пятен), отражение неба по краю. URP.
 Shader "FoxLife/Water"
 {
     Properties
@@ -12,29 +12,31 @@ Shader "FoxLife/Water"
     }
     SubShader
     {
-        Tags { "Queue"="Transparent-10" "RenderType"="Transparent" "IgnoreProjector"="True" }
+        Tags { "Queue"="Transparent-10" "RenderType"="Transparent" "RenderPipeline"="UniversalPipeline" "IgnoreProjector"="True" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         Pass
         {
-            Tags { "LightMode"="ForwardBase" }
-            CGPROGRAM
+            Name "Water"
+            Tags { "LightMode"="UniversalForward" }
+            HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_fog
-            #include "UnityCG.cginc"
-            #include "UnityLightingCommon.cginc"
-            fixed4 _Shallow, _Deep, _Sky, _Foam;
-            float _Pixel;
-            struct appdata { float4 vertex : POSITION; fixed4 color : COLOR; };
-            struct v2f { float4 pos : SV_POSITION; float3 wp : TEXCOORD0; fixed4 col : COLOR; UNITY_FOG_COORDS(1) };
-            v2f vert (appdata v)
+            #include "FoxLit.hlsl"
+            CBUFFER_START(UnityPerMaterial)
+                half4 _Shallow, _Deep, _Sky, _Foam;
+                float _Pixel;
+            CBUFFER_END
+            struct Attributes { float4 positionOS : POSITION; half4 color : COLOR; };
+            struct Varyings { float4 positionCS : SV_POSITION; float3 wp : TEXCOORD0; half4 col : COLOR; float fogCoord : TEXCOORD1; };
+            Varyings vert (Attributes v)
             {
-                v2f o;
-                o.wp = mul(unity_ObjectToWorld, v.vertex).xyz;
-                o.pos = UnityObjectToClipPos(v.vertex);
+                Varyings o;
+                o.wp = TransformObjectToWorld(v.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(o.wp);
                 o.col = v.color;
-                UNITY_TRANSFER_FOG(o, o.pos);
+                o.fogCoord = ComputeFogFactor(o.positionCS.z);
                 return o;
             }
             float H(float2 p, float t)
@@ -42,7 +44,7 @@ Shader "FoxLife/Water"
                 return sin(p.x * 1.7 + t * 1.3) * 0.5 + sin(p.y * 2.3 - t * 1.1) * 0.4 + sin((p.x + p.y) * 3.1 + t * 2.0) * 0.25
                      + sin((p.x * 0.7 - p.y * 1.3) * 5.0 - t * 2.7) * 0.12;
             }
-            fixed4 frag (v2f i) : SV_Target
+            half4 frag (Varyings i) : SV_Target
             {
                 float t = _Time.y;
                 // рябь берётся в центре «пикселя» — как у вокселей
@@ -51,11 +53,12 @@ Shader "FoxLife/Water"
                 float h0 = H(q, t), hx = H(q + float2(e, 0), t), hz = H(q + float2(0, e), t);
                 float3 n = normalize(float3(-(hx - h0) / e * 0.06, 1, -(hz - h0) / e * 0.06));
                 float depth = i.col.g, shore = i.col.r;
-                fixed4 c = lerp(_Shallow, _Deep, saturate(depth * 1.3));
+                half4 c = lerp(_Shallow, _Deep, saturate(depth * 1.3));
                 float3 v = normalize(_WorldSpaceCameraPos - i.wp);
-                float3 l = normalize(_WorldSpaceLightPos0.xyz);
+                Light ml = GetMainLight();
+                float3 l = normalize(ml.direction);
                 float diff = saturate(dot(n, l)) * 0.35 + 0.65;
-                float3 light = UNITY_LIGHTMODEL_AMBIENT.rgb * 1.2 + _LightColor0.rgb * 0.6;
+                float3 light = _FoxAmbient.rgb * 1.2 + ml.color * 0.6;
                 c.rgb *= diff * min(light, 1.4);
                 // небо в воде под углом
                 float fres = pow(1 - saturate(dot(n, v)), 3);
@@ -64,15 +67,15 @@ Shader "FoxLife/Water"
                 // блики солнца: мягкие и ограниченные по яркости
                 float3 hv = normalize(l + v);
                 float spec = pow(saturate(dot(n, hv)), 90) * 0.9;
-                c.rgb += min(spec, 0.9) * _LightColor0.rgb;
+                c.rgb += min(spec, 0.9) * ml.color;
                 // пена у берега: бегущие полоски
                 float foam = shore * smoothstep(0.55, 0.9, sin(t * 1.6 + (q.x + q.y) * 2.1) * 0.5 + 0.5 + (1 - depth) * 0.3);
                 c.rgb = lerp(c.rgb, _Foam.rgb * min(light, 1.3), foam * 0.65);
                 c.a = max(c.a, foam * 0.9);
-                UNITY_APPLY_FOG(i.fogCoord, c);
+                c.rgb = MixFog(c.rgb, i.fogCoord);
                 return c;
             }
-            ENDCG
+            ENDHLSL
         }
     }
 }

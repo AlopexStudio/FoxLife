@@ -1,4 +1,4 @@
-﻿// Серая текстура-узор (R = светотень, G = маска второго цвета), раскрашенная двумя цветами.
+﻿// Серая текстура-узор (R = светотень, G = маска второго цвета), раскрашенная двумя цветами. URP.
 // Воксельный режим (_Voxel > 0): узор берётся один раз на воксел — по центру ячейки, у каждого воксела
 // чуть свой оттенок, а затенение углов приходит из цвета вершин. Поэтому перекраска не требует пересборки сетки.
 Shader "FoxLife/Styled"
@@ -17,92 +17,128 @@ Shader "FoxLife/Styled"
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" "DisableBatching"="True" }
-        LOD 200
+        Tags { "RenderType"="Opaque" "RenderPipeline"="UniversalPipeline" "DisableBatching"="True" }
 
-        CGPROGRAM
-        #pragma surface surf Standard fullforwardshadows vertex:vert
-        #pragma target 3.0
+        HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        CBUFFER_START(UnityPerMaterial)
+            float4 _MainTex_ST;
+            half4 _Color;
+            half4 _Color2;
+            float _Scale;
+            half _Glossiness;
+            half4 _Highlight;
+            float _Voxel;
+            float _UseAO;
+            float _DepthBias;
+        CBUFFER_END
+        ENDHLSL
 
-        sampler2D _MainTex;
-        fixed4 _Color;
-        fixed4 _Color2;
-        float _Scale;
-        half _Glossiness;
-        fixed4 _Highlight;
-        float _Voxel;
-        float _UseAO;
-        float _DepthBias;
-
-        struct Input
+        Pass
         {
-            float4 localPosAo;   // xyz — позиция в объекте, w — затенение угла
-            float3 objNormal;
-        };
+            Name "ForwardLit"
+            Tags { "LightMode"="UniversalForward" }
+            HLSLPROGRAM
+            #pragma target 3.0
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+            #pragma multi_compile_fog
+            #include "FoxLit.hlsl"
 
-        void vert (inout appdata_full v, out Input o)
-        {
-            UNITY_INITIALIZE_OUTPUT(Input, o);
-            o.localPosAo = float4(v.vertex.xyz, v.color.r);
-            o.objNormal = v.normal;
-            // защита от z-fighting: слой (одежда поверх меха, мебель поверх стен) чуть ближе к камере
-            // вдоль луча взгляда — на экране ничего не сдвигается, меняется только глубина
-            if (_DepthBias > 0)
+            TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
+
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float4 color : COLOR; };
+            struct Varyings
             {
-                float3 wp = mul(unity_ObjectToWorld, v.vertex).xyz;
-                float3 toCam = _WorldSpaceCameraPos - wp;
-                float d = length(toCam);
-                wp += toCam / max(d, 1e-3) * _DepthBias * (0.0012 + d * 0.00035);
-                v.vertex.xyz = mul(unity_WorldToObject, float4(wp, 1)).xyz;
-            }
-        }
+                float4 positionCS : SV_POSITION;
+                float4 localPosAo : TEXCOORD0;   // xyz — позиция в объекте, w — затенение угла
+                float3 objNormal : TEXCOORD1;
+                float3 positionWS : TEXCOORD2;
+                float3 normalWS : TEXCOORD3;
+                float fogCoord : TEXCOORD4;
+            };
 
-        float hash3(float3 p)
-        {
-            p = frac(p * 0.3183099 + 0.1);
-            p *= 17.0;
-            return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
-        }
-
-        void surf (Input IN, inout SurfaceOutputStandard o)
-        {
-            float nl = length(IN.objNormal);
-            float3 n = nl > 1e-4 ? IN.objNormal / nl : float3(0, 1, 0); // нулевая нормаль не даёт «битых» пикселей
-            float3 p = IN.localPosAo.xyz;
-            float3 objScale = float3(
-                length(unity_ObjectToWorld._m00_m10_m20),
-                length(unity_ObjectToWorld._m01_m11_m21),
-                length(unity_ObjectToWorld._m02_m12_m22));
-            float vary = 1;
-            float ao = 1;
-            float3 ps = p * objScale; // позиция в метрах
-            if (_Voxel > 0)
+            Varyings vert (Attributes v)
             {
-                // центр воксела, которому принадлежит эта грань
-                float3 cell = floor((ps - n * (_Voxel * 0.5)) / _Voxel);
-                ps = (cell + 0.5) * _Voxel;
-                vary = 1 + (hash3(cell) - 0.5) * 0.07;
-                if (_UseAO > 0) ao = IN.localPosAo.w;
+                Varyings o;
+                float3 wp = FoxDepthBias(TransformObjectToWorld(v.positionOS.xyz), _DepthBias);
+                o.positionWS = wp;
+                o.positionCS = TransformWorldToHClip(wp);
+                o.localPosAo = float4(v.positionOS.xyz, v.color.r);
+                o.objNormal = v.normalOS;
+                o.normalWS = TransformObjectToWorldNormal(v.normalOS);
+                o.fogCoord = ComputeFogFactor(o.positionCS.z);
+                return o;
             }
-            float3 an = abs(n);
-            an = pow(an, 4);
-            an /= (an.x + an.y + an.z + 1e-5);
-            float3 sp = ps * _Scale;
-            fixed4 tx = tex2Dlod(_MainTex, float4(sp.zy, 0, 0));
-            fixed4 ty = tex2Dlod(_MainTex, float4(sp.xz, 0, 0));
-            fixed4 tz = tex2Dlod(_MainTex, float4(sp.xy, 0, 0));
-            fixed4 t = tx * an.x + ty * an.y + tz * an.z;
-            fixed3 col = lerp(_Color.rgb, _Color2.rgb, t.g) * t.r * vary;
-            #ifndef UNITY_COLORSPACE_GAMMA
-            ao = GammaToLinearSpace(float3(ao, ao, ao)).r;
-            #endif
-            o.Albedo = col * ao;
-            o.Emission = _Highlight.rgb;
-            o.Smoothness = _Glossiness;
-            o.Metallic = 0;
-            o.Alpha = 1;
+
+            float hash3(float3 p)
+            {
+                p = frac(p * 0.3183099 + 0.1);
+                p *= 17.0;
+                return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
+            }
+
+            half4 frag (Varyings i) : SV_Target
+            {
+                float3 n = FoxSafeNormal(i.objNormal);
+                float3 objScale = float3(
+                    length(UNITY_MATRIX_M._m00_m10_m20),
+                    length(UNITY_MATRIX_M._m01_m11_m21),
+                    length(UNITY_MATRIX_M._m02_m12_m22));
+                float vary = 1;
+                float ao = 1;
+                float3 ps = i.localPosAo.xyz * objScale; // позиция в метрах
+                if (_Voxel > 0)
+                {
+                    // центр воксела, которому принадлежит эта грань
+                    float3 cell = floor((ps - n * (_Voxel * 0.5)) / _Voxel);
+                    ps = (cell + 0.5) * _Voxel;
+                    vary = 1 + (hash3(cell) - 0.5) * 0.07;
+                    if (_UseAO > 0) ao = i.localPosAo.w;
+                }
+                float3 an = abs(n);
+                an = an * an; an = an * an;
+                an /= (an.x + an.y + an.z + 1e-5);
+                float3 sp = ps * _Scale;
+                half4 tx = SAMPLE_TEXTURE2D_LOD(_MainTex, sampler_MainTex, sp.zy, 0);
+                half4 ty = SAMPLE_TEXTURE2D_LOD(_MainTex, sampler_MainTex, sp.xz, 0);
+                half4 tz = SAMPLE_TEXTURE2D_LOD(_MainTex, sampler_MainTex, sp.xy, 0);
+                half4 t = tx * an.x + ty * an.y + tz * an.z;
+                half3 col = lerp(_Color.rgb, _Color2.rgb, t.g) * t.r * vary;
+                ao = SRGBToLinear(ao);
+                return FoxShade(col * ao, 1, _Glossiness, _Highlight.rgb, i.positionWS, FoxSafeNormal(i.normalWS), i.positionCS, i.fogCoord);
+            }
+            ENDHLSL
         }
-        ENDCG
+
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode"="ShadowCaster" }
+            ZWrite On ZTest LEqual ColorMask 0
+            HLSLPROGRAM
+            #pragma vertex ShadowPassVertex
+            #pragma fragment ShadowPassFragment
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode"="DepthOnly" }
+            ZWrite On ColorMask R
+            HLSLPROGRAM
+            #pragma vertex DepthOnlyVertex
+            #pragma fragment DepthOnlyFragment
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
+            ENDHLSL
+        }
     }
-    FallBack "Diffuse"
 }

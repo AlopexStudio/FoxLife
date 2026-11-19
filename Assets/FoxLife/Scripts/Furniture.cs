@@ -93,7 +93,7 @@ namespace FoxLife
         {
             if (lamp == null) return;
             if (baseIntensity < 0) { baseIntensity = lamp.intensity; baseRange = lamp.range; if (def.id == "campfire") lightColor = lamp.color; }
-            lamp.intensity = baseIntensity * lightLevel * 2f;
+            lamp.intensity = baseIntensity * lightLevel * 2f * Props.LightK;
             lamp.range = baseRange * Mathf.Lerp(0.6f, 1.35f, lightLevel);
             if (def.id != "campfire") lamp.color = lightColor;
         }

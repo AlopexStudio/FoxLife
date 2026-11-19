@@ -1,18 +1,26 @@
 ﻿using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace FoxLife
 {
     /// <summary>
-    /// Постобработка на камере: bloom (свечение фонарей, окон и экранов), тональная кривая ACES,
-    /// тёплая цветокоррекция, виньетка и «миниатюра» (края кадра размыты, как у игрушечного городка).
+    /// Постобработка (URP): свечение (bloom) фонарей, окон и экранов, тональная кривая ACES, тёплая цветокоррекция,
+    /// виньетка — через глобальный объём URP, который создаётся здесь же; «миниатюра» (верх и низ кадра расплываются)
+    /// и «антиблик» — свои полноэкранные проходы (Settings/FoxRenderer). Ночью свечение сильнее, порог ниже.
+    /// Ещё здесь каждый кадр передаётся шейдерам цвет окружения (_FoxAmbient).
     /// </summary>
     [RequireComponent(typeof(Camera))]
     public class PostFX : MonoBehaviour
     {
         public static bool enabledFx = true, tiltShift = true;
-        Material mat;
-        const int Levels = 5;
-        readonly RenderTexture[] chain = new RenderTexture[Levels];
+        static readonly int AmbientId = Shader.PropertyToID("_FoxAmbient"), TiltId = Shader.PropertyToID("_FoxTiltShift");
+
+        Volume volume;
+        Bloom bloom;
+        ColorAdjustments color;
+        Vignette vignette;
+        UniversalAdditionalCameraData camData;
 
         public static void Load()
         {
@@ -29,59 +37,62 @@ namespace FoxLife
 
         void Start()
         {
-            var sh = Shader.Find("Hidden/FoxLife/Post");
-            if (sh != null && sh.isSupported) mat = new Material(sh);
-            GetComponent<Camera>().allowHDR = true;
+            var cam = GetComponent<Camera>();
+            cam.allowHDR = true;
+            camData = cam.GetUniversalAdditionalCameraData();
+            camData.renderPostProcessing = true;
+            camData.stopNaN = true; // «битые» пиксели не попадают в свечение
+            camData.antialiasing = AntialiasingMode.None;
+
+            var go = new GameObject("Постобработка");
+            go.transform.SetParent(transform, false);
+            volume = go.AddComponent<Volume>();
+            volume.isGlobal = true;
+            volume.priority = 10;
+            var profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            volume.sharedProfile = profile;
+
+            bloom = profile.Add<Bloom>(true);
+            bloom.scatter.Override(0.65f);
+            bloom.clamp.Override(8f);
+            bloom.highQualityFiltering.Override(true);
+            var tone = profile.Add<Tonemapping>(true);
+            tone.mode.Override(TonemappingMode.ACES);
+            color = profile.Add<ColorAdjustments>(true);
+            color.saturation.Override(10f);
+            color.contrast.Override(4f);
+            vignette = profile.Add<Vignette>(true);
+            vignette.intensity.Override(0.26f);
+            vignette.smoothness.Override(0.45f);
         }
 
-        void OnRenderImage(RenderTexture src, RenderTexture dst)
+        void LateUpdate()
         {
-            if (mat == null || !enabledFx) { Graphics.Blit(src, dst); return; }
+            // окружение для шейдеров (в URP «ровный» цвет окружения задаём сами — погода и время суток его меняют)
+            Shader.SetGlobalColor(AmbientId, RenderSettings.ambientLight.linear);
+
             var game = Game.I;
             float night = 0;
             if (game != null) { float h = game.Hour; night = Mathf.Clamp01(Mathf.InverseLerp(19f, 21f, h)) + Mathf.Clamp01(Mathf.InverseLerp(6.5f, 5f, h)); night = Mathf.Clamp01(night); }
-
-            // bloom: яркое → уменьшения → увеличения
-            mat.SetFloat("_Threshold", Mathf.Lerp(1.5f, 1.0f, night)); // светятся только по-настоящему яркие места (костёр, фонари ночью)
-            mat.SetFloat("_Knee", 0.5f);
-            int w = src.width / 2, h2 = src.height / 2;
-            var fmt = src.format;
-            chain[0] = RenderTexture.GetTemporary(w, h2, 0, fmt);
-            Graphics.Blit(src, chain[0], mat, 0);
-            int n = 1;
-            for (; n < Levels; n++)
-            {
-                w /= 2; h2 /= 2;
-                if (w < 8 || h2 < 8) break;
-                chain[n] = RenderTexture.GetTemporary(w, h2, 0, fmt);
-                Graphics.Blit(chain[n - 1], chain[n], mat, 1);
-            }
-            for (int i = n - 2; i >= 0; i--) Graphics.Blit(chain[i + 1], chain[i], mat, 2);
-
-            // размытая копия кадра для «миниатюры»
-            RenderTexture blur = null, b1 = null;
-            if (tiltShift)
-            {
-                b1 = RenderTexture.GetTemporary(src.width / 2, src.height / 2, 0, fmt);
-                blur = RenderTexture.GetTemporary(src.width / 4, src.height / 4, 0, fmt);
-                Graphics.Blit(src, b1, mat, 1);
-                Graphics.Blit(b1, blur, mat, 1);
-                mat.SetTexture("_BlurTex", blur);
-            }
+            if (camData != null) camData.renderPostProcessing = enabledFx;
             float camDist = game != null && game.cam != null ? game.cam.dist : 30f;
-            mat.SetFloat("_TiltShift", tiltShift ? 0.85f * Mathf.InverseLerp(10f, 45f, camDist) : 0f);
-            mat.SetTexture("_BloomTex", chain[0]);
-            mat.SetFloat("_BloomStrength", Mathf.Lerp(0.22f, 0.7f, night));
-            mat.SetFloat("_Exposure", Mathf.Lerp(1.12f, 1.25f, night));
-            mat.SetFloat("_Saturation", 1.1f);
-            mat.SetFloat("_Contrast", 1.04f);
-            mat.SetFloat("_Vignette", 0.28f);
-            mat.SetVector("_Warm", Color.Lerp(new Color(1.03f, 1.0f, 0.96f), new Color(0.97f, 0.98f, 1.06f), night));
-            Graphics.Blit(src, dst, mat, 3);
+            Shader.SetGlobalFloat(TiltId, enabledFx && tiltShift ? 0.85f * Mathf.InverseLerp(10f, 45f, camDist) : 0f);
+            if (bloom == null) return;
+            // светятся только по-настоящему яркие места (костёр, фонари ночью)
+            bloom.threshold.Override(Mathf.Lerp(1.5f, 1.0f, night));
+            bloom.intensity.Override(Mathf.Lerp(0.3f, 0.9f, night));
+            color.postExposure.Override(Mathf.Log(Mathf.Lerp(1.12f, 1.25f, night), 2f));
+            color.colorFilter.Override(Color.Lerp(new Color(1.03f, 1.0f, 0.96f), new Color(0.97f, 0.98f, 1.06f), night));
+        }
 
-            for (int i = 0; i < n; i++) { RenderTexture.ReleaseTemporary(chain[i]); chain[i] = null; }
-            if (b1 != null) RenderTexture.ReleaseTemporary(b1);
-            if (blur != null) RenderTexture.ReleaseTemporary(blur);
+        /// <summary>Отрисовать камеру в текстуру (портреты, отладка) — в URP через запрос рендера.</summary>
+        public static void RenderTo(Camera cam, RenderTexture rt)
+        {
+            float tilt = Shader.GetGlobalFloat(TiltId);
+            Shader.SetGlobalFloat(TiltId, 0f); // портреты — без «миниатюры»
+            var req = new RenderPipeline.StandardRequest { destination = rt };
+            if (RenderPipeline.SupportsRenderRequest(cam, req)) RenderPipeline.SubmitRenderRequest(cam, req);
+            Shader.SetGlobalFloat(TiltId, tilt);
         }
     }
 }

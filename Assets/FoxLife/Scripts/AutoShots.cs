@@ -71,16 +71,16 @@ namespace FoxLife
         void FindBadPixels(string tag)
         {
             var cam = Camera.main;
-            var post = cam.GetComponent<PostFX>();
-            bool was = post != null && post.enabled;
-            if (post != null) post.enabled = false;
+            var cd = UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(cam);
+            bool was = cd.renderPostProcessing;
+            cd.renderPostProcessing = false;
             int w = 800, h = 450;
             var rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGBFloat);
             var old = cam.targetTexture;
             cam.targetTexture = rt;
-            cam.Render();
+            PostFX.RenderTo(cam, rt);
             cam.targetTexture = old;
-            if (post != null) post.enabled = was;
+            cd.renderPostProcessing = was;
             var prev = RenderTexture.active;
             RenderTexture.active = rt;
             var tex = new Texture2D(w, h, TextureFormat.RGBAFloat, false);

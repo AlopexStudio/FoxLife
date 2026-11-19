@@ -172,7 +172,19 @@ namespace FoxLife
             return rt;
         }
 
-        void RenderPortrait(Fox f)
+        // В URP камеру нельзя рисовать изнутри OnGUI (идёт кадр) — портреты рисуются в LateUpdate, а здесь только очередь.
+        readonly List<Fox> portraitQueue = new List<Fox>();
+        void RenderPortrait(Fox f) { if (f != null && !portraitQueue.Contains(f)) portraitQueue.Add(f); }
+
+        void LateUpdate()
+        {
+            if (portraitQueue.Count == 0) return;
+            var list = new List<Fox>(portraitQueue);
+            portraitQueue.Clear();
+            foreach (var f in list) RenderPortraitNow(f);
+        }
+
+        void RenderPortraitNow(Fox f)
         {
             if (f == null || !portraits.TryGetValue(f, out var rt)) return;
             if (portraitCam == null)
@@ -207,7 +219,7 @@ namespace FoxLife
             RenderSettings.ambientLight = new Color(0.62f, 0.62f, 0.66f);
             bool fogOn = RenderSettings.fog;
             RenderSettings.fog = false;
-            portraitCam.Render();
+            PostFX.RenderTo(portraitCam, rt);
             RenderSettings.fog = fogOn;
             RenderSettings.ambientLight = amb;
             portraitLight.enabled = false;

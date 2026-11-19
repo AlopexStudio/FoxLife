@@ -14,7 +14,7 @@ namespace FoxLife
             Make("flames", mat, 0.55f, 1.2f, 0.28f, 60, new Color(1f, 0.75f, 0.25f, 0.9f), new Color(1f, 0.3f, 0.05f, 0f), 0.15f, false);
             Make("sparks", mat, 1.4f, 2.4f, 0.05f, 14, new Color(1f, 0.9f, 0.5f, 1f), new Color(1f, 0.4f, 0.1f, 0f), 0.25f, true);
             Make("smoke", mat, 3.5f, 0.6f, 0.45f, 6, new Color(0.75f, 0.75f, 0.78f, 0.35f), new Color(0.85f, 0.85f, 0.9f, 0f), 0.2f, false, 1.8f);
-            if (fireLight != null) baseIntensity = fireLight.intensity;
+            baseIntensity = 1.6f * Props.LightK; // как у костра в каталоге, с поправкой на URP
         }
 
         void Make(string name, Material mat, float life, float speed, float size, float rate, Color c0, Color c1, float radius, bool noisy, float grow = 0.2f)

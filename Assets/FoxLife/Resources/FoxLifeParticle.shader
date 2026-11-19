@@ -1,4 +1,4 @@
-﻿// Частицы: цвет вершины × цвет материала, полупрозрачно. Освещаются солнцем и окружением (_Unlit = 1 — светятся сами).
+﻿// Частицы: цвет вершины × цвет материала, полупрозрачно. Освещаются солнцем и окружением (_Unlit = 1 — светятся сами). URP.
 Shader "FoxLife/Particle"
 {
     Properties
@@ -8,36 +8,39 @@ Shader "FoxLife/Particle"
     }
     SubShader
     {
-        Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" }
+        Tags { "Queue"="Transparent" "RenderType"="Transparent" "RenderPipeline"="UniversalPipeline" "IgnoreProjector"="True" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         Cull Off
         Pass
         {
-            Tags { "LightMode"="ForwardBase" }
-            CGPROGRAM
+            Name "Unlit"
+            Tags { "LightMode"="UniversalForward" }
+            HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_fog
-            #include "UnityCG.cginc"
-            #include "UnityLightingCommon.cginc"
-            fixed4 _Color;
-            float _Unlit;
-            struct appdata { float4 vertex : POSITION; fixed4 color : COLOR; };
-            struct v2f { float4 pos : SV_POSITION; fixed4 color : COLOR; UNITY_FOG_COORDS(1) };
-            v2f vert (appdata v)
+            #include "FoxLit.hlsl"
+            CBUFFER_START(UnityPerMaterial)
+                half4 _Color;
+                float _Unlit;
+            CBUFFER_END
+            struct Attributes { float4 positionOS : POSITION; half4 color : COLOR; };
+            struct Varyings { float4 positionCS : SV_POSITION; half4 color : COLOR; float fogCoord : TEXCOORD0; };
+            Varyings vert (Attributes v)
             {
-                v2f o;
-                o.pos = UnityObjectToClipPos(v.vertex);
-                fixed4 c = v.color * _Color;
-                float3 light = UNITY_LIGHTMODEL_AMBIENT.rgb * 1.3 + _LightColor0.rgb * 0.75;
+                Varyings o;
+                o.positionCS = TransformObjectToHClip(v.positionOS.xyz);
+                half4 c = v.color * _Color;
+                Light ml = GetMainLight();
+                half3 light = _FoxAmbient.rgb * 1.3 + ml.color * 0.75;
                 c.rgb *= lerp(min(light, 1.6), 1.0, saturate(_Unlit));
                 o.color = c;
-                UNITY_TRANSFER_FOG(o, o.pos);
+                o.fogCoord = ComputeFogFactor(o.positionCS.z);
                 return o;
             }
-            fixed4 frag (v2f i) : SV_Target { fixed4 c = i.color; UNITY_APPLY_FOG(i.fogCoord, c); return c; }
-            ENDCG
+            half4 frag (Varyings i) : SV_Target { half4 c = i.color; c.rgb = MixFog(c.rgb, i.fogCoord); return c; }
+            ENDHLSL
         }
     }
 }
