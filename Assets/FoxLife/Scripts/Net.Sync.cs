@@ -194,7 +194,7 @@ namespace FoxLife
             }
         }
 
-        int HostVote() => G.ui.screen != GameUI.MenuScreen.None || G.mode == Mode.Town || G.loading ? 0 : G.wantSpeed;
+        int HostVote() => G.ui.screen != GameUI.MenuScreen.None || G.mode == Mode.Town || G.mode == Mode.Create || G.loading ? 0 : G.wantSpeed;
 
         void HostHandle(NetLink p, byte[] m)
         {
@@ -245,6 +245,8 @@ namespace FoxLife
                 case Msg.Terrain: ApplyTerrain(r); Broadcast(m, p.id); break;
                 case Msg.Prop: ApplyProp(r); Broadcast(m, p.id); break;
                 case Msg.FoxStyle: ApplyFoxStyle(r, p); break;
+                case Msg.FoxEdit: ApplyFoxEdit(r, p); break;
+                case Msg.Chat: HostChat(p, RStr(r)); break;
                 case Msg.Bye: p.closed = true; break;
             }
         }
@@ -319,6 +321,7 @@ namespace FoxLife
                     break;
                 }
                 case "plandone": if (fox.current != null) fox.current.netDone = true; break;
+                case "addfox": case "removefox": HostCasOp(p, fox, op); break;
             }
         }
 
@@ -574,9 +577,15 @@ namespace FoxLife
                     var l = G.house.LotById(myLot);
                     if (l != null) { G.cam.Focus(GridMap.Center(l.entry), 18f); G.cam.dist = 18f; G.cam.pitch = 48f; }
                     lastLot[myLot] = LotJson(myLot);
+                    if (claimCreate)
+                    {
+                        claimCreate = false;
+                        G.SetMode(Mode.Create);
+                        G.ui.Note("Новая семья! Настрой лисичку: имя, характер, окрас — и добавь ещё, если хочешь.");
+                    }
                 }
             }
-            int vote = G.ui.screen != GameUI.MenuScreen.None ? 0 : G.wantSpeed;
+            int vote = G.ui.screen != GameUI.MenuScreen.None || G.mode == Mode.Create ? 0 : G.wantSpeed;
             var now = (G.autonomy, G.autoOutfits, vote);
             if (myLot >= 0 && (sentAuto == null || sentAuto.Value != now))
             {
@@ -584,6 +593,7 @@ namespace FoxLife
                 server.Send(Pack(Msg.Settings, w => { w.Write(now.autonomy); w.Write(now.autoOutfits); w.Write((byte)now.vote); }));
             }
             UpdatePlans();
+            if (myLot >= 0) CasUpdate();
         }
 
         /// <summary>Шкаф и мольберт: хост ждёт, пока игрок выберет одежду или закончит план дома.</summary>
@@ -648,6 +658,7 @@ namespace FoxLife
                     break;
                 }
                 case Msg.Tick: ApplyTick(r); break;
+                case Msg.Chat: ClientChat(RStr(r), RStr(r)); break;
                 case Msg.Roster: ApplyRoster(r); break;
                 case Msg.FoxFull: ApplyFoxFull(r); break;
                 case Msg.Claimed:
@@ -663,6 +674,7 @@ namespace FoxLife
                     G.house.focusLot = -2;
                     selectPending = true;
                     sentAuto = null;
+                    casSent.Clear();
                     var l = G.house.LotById(lot);
                     G.Log($"Играем вместе с {hostName}! Наш дом: {(l != null ? l.name : "")}.");
                     break;
@@ -744,6 +756,7 @@ namespace FoxLife
         public void Claim(int lot, bool create)
         {
             pickerNote = null;
+            claimCreate = create;
             server?.Send(Pack(Msg.Claim, w => { w.Write(lot); w.Write(create); }));
         }
 
@@ -839,6 +852,7 @@ namespace FoxLife
             try
             {
                 if (fox == null) fox = SaveSystem.SpawnNetFox(G, nf.f);
+                else if (CasEditing(fox)) return; // друг как раз правит её в «Лисичках»
                 bool recentEdit = foxStyleTime.TryGetValue(fox, out var te) && Time.unscaledTime - te < 4f;
                 SaveSystem.ApplyNetFox(fox, nf.f, !recentEdit);
                 fox.guestLot = nf.guestLot;

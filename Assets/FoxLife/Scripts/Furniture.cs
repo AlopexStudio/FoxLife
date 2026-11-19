@@ -743,7 +743,7 @@ namespace FoxLife
                 {
                     new Interaction
                     {
-                        name = "Придумать обустройство", verb = "Рисует план дома", duration = 9999, playerOnly = true, openBuild = true, bubble = "А что если здесь...",
+                        name = "Придумать дизайн", verb = "Придумывает дизайн", duration = 9999, playerOnly = true, openBuild = true, bubble = "А что если здесь…",
                     },
                     new Interaction
                     {

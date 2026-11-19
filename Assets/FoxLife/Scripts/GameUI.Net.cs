@@ -54,16 +54,43 @@ namespace FoxLife
             GUILayout.EndArea();
         }
 
+        bool netManual;
+
+        string MyNetName => string.IsNullOrEmpty(netName) ? "Друг" : netName.Trim();
+
         void NetJoin()
         {
-            var n = Net.I;
-            bool busy = n != null && n.role == Net.Role.Client;
+            var n = Net.Ensure();
+            bool busy = n.role == Net.Role.Client;
             GUILayout.Label("Зайти в город к другу. Друг должен открыть свою игру: «Меню» → «Играть вместе» → «Открыть игру для друзей».", sWrap);
             GUILayout.Space(6);
             GUILayout.BeginHorizontal();
             GUILayout.Label("Твоё имя", sBold, W(150));
             netName = GUILayout.TextField(netName ?? "", 20, sField, W(330));
             GUILayout.EndHorizontal();
+            if (busy) { if (Btn("Отмена", false, Hh(40))) Defer(() => Net.I.Stop(null)); return; }
+
+            // открытые игры в локальной сети и Radmin VPN находятся сами
+            n.searchUntil = Time.unscaledTime + 1f;
+            GUILayout.Space(6);
+            GUILayout.Label("Открытые игры", sBig);
+            if (n.found.Count == 0)
+                GUILayout.Label("Ищем игры в домашней сети и Radmin VPN" + new string('.', 1 + (int)(Time.unscaledTime * 2) % 3), sSmall, Hh(30));
+            foreach (var g in n.found)
+            {
+                var gg = g;
+                string who = g.players > 1 ? $"играют {g.players}" : "ждёт друзей";
+                if (Btn(new GUIContent($"«{g.town}» у {g.host} · {who}", $"{g.address}:{g.port} — подключиться"), true, Hh(40)))
+                    Defer(() =>
+                    {
+                        netAddr = gg.address; netPort = gg.port.ToString();
+                        SaveNetPrefs();
+                        Net.Ensure().StartClient(gg.address, gg.port, MyNetName);
+                    });
+            }
+            GUILayout.Space(6);
+            if (Btn(new GUIContent((netManual ? "▾ " : "▸ ") + "Ввести адрес вручную", "Если игра друга не находится сама — например, через интернет"), false, Hh(32))) Defer(() => netManual = !netManual);
+            if (!netManual) return;
             GUILayout.BeginHorizontal();
             GUILayout.Label("Адрес друга", sBold, W(150));
             netAddr = GUILayout.TextField(netAddr ?? "", 64, sField, W(330));
@@ -74,18 +101,68 @@ namespace FoxLife
             GUILayout.EndHorizontal();
             GUILayout.Label("В Radmin VPN адрес друга начинается с 26. В домашней сети — обычно с 192.168.", sSmall);
             GUILayout.Space(8);
-            if (!busy)
+            if (Btn("Подключиться", false, Hh(40)))
+                Defer(() =>
+                {
+                    string addr = (netAddr ?? "").Trim();
+                    if (addr.Length == 0) { Note("Впиши адрес друга."); return; }
+                    SaveNetPrefs();
+                    Net.Ensure().StartClient(addr, NetPortValue, MyNetName);
+                });
+        }
+
+        // ================= чат =================
+
+        public bool chatOpen;
+        string chatText = "";
+
+        /// <summary>Чат по сети: Enter — написать, Enter — отправить, Esc — закрыть. Старые строчки тают через полминуты.</summary>
+        void ChatBox()
+        {
+            var n = Net.I;
+            if (n == null || !Net.Active || (Net.IsClient && !n.worldReady)) { chatOpen = false; return; }
+            var e = Event.current;
+            bool enter = e.type == EventType.KeyDown && (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter);
+            if (!chatOpen && enter && !Typing) { chatOpen = true; chatText = ""; e.Use(); }
+            else if (chatOpen && enter)
             {
-                if (Btn("Подключиться", true, Hh(44)))
-                    Defer(() =>
-                    {
-                        string addr = (netAddr ?? "").Trim();
-                        if (addr.Length == 0) { Note("Впиши адрес друга."); return; }
-                        SaveNetPrefs();
-                        Net.Ensure().StartClient(addr, NetPortValue, string.IsNullOrEmpty(netName) ? "Друг" : netName.Trim());
-                    });
+                string t = chatText;
+                Defer(() => n.SendChat(t));
+                chatOpen = false; chatText = ""; GUI.FocusControl(null); e.Use();
             }
-            else if (Btn("Отмена", false, Hh(40))) Defer(() => Net.I.Stop(null));
+            else if (chatOpen && e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape) { chatOpen = false; GUI.FocusControl(null); e.Use(); }
+
+            const float w = 400;
+            float x = vw - w - 14, y = vh - 14;
+            var st = new GUIStyle(sWrap) { fontSize = 14 };
+            if (chatOpen)
+            {
+                y -= 34;
+                Fill(new Rect(x - 4, y - 2, w + 8, 34), new Color(0.08f, 0.12f, 0.16f, 0.75f));
+                GUI.SetNextControlName("chat");
+                chatText = GUI.TextField(new Rect(x, y + 2, w, 28), chatText ?? "", 200, sField);
+                if (GUI.GetNameOfFocusedControl() != "chat") GUI.FocusControl("chat");
+                y -= 4;
+            }
+            int shown = 0;
+            for (int i = n.chat.Count - 1; i >= 0 && shown < (chatOpen ? 10 : 6); i--)
+            {
+                var c = n.chat[i];
+                float age = Time.unscaledTime - c.time;
+                float a = chatOpen ? 1f : Mathf.Clamp01((35f - age) / 5f);
+                if (a <= 0) break;
+                string line = c.who + ": " + c.text;
+                float h = st.CalcHeight(new GUIContent(line), w - 12) + 6;
+                y -= h + 2;
+                Fill(new Rect(x - 4, y, w + 8, h), new Color(0.08f, 0.12f, 0.16f, 0.55f * a));
+                var old = GUI.color;
+                GUI.color = new Color(1, 1, 1, a);
+                st.normal.textColor = c.mine ? new Color(1f, 0.85f, 0.55f) : new Color(1f, 0.96f, 0.88f);
+                GUI.Label(new Rect(x + 2, y + 3, w - 8, h), line, st);
+                GUI.color = old;
+                shown++;
+            }
+            if (!chatOpen && shown == 0) return;
         }
 
         void NetHost()
@@ -167,7 +244,7 @@ namespace FoxLife
                 {
                     if (Btn(new GUIContent($"{l.name}: {Game.FamilyTitle(fam)}", "Играть за эту семью"), false, Hh(34))) Defer(() => n.Claim(lot.id, false));
                 }
-                else if (Btn(new GUIContent($"{l.name}: новая семья", "Поселить сюда новую лисичку"), false, Hh(34))) Defer(() => n.Claim(lot.id, true));
+                else if (Btn(new GUIContent($"{l.name}: новая семья, {G.NewFamilyMoney(l.id)} мон.", "Поселить сюда новую лисичку"), false, Hh(34))) Defer(() => n.Claim(lot.id, true));
             }
             GUILayout.EndScrollView();
             if (!string.IsNullOrEmpty(n.pickerNote)) GUILayout.Label(n.pickerNote, sBold);
@@ -188,7 +265,9 @@ namespace FoxLife
                 text = names.Count == 0 ? "Игра открыта для друзей · ждём" : "По сети: " + string.Join(", ", names);
             }
             else text = "В гостях у " + n.hostName;
-            if (G.speedIndex == 0 && G.wantSpeed != 0) text += " · пауза у друга";
+            if (!chatOpen) text += " · Enter — чат";
+            if (G.mode == Mode.Create) text += " · пауза, пока настраиваешь лисичек";
+            else if (G.speedIndex == 0 && G.wantSpeed != 0) text += " · пауза у друга";
             else if (G.speedIndex < G.wantSpeed) text += " · друг выбрал скорость помедленнее";
             var st = new GUIStyle(sSmall) { alignment = TextAnchor.MiddleCenter };
             var size = st.CalcSize(new GUIContent(text));

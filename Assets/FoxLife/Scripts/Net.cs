@@ -18,6 +18,7 @@ namespace FoxLife
         Tick, Roster, FoxFull, FoxStyle,
         Furn, FurnDel, NidMap, LotState, Terrain, Prop,
         Cmd, Op, Settings, Money, Log, Open, Sfx, Bye,
+        FoxEdit, Chat,
     }
 
     /// <summary>
@@ -125,7 +126,7 @@ namespace FoxLife
     {
         public static Net I;
         public const int DefaultPort = 7777;
-        public const int Protocol = 1;
+        public const int Protocol = 2;
         public enum Role { None, Host, Client }
         public Role role;
 
@@ -227,6 +228,8 @@ namespace FoxLife
             port = p;
             role = Role.Host;
             ResetSync();
+            chat.Clear();
+            StartBeacon();
             // все предметы получают сетевые номера заново
             nidCounter = 0;
             foreach (var f in G.furniture) if (f != null) f.nid = ++nidCounter;
@@ -305,6 +308,7 @@ namespace FoxLife
             if (role != Role.None) Stop(null);
             role = Role.Client;
             ResetSync();
+            chat.Clear();
             myName = string.IsNullOrEmpty(name) ? "Друг" : name;
             joinAddress = address;
             connecting = true;
@@ -337,6 +341,7 @@ namespace FoxLife
                 foreach (var p in peers) { p.Send(bye); p.Close(); }
                 peers.Clear();
                 try { listener?.Stop(); } catch { }
+                StopBeacon();
                 listener = null;
                 while (accepted.TryDequeue(out var c)) { try { c.Close(); } catch { } }
             }
@@ -368,7 +373,8 @@ namespace FoxLife
             if (G == null) return;
             try
             {
-                if (role == Role.Host) HostUpdate();
+                FinderUpdate();
+                if (role == Role.Host) { BeaconUpdate(); HostUpdate(); }
                 else if (role == Role.Client) ClientUpdate();
             }
             catch (Exception e) { Debug.LogError("FoxLife: сеть: " + e); Applying = false; From = -1; }

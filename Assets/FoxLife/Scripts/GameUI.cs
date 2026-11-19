@@ -275,7 +275,7 @@ namespace FoxLife
             if (e.type == EventType.Layout) rects.Clear();
             if (e.type == EventType.Repaint) tip = null;
             string focused = GUI.GetNameOfFocusedControl();
-            Typing = focused == "foxname" || focused == "hex";
+            Typing = !string.IsNullOrEmpty(focused) || chatOpen; // в поле ввода — горячие клавиши не срабатывают
             if (e.type == EventType.MouseDown && !MouseOverUI && Typing) GUI.FocusControl(null);
 
             if (G.loading || G.house == null)
@@ -317,6 +317,7 @@ namespace FoxLife
                     case Mode.Create: CreatePanel(); break;
                 }
                 NetBadge();
+                ChatBox();
                 Menu();
                 Tooltip();
             }
@@ -375,27 +376,93 @@ namespace FoxLife
             var cam = Camera.main;
             if (cam == null || G == null) return;
             var from = cam.transform.position;
+            GatherOccluders(G.cam.target);
             foreach (var f in G.foxes)
             {
                 if (f == null) continue;
-                var to = f.transform.position + Vector3.up * (0.75f * f.size);
-                var d = to - from;
-                float len = d.magnitude;
-                bool seen = true;
-                int n = Physics.RaycastNonAlloc(from, d / len, seenHits, len - 0.2f, ~0, QueryTriggerInteraction.Ignore);
-                for (int i = 0; i < n && seen; i++)
-                {
-                    var c = seenHits[i].collider;
-                    if (c == null || c.GetComponentInParent<Fox>() != null) continue; // сами лисички (и их одежда) не заслоняют
-                    var r = c.GetComponent<Renderer>();
-                    if (r != null && (!r.enabled || r.forceRenderingOff)) continue;
-                    seen = false;
-                }
-                foxSeen[f] = seen;
+                var p = f.transform.position;
+                // видна хотя бы голова или туловище — подписываем
+                foxSeen[f] = Clear(from, p + Vector3.up * (0.45f * f.size), p, f.size) || Clear(from, p + Vector3.up * (1.0f * f.size), p, f.size);
+            }
+        }
+
+        bool Clear(Vector3 from, Vector3 to, Vector3 feet, float size)
+        {
+            var d = to - from;
+            float len = d.magnitude;
+            if (len < 0.01f) return true;
+            var dir = d / len;
+            // земля и крыши — по коллайдерам
+            int n = Physics.RaycastNonAlloc(from, dir, seenHits, len - 0.2f, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+            {
+                var c = seenHits[i].collider;
+                if (c == null || c.GetComponentInParent<Fox>() != null) continue; // сами лисички (и их одежда) не заслоняют
+                var r = c.GetComponent<Renderer>();
+                if (r != null && (!r.enabled || r.forceRenderingOff)) continue;
+                return false;
+            }
+            // стены, мебель, деревья и постройки — по габаритам (коллайдеров у них нет)
+            var ray = new Ray(from, dir);
+            var body = new Bounds(feet + Vector3.up * (0.5f * size), new Vector3(0.5f, size + 0.2f, 0.5f));
+            foreach (var b in occNow)
+            {
+                if (b.Intersects(body)) continue; // то, в чём лисичка сидит или стоит (кровать, диван, дверной проём)
+                if (b.IntersectRay(ray, out float t) && t < len - 0.3f) return false;
+            }
+            return true;
+        }
+
+        // заслоняющие предметы: список рендереров обновляется раз в 1,5 с, их габариты и видимость — при каждой проверке
+        readonly List<Renderer> occAll = new List<Renderer>();
+        readonly List<Bounds> occNow = new List<Bounds>();
+        readonly List<MeshRenderer> occTmp = new List<MeshRenderer>();
+        float occRefresh;
+
+        void GatherOccluders(Vector3 center)
+        {
+            occRefresh -= 0.1f;
+            if (occRefresh <= 0)
+            {
+                occRefresh = 1.5f;
+                occAll.Clear();
+                foreach (var fu in G.furniture)
+                    if (fu != null && !fu.isGhost) AddOcc(fu.transform);
+                if (G.house != null) { AddOcc(G.house.WallsRoot); AddOcc(G.house.TreesRoot); AddOcc(G.house.propsRoot); }
+            }
+            occNow.Clear();
+            const float R = 45f;
+            foreach (var r in occAll)
+            {
+                if (r == null || !r.enabled || r.forceRenderingOff || !r.gameObject.activeInHierarchy) continue;
+                if (r.shadowCastingMode == UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly) continue; // спрятанные и опущенные стены
+                var b = r.bounds;
+                if (b.size.y < 0.45f) continue; // ковры, пол, опущенные стены — не заслоняют
+                if (b.size.x * b.size.z > 400f) continue; // большие плоские вещи вроде улиц
+                if (Mathf.Abs(b.center.x - center.x) > R + b.extents.x || Mathf.Abs(b.center.z - center.z) > R + b.extents.z) continue;
+                b.Expand(-0.06f); // чуть меньше габаритов: краешек предмета не прячет лисичку
+                occNow.Add(b);
+            }
+        }
+
+        void AddOcc(Transform root)
+        {
+            if (root == null) return;
+            root.GetComponentsInChildren(true, occTmp);
+            foreach (var r in occTmp)
+            {
+                var m = r.sharedMaterial;
+                if (m != null && m.shader != null && m.shader.name.Contains("Glass")) continue; // через стекло видно
+                if (r.GetComponentInParent<Fox>() != null) continue;
+                occAll.Add(r);
             }
         }
 
         public bool FoxSeen(Fox f) => !foxSeen.TryGetValue(f, out var s) || s;
+
+        /// <summary>Для автотеста: режим подписей без записи в настройки игрока.</summary>
+        public void TestLabels(LabelMode names, LabelMode phrases) { nameMode = names; phraseMode = phrases; seenTimer = 0; occRefresh = 0; }
+        public int OccluderCount => occNow.Count;
 
         bool LabelOn(LabelMode m, Fox f) => m == LabelMode.Always || (m == LabelMode.Visible && FoxSeen(f));
 
@@ -1620,9 +1687,9 @@ namespace FoxLife
             GUILayout.BeginHorizontal();
             int lotNow = CasLot;
             if (G.HomeCount(lotNow) < Game.MaxFoxes && Btn("+ Новая лисичка"))
-                Defer(() => { var nf = G.AddRandomFox(lotNow); if (nf != null) CasSelect(nf); });
+                Defer(() => { if (Net.IsClient) { Net.I.CasAddFox(f); return; } var nf = G.AddRandomFox(lotNow); if (nf != null) CasSelect(nf); });
             if (G.HomeCount(lotNow) > 1 && Btn(new GUIContent("Отпустить в лес", "Убрать эту лисичку из семьи")))
-                Defer(() => { G.RemoveFox(f); CasSelect(G.FamilyOf(lotNow).Count > 0 ? G.FamilyOf(lotNow)[0] : null); });
+                Defer(() => { if (Net.IsClient) { Net.I.CasRemoveFox(f); return; } G.RemoveFox(f); CasSelect(G.FamilyOf(lotNow).Count > 0 ? G.FamilyOf(lotNow)[0] : null); });
             GUILayout.EndHorizontal();
             GUILayout.EndScrollView();
             End();
@@ -1734,6 +1801,31 @@ namespace FoxLife
         };
 
         int lotsEdit = -1;
+        int lotMoneyFor = -1;
+        string lotMoneyText = "";
+
+        /// <summary>Сколько денег получит семья, которую создадут на участке: само (5000 на пустом, 2000 на обжитом) или вручную.</summary>
+        void LotMoneyRow(int id)
+        {
+            if (id < 0 || id >= Town.Lots.Length || Town.Lots[id].kind != LotKind.Home) return;
+            var d = Town.Lots[id];
+            if (lotMoneyFor != id) { lotMoneyFor = id; lotMoneyText = G.NewFamilyMoney(id).ToString(); }
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(new GUIContent("Деньги новой семьи", "Столько монет получит семья, которую создадут на этом участке"), sSmall, W(150));
+            GUI.SetNextControlName("lotmoney" + id);
+            string t = GUILayout.TextField(lotMoneyText, 8, sField, W(90));
+            if (t != lotMoneyText)
+            {
+                lotMoneyText = t;
+                string digits = "";
+                foreach (char ch in t) if (char.IsDigit(ch)) digits += ch;
+                if (digits.Length > 0 && int.TryParse(digits, out int v)) Defer(() => G.SetLotMoney(id, v));
+            }
+            if (d.customMoney && Btn(new GUIContent("Само", $"Как обычно: {Game.EmptyLotMoney} на пустом участке, {Game.BuiltLotMoney} — если на нём что-то есть"), false, W(70)))
+                Defer(() => { G.SetLotMoney(id, null); lotMoneyFor = -1; });
+            GUILayout.EndHorizontal();
+            if (!d.customMoney) GUILayout.Label(G.LotIsEmpty(id) ? "Участок пустой — хватит на домик." : "На участке уже что-то есть.", sSmall);
+        }
 
         /// <summary>Строительство города: участки — создать, переименовать, сменить назначение, снести.</summary>
         void LotsTab()
@@ -1764,6 +1856,7 @@ namespace FoxLife
                 string nn = GUILayout.TextField(d.name, 40, sField, W(220));
                 if (nn != d.name) G.RenameLot(id, nn);
                 GUILayout.EndHorizontal();
+                LotMoneyRow(id);
                 GUILayout.Label("Назначение", sSmall);
                 for (int row = 0; row < LotKinds.Length; row += 3)
                 {

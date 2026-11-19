@@ -438,6 +438,7 @@ namespace FoxLife
                     {
                         ColorLabel(G.house.rooms.Exists(r => r.lot == lot.id) ? "Свободный дом — можно заселить" : "Пустой участок — можно заселить и построить дом", sBold, new Color(0.25f, 0.55f, 0.3f));
                         int id = lot.id;
+                        LotMoneyRow(id);
                         if (Btn("Создать здесь новую семью", true, Hh(42))) Defer(() => { var f = G.CreateFamily(id); if (f != null) { townEditing = true; CasSelect(f); } });
                         var groups = G.StoredGroups();
                         foreach (var g in groups)

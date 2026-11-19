@@ -435,6 +435,43 @@ namespace FoxLife
             g.cam.target = new Vector3(6f, 0, 3f); g.cam.yaw = 15f; g.cam.pitch = 22f; g.cam.dist = 15f;
             yield return new WaitForSeconds(1.5f);
             yield return Shot("13_exterior");
+            {
+                var nm = g.ui.NameMode; var pm = g.ui.PhraseMode;
+                g.ui.TestLabels(GameUI.LabelMode.Visible, GameUI.LabelMode.Visible);
+                yield return new WaitForSeconds(0.5f);
+                var seen = g.foxes.FindAll(x => g.ui.FoxSeen(x)).ConvertAll(x => x.foxName);
+                var hid = g.foxes.FindAll(x => !g.ui.FoxSeen(x) && x.home == House.PlayerLotId).ConvertAll(x => x.foxName);
+                log.WriteLine($"ПОДПИСИ: заслоняющих {g.ui.OccluderCount}, видно {seen.Count}: {string.Join(", ", seen)}; своих не видно: {string.Join(", ", hid)}");
+                // лисичка за передней стеной (не видна) и перед ней (видна)
+                var tf = g.Household.Count > 0 ? g.Household[0] : null;
+                var pl = g.house.PlayerLot;
+                if (tf != null)
+                {
+                    int sp0 = g.speedIndex;
+                    g.SetSpeed(0);
+                    int cx = pl.entry.x + 3, cz = -999;
+                    for (int z = pl.rect.yMin; z < pl.rect.yMax && cz == -999; z++) if (g.house.RoomIndexAt(0, new Vector2Int(cx, z)) >= 0) cz = z;
+                    if (cz != -999)
+                    {
+                        var keep = tf.transform.position;
+                        tf.transform.position = GridMap.Center(new Vector2Int(cx, cz + 1)) + Vector3.up * g.house.FloorY(0, new Vector2Int(cx, cz + 1));
+                        g.ui.TestLabels(GameUI.LabelMode.Visible, GameUI.LabelMode.Visible);
+                        yield return new WaitForSeconds(0.4f);
+                        bool behind = g.ui.FoxSeen(tf);
+                        yield return Shot("13c_label_behind_wall");
+                        tf.transform.position = GridMap.Center(new Vector2Int(cx, cz - 2)) + Vector3.up * g.house.FloorY(0, new Vector2Int(cx, cz - 2));
+                        g.ui.TestLabels(GameUI.LabelMode.Visible, GameUI.LabelMode.Visible);
+                        yield return new WaitForSeconds(0.4f);
+                        bool front = g.ui.FoxSeen(tf);
+                        yield return Shot("13d_label_front");
+                        log.WriteLine($"ПОДПИСИ: {tf.foxName} за стеной видна={behind} (надо False), перед домом видна={front} (надо True)");
+                        tf.transform.position = keep;
+                    }
+                    g.SetSpeed(sp0);
+                }
+                yield return Shot("13b_exterior_labels");
+                g.ui.TestLabels(nm, pm);
+            }
             g.house.wallMode = House.WallMode.Auto;
 
             g.SetMode(Mode.Build);
@@ -674,8 +711,12 @@ namespace FoxLife
                 var free = g.house.lots.Find(l => l.kind == LotKind.Home && g.FamilyOf(l.id).Count == 0 && l.id != 1 && l.id != House.PlayerLotId);
                 if (groups.Count > 0 && free != null) g.SettleStored(groups[0], free.id);
                 log.WriteLine($"ЗАСЕЛЕНИЕ: {free?.name}: {Game.FamilyTitle(g.FamilyOf(free != null ? free.id : -1))}");
+                var emptyLot = g.house.lots.Find(l => !l.removed && l.kind == LotKind.Home && g.LotIsEmpty(l.id));
+                log.WriteLine($"ДЕНЬГИ НОВОЙ СЕМЬИ: на участке 1 {g.NewFamilyMoney(1)}, на пустом {(emptyLot != null ? emptyLot.name + " " + g.NewFamilyMoney(emptyLot.id) : "нет пустого")}");
+                g.SetLotMoney(1, 3333);
                 var newFam = g.CreateFamily(1);
-                log.WriteLine($"НОВАЯ СЕМЬЯ: {(newFam != null ? newFam.foxName : "нет")} на участке 1");
+                log.WriteLine($"НОВАЯ СЕМЬЯ: {(newFam != null ? newFam.foxName : "нет")} на участке 1, денег {g.MoneyOf(1):0} (задано 3333)");
+                g.SetLotMoney(1, null);
                 g.ui.townLot = 1;
                 yield return new WaitForSeconds(1.5f);
                 yield return Shot("9b_town_after");

@@ -395,7 +395,6 @@ namespace FoxLife
         public void SetMode(Mode m)
         {
             if (townBuilder && (m == Mode.Live || m == Mode.Create || m == Mode.Town)) return; // в строительстве города лисички не участвуют
-            if (m == Mode.Create && Net.IsClient) { Log("Создавать и менять лисичек по сети может только хозяин игры."); return; }
             CancelPlacing();
             if (m != Mode.Build && m != Mode.Style) ClearUndo(); // история правок — только пока открыт план
             SetWallTool(WallTool.None);

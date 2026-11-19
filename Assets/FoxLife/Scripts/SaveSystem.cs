@@ -98,6 +98,8 @@ namespace FoxLife
         public int x, z, w, h, kind, template;
         public bool south, removed;
         public float pathX;
+        public bool customMoney;
+        public int startMoney;
     }
 
     [Serializable]
@@ -297,7 +299,7 @@ namespace FoxLife
                     removedProps = new List<string>(g.removedProps),
                 };
                 foreach (var l in Town.Lots)
-                    s.lots.Add(new SaveLot { name = l.name, x = l.rect.x, z = l.rect.y, w = l.rect.width, h = l.rect.height, kind = (int)l.kind, template = l.template, south = l.frontSouth, removed = l.removed, pathX = l.pathX });
+                    s.lots.Add(new SaveLot { name = l.name, x = l.rect.x, z = l.rect.y, w = l.rect.width, h = l.rect.height, kind = (int)l.kind, template = l.template, south = l.frontSouth, removed = l.removed, pathX = l.pathX, customMoney = l.customMoney, startMoney = l.startMoney });
                 foreach (var kv in g.lotMoney) { s.moneyLots.Add(kv.Key); s.moneyValues.Add(kv.Value); }
                 foreach (var kv in g.storedMoney) { s.moneyGroups.Add(kv.Key); s.moneyGroupValues.Add(kv.Value); }
                 var everyone = new List<Fox>(g.foxes);
@@ -380,7 +382,7 @@ namespace FoxLife
                 for (int i = 0; i < defs.Length; i++)
                 {
                     var l = s.lots[i];
-                    defs[i] = new Town.LotDef { name = l.name, rect = l.removed ? Town.Nowhere : new RectInt(l.x, l.z, l.w, l.h), kind = (LotKind)l.kind, template = l.template, frontSouth = l.south, removed = l.removed, pathX = l.pathX };
+                    defs[i] = new Town.LotDef { name = l.name, rect = l.removed ? Town.Nowhere : new RectInt(l.x, l.z, l.w, l.h), kind = (LotKind)l.kind, template = l.template, frontSouth = l.south, removed = l.removed, pathX = l.pathX, customMoney = l.customMoney, startMoney = l.startMoney };
                 }
                 Town.SetLots(defs);
             }

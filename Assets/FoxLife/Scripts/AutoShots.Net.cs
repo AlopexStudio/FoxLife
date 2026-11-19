@@ -52,11 +52,13 @@ namespace FoxLife
             g.SetSpeed(3);
             int lastFurn = FurnOn(lot);
             int shot = 0;
+            bool saidHi = false;
             t0 = Time.realtimeSinceStartup;
             while (Time.realtimeSinceStartup - t0 < 120f && net.peers.Count > 0)
             {
                 foreach (var f in g.FamilyOf(lot)) log.WriteLine($"СЕТЬ хост {Time.realtimeSinceStartup:0}: друг: {FoxLine(f)}");
                 log.WriteLine($"СЕТЬ хост: скорость {g.speedIndex} (моя {g.wantSpeed}, у друга {peer.vote}), денег у друга {g.MoneyOf(lot):0}, мебели у друга {FurnOn(lot)}, свобода воли друга {peer.autonomy}, стен у друга {g.NetLotData(lot).edges.Count}");
+                if (shot >= 1 && net.chat.Count > 0 && !saidHi) { saidHi = true; net.SendChat("Привет, заходи на чай!"); }
                 if (FurnOn(lot) != lastFurn) { log.WriteLine($"СЕТЬ хост: у друга теперь мебели {FurnOn(lot)} (было {lastFurn})"); lastFurn = FurnOn(lot); }
                 if (shot < 2 && Time.realtimeSinceStartup - t0 > 20f + shot * 25f)
                 {
@@ -68,6 +70,9 @@ namespace FoxLife
                 yield return new WaitForSecondsRealtime(3f);
             }
             log.WriteLine($"СЕТЬ хост: друг ушёл, игроков {net.peers.Count}");
+            log.WriteLine($"СЕТЬ хост: семья друга: {Game.FamilyTitle(g.FamilyOf(lot))}");
+            foreach (var f in g.FamilyOf(lot)) log.WriteLine($"СЕТЬ хост: {f.foxName}: характер {string.Join(",", f.pers.v)}, рост {f.size:0.00}, навык0 {f.skillLvl[0]}");
+            log.WriteLine($"СЕТЬ хост: чат {net.chat.Count}: {string.Join(" / ", net.chat.ConvertAll(c => c.who + ": " + c.text))}");
             foreach (var e in g.log) log.WriteLine("ЖУРНАЛ " + e.time + " " + e.text);
             Application.Quit();
         }
@@ -78,10 +83,22 @@ namespace FoxLife
             while (g.loading) yield return null;
             yield return new WaitForSecondsRealtime(4f);
             var net = Net.Ensure();
+            // ищем игру в сети, как это делает окно «Играть вместе»
             float t0 = Time.realtimeSinceStartup;
+            LanGame lan = null;
+            while (lan == null && Time.realtimeSinceStartup - t0 < 40f)
+            {
+                net.searchUntil = Time.unscaledTime + 1f;
+                lan = net.found.Find(x => x.port == TestPort);
+                yield return null;
+            }
+            log.WriteLine(lan != null ? $"СЕТЬ гость: найдена игра «{lan.town}» у {lan.host} ({lan.address}:{lan.port}), найдено всего {net.found.Count}" : "СЕТЬ гость: поиск игр НЕ нашёл хоста");
+            net.searchUntil = 0;
+            string addr = lan != null ? lan.address : "127.0.0.1";
+            t0 = Time.realtimeSinceStartup;
             while (!net.worldReady && Time.realtimeSinceStartup - t0 < 120f)
             {
-                if (net.role == Net.Role.None) { yield return new WaitForSecondsRealtime(2f); net.StartClient("127.0.0.1", TestPort, "Гость"); }
+                if (net.role == Net.Role.None) { yield return new WaitForSecondsRealtime(2f); net.StartClient(addr, TestPort, "Гость"); }
                 yield return new WaitForSecondsRealtime(0.5f);
             }
             if (!net.worldReady) { log.WriteLine("СЕТЬ гость: город не пришёл: " + net.status); Application.Quit(); yield break; }
@@ -191,6 +208,26 @@ namespace FoxLife
             g.cam.target = me.transform.position;
             yield return new WaitForSeconds(1f);
             yield return Shot("net_join_2_social");
+            // чат и «Лисички»: переименовать свою лисичку, поменять характер, добавить лисичку
+            net.SendChat("Привет из гостей!");
+            g.SetMode(Mode.Create);
+            yield return new WaitForSecondsRealtime(1f);
+            int fam0 = g.Household.Count;
+            me.foxName = "Тестик"; me.pers.v[0] = 10; me.size = 1.1f;
+            me.skillLvl[0] = 3;
+            yield return new WaitForSecondsRealtime(1f);
+            if (fam0 < Game.MaxFoxes) net.CasAddFox(me);
+            yield return new WaitForSecondsRealtime(3f);
+            log.WriteLine($"СЕТЬ гость: в «Лисичках» скорость {g.speedIndex}, семья {fam0}→{g.Household.Count}: {Game.FamilyTitle(g.Household)}");
+            g.cam.Focus(me.transform.position, 6f);
+            yield return Shot("net_join_2b_create");
+            g.SetMode(Mode.Live);
+            yield return new WaitForSecondsRealtime(5f);
+            log.WriteLine($"СЕТЬ гость: после «Лисичек» {me.foxName}, общительность {me.pers.v[0]}, рост {me.size:0.00}, скорость {g.speedIndex}");
+            g.ui.chatOpen = true;
+            yield return Shot("net_join_2c_chat");
+            g.ui.chatOpen = false;
+            log.WriteLine($"СЕТЬ гость: чат {net.chat.Count}: {string.Join(" / ", net.chat.ConvertAll(c => c.who + ": " + c.text))}");
             g.cam.Focus(new Vector3(20f, 0, -5f), 999f); g.cam.dist = 70f; g.cam.pitch = 55f;
             yield return new WaitForSeconds(1.5f);
             yield return Shot("net_join_3_town");

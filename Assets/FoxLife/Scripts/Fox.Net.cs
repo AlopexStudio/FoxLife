@@ -48,7 +48,7 @@ namespace FoxLife
             carried = (fl & 8) != 0;
             atWork = (fl & 16) != 0;
             pose = p;
-            for (int i = 0; i < 5 && i < needs.Length; i++) needs[i] = nd[i];
+            if (!Net.I.CasEditing(this)) for (int i = 0; i < 5 && i < needs.Length; i++) needs[i] = nd[i];
         }
 
         void NetStep()

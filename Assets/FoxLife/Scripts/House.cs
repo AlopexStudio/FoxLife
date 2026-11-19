@@ -100,6 +100,8 @@ namespace FoxLife
         readonly Dictionary<Vector3Int, Edge> edges = new Dictionary<Vector3Int, Edge>();
         Transform roomsRoot, wallsRoot, roofsRoot, treesRoot;
         public Transform propsRoot;
+        public Transform WallsRoot => wallsRoot;
+        public Transform TreesRoot => treesRoot;
         /// <summary>Клетки, занятые украшениями города (башня, фонари, изгороди): там не ходят.</summary>
         public readonly HashSet<Vector2Int> blocked = new HashSet<Vector2Int>();
         readonly List<(GameObject go, int level, Room room, int lot)> roofs = new List<(GameObject, int, Room, int)>();

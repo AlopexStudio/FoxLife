@@ -132,6 +132,25 @@ namespace FoxLife
         /// <summary>Деньги каждой семьи (по участку): у кого играем — в <see cref="money"/>.</summary>
         public readonly Dictionary<int, float> lotMoney = new Dictionary<int, float>();
         public const float FamilyStartMoney = 2000f;
+        public const int EmptyLotMoney = 5000, BuiltLotMoney = 2000;
+
+        /// <summary>На участке ничего нет: ни комнат, ни мебели.</summary>
+        public bool LotIsEmpty(int lot) => !house.rooms.Exists(r => r.lot == lot) && !furniture.Exists(f => f != null && !f.isGhost && f.lot == lot);
+
+        /// <summary>Сколько денег получит новая семья на этом участке: задано для участка или 5000 на пустой, 2000 — если там что-то есть.</summary>
+        public int NewFamilyMoney(int lot)
+        {
+            if (lot >= 0 && lot < Town.Lots.Length && Town.Lots[lot].customMoney) return Mathf.Max(0, Town.Lots[lot].startMoney);
+            return LotIsEmpty(lot) ? EmptyLotMoney : BuiltLotMoney;
+        }
+
+        /// <summary>Задать деньги новой семьи для участка (null — считать само).</summary>
+        public void SetLotMoney(int lot, int? v)
+        {
+            if (lot < 0 || lot >= Town.Lots.Length) return;
+            Town.Lots[lot].customMoney = v.HasValue;
+            Town.Lots[lot].startMoney = v.HasValue ? Mathf.Clamp(v.Value, 0, 10000000) : 0;
+        }
 
         /// <summary>
         /// «Подъёмные» при заселении: на пустой участок — хватит на небольшой дом с мебелью,
@@ -289,7 +308,7 @@ namespace FoxLife
             var l = house.LotById(lot);
             if (l == null || FamilyOf(lot).Count > 0) return null;
             var f = AddRandomFox(lot);
-            if (f != null) lotMoney[lot] = FamilyStartMoney + MoveInGrant(lot);
+            if (f != null) lotMoney[lot] = NewFamilyMoney(lot);
             return f;
         }
 
