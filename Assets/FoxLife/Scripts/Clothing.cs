@@ -153,6 +153,8 @@ namespace FoxLife
                     Shapes.Cyl(st, 0, t, V(s, 0.05f, 0.2f), 0.15f, 0.02f, V(90, 0, 0));
                     Shapes.Cyl(st, 1, t, V(s, 0.05f, 0.212f), 0.11f, 0.01f, V(90, 0, 0));
                     Shapes.Box(st, 0, t, V(s * 2f, 0.06f, 0.08f), V(0.015f, 0.02f, 0.24f));
+                    // шарнир: от края оправы к дужке (раньше между ними был зазор)
+                    Shapes.Box(st, 0, t, V(Mathf.Sign(s) * 0.2f, 0.06f, 0.2f), V(0.055f, 0.02f, 0.02f));
                 }
                 Shapes.Box(st, 0, t, V(0, 0.06f, 0.205f), V(0.08f, 0.02f, 0.015f));
             }, true);
@@ -161,6 +163,140 @@ namespace FoxLife
                 Shapes.Box(st, 0, t, V(0, 0.07f, 0.2f), V(0.42f, 0.03f, 0.02f));
                 foreach (var s in new[] { -0.1f, 0.1f }) Shapes.Box(st, 1, t, V(s, 0.04f, 0.205f), V(0.15f, 0.08f, 0.015f));
                 foreach (var s in new[] { -0.22f, 0.22f }) Shapes.Box(st, 0, t, V(s, 0.07f, 0.08f), V(0.015f, 0.02f, 0.24f));
+            }, true);
+            More();
+        }
+
+        /// <summary>Ещё вещи: кепка, цилиндр, наушники, заколки, бусы, галстук, худи, комбинезон, платье, накидка, очки разных форм…</summary>
+        static void More()
+        {
+            // ----- голова -----
+            Add("cap", "Кепка", ClothSlot.Head, new[] { ("Кепка", M("Ткань", "#5B7FA8")), ("Козырёк", M("Гладкий", "#2E3A5C")) }, (st, t) =>
+            {
+                Shapes.Box(st, 0, t, V(0, 0.18f, -0.02f), V(0.46f, 0.12f, 0.38f));
+                Shapes.Box(st, 1, t, V(0, 0.13f, 0.22f), V(0.36f, 0.025f, 0.2f), V(-8, 0, 0));
+                Shapes.Box(st, 1, t, V(0, 0.25f, -0.02f), V(0.05f, 0.03f, 0.05f));
+            });
+            Add("tophat", "Цилиндр", ClothSlot.Head, new[] { ("Цилиндр", M("Гладкий", "#2A2A2E", null, 1, 0.4f)), ("Лента", M("Гладкий", "#B33A3A")) }, (st, t) =>
+            {
+                Shapes.Cyl(st, 0, t, V(0.02f, 0.2f, -0.02f), 0.42f, 0.025f);
+                Shapes.Cyl(st, 0, t, V(0.02f, 0.33f, -0.02f), 0.26f, 0.26f);
+                Shapes.Cyl(st, 1, t, V(0.02f, 0.24f, -0.02f), 0.265f, 0.05f);
+            });
+            Add("earmuffs", "Наушники-грелки", ClothSlot.Head, new[] { ("Мех", M("Ворс", "#F5A3C1")), ("Дужка", M("Гладкий", "#C9B4E8")) }, (st, t) =>
+            {
+                foreach (var x in new[] { -0.25f, 0.25f }) Shapes.Ball(st, 0, t, V(x, 0.06f, -0.02f), V(0.1f, 0.14f, 0.14f));
+                Shapes.Box(st, 1, t, V(0, 0.2f, -0.02f), V(0.5f, 0.03f, 0.05f));
+                foreach (var x in new[] { -0.25f, 0.25f }) Shapes.Box(st, 1, t, V(x, 0.14f, -0.02f), V(0.03f, 0.12f, 0.05f));
+            });
+            Add("flowerclip", "Цветочек-заколка", ClothSlot.Head, new[] { ("Лепестки", M("Гладкий", "#F7DE7E")), ("Серединка", M("Гладкий", "#E9A93E")) }, (st, t) =>
+            {
+                var c = V(0.15f, 0.2f, 0.06f);
+                for (int i = 0; i < 5; i++)
+                {
+                    float a = i / 5f * Mathf.PI * 2f;
+                    Shapes.Ball(st, 0, t, c + V(Mathf.Cos(a) * 0.04f, Mathf.Sin(a) * 0.04f, 0), V(0.05f, 0.05f, 0.03f));
+                }
+                Shapes.Ball(st, 1, t, c + V(0, 0, 0.01f), V(0.04f, 0.04f, 0.035f));
+            });
+            Add("bandana", "Бандана", ClothSlot.Head, new[] { ("Бандана", M("Горошек", "#E57373", "#FFFFFF", 4f)) }, (st, t) =>
+            {
+                Shapes.Box(st, 0, t, V(0, 0.15f, -0.01f), V(0.48f, 0.08f, 0.4f));
+                Shapes.Box(st, 0, t, V(0.12f, 0.12f, -0.24f), V(0.06f, 0.1f, 0.04f), V(0, 0, 25));
+                Shapes.Box(st, 0, t, V(0.17f, 0.12f, -0.24f), V(0.06f, 0.1f, 0.04f), V(0, 0, -25));
+            });
+            // ----- шея -----
+            Add("pearls", "Бусы", ClothSlot.Neck, new[] { ("Бусины", M("Гладкий", "#FFF8EE", null, 1, 0.85f)) }, (st, t) =>
+            {
+                for (int i = 0; i < 11; i++)
+                {
+                    float a = (i / 10f - 0.5f) * Mathf.PI * 0.95f;
+                    Shapes.Ball(st, 0, t, V(Mathf.Sin(a) * 0.22f, 0.15f + Mathf.Abs(Mathf.Sin(a)) * 0.06f, 0.33f + Mathf.Cos(a) * 0.1f), V(0.05f, 0.05f, 0.05f));
+                }
+            });
+            Add("tie", "Галстук", ClothSlot.Neck, new[] { ("Галстук", M("Полоска", "#5B7FA8", "#F2D98A", 4f)), ("Воротник", M("Гладкий", "#FFFFFF")) }, (st, t) =>
+            {
+                Shapes.Box(st, 1, t, V(0, 0.22f, 0.36f), V(0.46f, 0.06f, 0.12f));
+                Shapes.Box(st, 0, t, V(0, 0.18f, 0.43f), V(0.06f, 0.05f, 0.04f));
+                Shapes.Box(st, 0, t, V(0, 0.07f, 0.43f), V(0.08f, 0.18f, 0.03f));
+            });
+            Add("lei", "Гирлянда из цветов", ClothSlot.Neck, new[] { ("Цветы", M("Гладкий", "#F5A3C1")), ("Цветы 2", M("Гладкий", "#F7DE7E")) }, (st, t) =>
+            {
+                for (int i = 0; i < 12; i++)
+                {
+                    float a = (i / 11f - 0.5f) * Mathf.PI;
+                    Shapes.Ball(st, i % 2, t, V(Mathf.Sin(a) * 0.24f, 0.16f + Mathf.Abs(Mathf.Sin(a)) * 0.05f, 0.32f + Mathf.Cos(a) * 0.11f), V(0.08f, 0.07f, 0.08f));
+                }
+            });
+            Add("longscarf", "Длинный шарф", ClothSlot.Neck, new[] { ("Шарф", M("Клетка", "#7FA36B", "#F2C14E", 3f)), ("Кисточки", M("Ворс", "#F2C14E")) }, (st, t) =>
+            {
+                Shapes.Box(st, 0, t, V(0, 0.22f, 0.33f), V(0.52f, 0.13f, 0.22f));
+                Shapes.Box(st, 0, t, V(-0.16f, 0.2f, 0.05f), V(0.1f, 0.06f, 0.5f), V(-12, 0, 0));
+                Shapes.Box(st, 1, t, V(-0.16f, 0.24f, -0.22f), V(0.1f, 0.04f, 0.05f));
+            });
+            // ----- тело -----
+            Add("hoodie", "Худи", ClothSlot.Body, new[] { ("Худи", M("Вельвет", "#C9B4E8")), ("Карман", M("Гладкий", "#A48BC9")), ("Шнурки", M("Гладкий", "#FFFFFF")) }, (st, t) =>
+            {
+                Shapes.Box(st, 0, t, V(0, 0.07f, 0.03f), V(0.52f, 0.44f, 0.62f));
+                Shapes.Box(st, 0, t, V(0, 0.28f, 0.16f), V(0.44f, 0.12f, 0.2f));
+                Shapes.Box(st, 1, t, V(0, -0.05f, 0.32f), V(0.3f, 0.1f, 0.03f));
+                foreach (var x in new[] { -0.06f, 0.06f }) Shapes.Box(st, 2, t, V(x, 0.13f, 0.34f), V(0.02f, 0.1f, 0.02f));
+            });
+            Add("overalls", "Комбинезон", ClothSlot.Body, new[] { ("Ткань", M("Ткань", "#5B7FA8", null, 2f)), ("Пуговицы", M("Гладкий", "#E8C55A", null, 1, 0.8f)) }, (st, t) =>
+            {
+                Shapes.Box(st, 0, t, V(0, -0.02f, 0), V(0.51f, 0.3f, 0.84f));
+                Shapes.Box(st, 0, t, V(0, 0.12f, 0.3f), V(0.3f, 0.2f, 0.04f));
+                foreach (var x in new[] { -0.12f, 0.12f }) Shapes.Box(st, 1, t, V(x, 0.2f, 0.33f), V(0.04f, 0.04f, 0.02f));
+                foreach (var x in new[] { -0.13f, 0.13f })
+                    foreach (var z in new[] { -0.27f, 0.27f })
+                        Shapes.Box(st, 0, t, V(x, -0.17f, z), V(0.12f, 0.1f, 0.12f));
+            });
+            Add("dress", "Платье", ClothSlot.Body, new[] { ("Платье", M("Горошек", "#F5A3C1", "#FFFFFF", 3f)), ("Пояс", M("Гладкий", "#E57373")) }, (st, t) =>
+            {
+                Shapes.Box(st, 0, t, V(0, 0.09f, 0.08f), V(0.5f, 0.36f, 0.5f));
+                Shapes.Box(st, 0, t, V(0, -0.1f, 0.0f), V(0.6f, 0.2f, 0.7f));
+                Shapes.Box(st, 1, t, V(0, 0.02f, 0.06f), V(0.52f, 0.04f, 0.56f));
+            });
+            Add("cape", "Накидка", ClothSlot.Body, new[] { ("Накидка", M("Звёздочки", "#2E3A5C", "#F2D98A", 3f)), ("Застёжка", M("Гладкий", "#E8C55A", null, 1, 0.8f)) }, (st, t) =>
+            {
+                Shapes.Box(st, 0, t, V(0, 0.2f, -0.05f), V(0.56f, 0.06f, 0.72f));
+                foreach (var x in new[] { -0.28f, 0.28f }) Shapes.Box(st, 0, t, V(x, 0.05f, -0.08f), V(0.03f, 0.3f, 0.64f));
+                Shapes.Ball(st, 1, t, V(0, 0.2f, 0.36f), V(0.06f, 0.06f, 0.04f));
+            });
+            Add("tshirt", "Футболка", ClothSlot.Body, new[] { ("Футболка", M("Гладкий", "#F2C14E")), ("Рисунок", M("Гладкий", "#E57373")) }, (st, t) =>
+            {
+                Shapes.Box(st, 0, t, V(0, 0.09f, 0.08f), V(0.5f, 0.36f, 0.46f));
+                Shapes.Ball(st, 1, t, V(0, 0.08f, 0.31f), V(0.12f, 0.12f, 0.02f));
+            });
+            // ----- глаза -----
+            Add("heartglasses", "Очки-сердечки", ClothSlot.Eyes, new[] { ("Оправа", M("Гладкий", "#E57373", null, 1, 0.7f)), ("Стёкла", M("Гладкий", "#F5A3C1", null, 1, 0.95f)) }, (st, t) =>
+            {
+                foreach (var s in new[] { -0.11f, 0.11f })
+                {
+                    Shapes.Box(st, 1, t, V(s, 0.04f, 0.208f), V(0.08f, 0.08f, 0.012f), V(0, 0, 45));
+                    Shapes.Ball(st, 1, t, V(s - 0.028f, 0.075f, 0.208f), V(0.07f, 0.07f, 0.012f));
+                    Shapes.Ball(st, 1, t, V(s + 0.028f, 0.075f, 0.208f), V(0.07f, 0.07f, 0.012f));
+                    Shapes.Box(st, 0, t, V(Mathf.Sign(s) * 0.2f, 0.07f, 0.2f), V(0.07f, 0.02f, 0.02f));
+                    Shapes.Box(st, 0, t, V(Mathf.Sign(s) * 0.225f, 0.07f, 0.08f), V(0.015f, 0.02f, 0.24f));
+                }
+                Shapes.Box(st, 0, t, V(0, 0.07f, 0.205f), V(0.06f, 0.02f, 0.015f));
+            }, true);
+            Add("squareglasses", "Квадратные очки", ClothSlot.Eyes, new[] { ("Оправа", M("Гладкий", "#2A2A2E", null, 1, 0.7f)), ("Стёкла", M("Гладкий", "#DDEEFF", null, 1, 0.95f)) }, (st, t) =>
+            {
+                foreach (var s in new[] { -0.11f, 0.11f })
+                {
+                    Shapes.Box(st, 0, t, V(s, 0.05f, 0.2f), V(0.15f, 0.12f, 0.02f));
+                    Shapes.Box(st, 1, t, V(s, 0.05f, 0.212f), V(0.11f, 0.08f, 0.01f));
+                    Shapes.Box(st, 0, t, V(Mathf.Sign(s) * 0.21f, 0.08f, 0.2f), V(0.05f, 0.02f, 0.02f));
+                    Shapes.Box(st, 0, t, V(Mathf.Sign(s) * 0.225f, 0.08f, 0.08f), V(0.015f, 0.02f, 0.24f));
+                }
+                Shapes.Box(st, 0, t, V(0, 0.07f, 0.205f), V(0.08f, 0.02f, 0.015f));
+            }, true);
+            Add("monocle", "Монокль", ClothSlot.Eyes, new[] { ("Оправа", M("Гладкий", "#E8C55A", null, 1, 0.85f)), ("Стекло", M("Гладкий", "#DDEEFF", null, 1, 0.95f)) }, (st, t) =>
+            {
+                Shapes.Cyl(st, 0, t, V(0.11f, 0.05f, 0.2f), 0.15f, 0.02f, V(90, 0, 0));
+                Shapes.Cyl(st, 1, t, V(0.11f, 0.05f, 0.212f), 0.11f, 0.01f, V(90, 0, 0));
+                Shapes.Box(st, 0, t, V(0.17f, -0.06f, 0.19f), V(0.012f, 0.2f, 0.012f), V(0, 0, 12));
             }, true);
         }
 
@@ -177,13 +313,14 @@ namespace FoxLife
         {
             var o = new[] { new Outfit(), new Outfit(), new Outfit() };
             var r = new System.Random((f.id != null ? f.id.GetHashCode() : 0) ^ seed);
-            string[] heads = { "beanie", "beret", "strawhat", "bow", "wreath" };
-            string[] necks = { "scarf", "bowtie", "bell", "kerchief" };
-            string[] bodies = { "sweater", "vest" };
+            string[] heads = { "beanie", "beret", "strawhat", "bow", "wreath", "cap", "tophat", "earmuffs", "flowerclip", "bandana" };
+            string[] necks = { "scarf", "bowtie", "bell", "kerchief", "pearls", "tie", "lei", "longscarf" };
+            string[] bodies = { "sweater", "vest", "hoodie", "overalls", "dress", "cape", "tshirt" };
             if (r.NextDouble() < 0.35) o[0].items.Add(Recolor(Item(heads[r.Next(heads.Length)]), r));
             if (r.NextDouble() < 0.55) o[0].items.Add(Recolor(Item(necks[r.Next(necks.Length)]), r));
             if (r.NextDouble() < 0.25) o[0].items.Add(Recolor(Item(bodies[r.Next(bodies.Length)]), r));
-            if (f.pers.O >= 8 && r.NextDouble() < 0.5) o[0].items.Add(Item("glasses"));
+            if (f.pers.O >= 8 && r.NextDouble() < 0.5) o[0].items.Add(Item(r.NextDouble() < 0.7 ? "glasses" : "squareglasses"));
+            else if (r.NextDouble() < 0.06) o[0].items.Add(Item(r.NextDouble() < 0.5 ? "heartglasses" : "monocle"));
             o[1].items.Add(Recolor(Item("pajama"), r));
             if (r.NextDouble() < 0.5) o[1].items.Add(Item("nightcap"));
             o[2].items.Add(Recolor(Item("raincoat"), r));

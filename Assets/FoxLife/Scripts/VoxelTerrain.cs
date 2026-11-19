@@ -223,6 +223,45 @@ namespace FoxLife
         public enum Paint : byte { None, Road, Path, Grass, Forest, Stones, StonesX }
         byte[,] paint;
 
+        // ---------- отмена: журнал столбиков за мазок кисти ----------
+
+        /// <summary>Пока не null — запоминаем прежнее состояние каждого изменённого столбика (x — смещение высоты, y — покраска).</summary>
+        public Dictionary<int, Vector2> undoLog;
+
+        void LogColumn(int i, int k)
+        {
+            if (undoLog == null) return;
+            int idx = i * NZ + k;
+            if (!undoLog.ContainsKey(idx)) undoLog[idx] = new Vector2(offset[i, k], paint[i, k]);
+        }
+
+        public Vector2 ColumnState(int idx) => new Vector2(offset[idx / NZ, idx % NZ], paint[idx / NZ, idx % NZ]);
+
+        /// <summary>Вернуть столбикам состояние; возвращает затронутый прямоугольник (в клетках мира).</summary>
+        public RectInt SetColumns(List<(int idx, Vector2 state)> cols)
+        {
+            int i0 = int.MaxValue, i1 = int.MinValue, k0 = int.MaxValue, k1 = int.MinValue;
+            foreach (var (idx, st) in cols)
+            {
+                int i = idx / NZ, k = idx % NZ;
+                offset[i, k] = st.x;
+                paint[i, k] = (byte)Mathf.RoundToInt(st.y);
+                i0 = Mathf.Min(i0, i); i1 = Mathf.Max(i1, i); k0 = Mathf.Min(k0, k); k1 = Mathf.Max(k1, k);
+            }
+            if (i0 > i1) return new RectInt(0, 0, 0, 0);
+            for (int i = Mathf.Max(0, i0 - 1); i <= Mathf.Min(NX - 1, i1 + 1); i++)
+                for (int k = Mathf.Max(0, k0 - 1); k <= Mathf.Min(NZ - 1, k1 + 1); k++)
+                    FillColumn(i, k);
+            for (int cx = (Mathf.Max(0, i0 - 1) / Chunk) * Chunk; cx <= Mathf.Min(NX - 1, i1 + 1); cx += Chunk)
+                for (int cz = (Mathf.Max(0, k0 - 1) / Chunk) * Chunk; cz <= Mathf.Min(NZ - 1, k1 + 1); cz += Chunk)
+                    Remesh(cx, cz);
+            float x0 = MinX + i0 * S, x1 = MinX + (i1 + 1) * S, z0 = MinZ + k0 * S, z1 = MinZ + (k1 + 1) * S;
+            foreach (var f in flowers)
+                if (f.go != null && f.p.x > x0 - 1 && f.p.x < x1 + 1 && f.p.z > z0 - 1 && f.p.z < z1 + 1)
+                    f.go.transform.position = new Vector3(0, GroundAt(f.p.x, f.p.z), 0);
+            return new RectInt(Mathf.FloorToInt(x0) - 2, Mathf.FloorToInt(z0) - 2, Mathf.CeilToInt(x1 - x0) + 4, Mathf.CeilToInt(z1 - z0) + 4);
+        }
+
         public bool IsRoad(float wx, float wz)
         {
             int i = Mathf.FloorToInt((wx - MinX) / S), k = Mathf.FloorToInt((wz - MinZ) / S);
@@ -245,6 +284,7 @@ namespace FoxLife
                     // спрей: редкие точки, гуще к середине — мягкий переход (как опушка между газоном и подлеском)
                     if (spray && Random.value > 0.18f * (1f - d / radius) + 0.02f) continue;
                     if (paint[i, k] == (byte)v) continue;
+                    LogColumn(i, k);
                     paint[i, k] = (byte)v;
                     FillColumn(i, k);
                     changed = true;
@@ -767,6 +807,7 @@ namespace FoxLife
                     }
                     target = Mathf.Clamp(target, -1.5f, 16f);
                     if (Mathf.Abs(target - cur) < 0.001f) continue;
+                    LogColumn(i, k);
                     offset[i, k] = target - bh;
                     FillColumn(i, k);
                     changed = true;

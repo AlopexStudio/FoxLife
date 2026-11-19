@@ -329,6 +329,29 @@ namespace FoxLife
             yield return new WaitForSeconds(1f);
             yield return Shot("4_build");
             g.CancelPlacing();
+            // отмена и повтор: продали предмет — вернули — снова продали; перекрасили — вернули цвет
+            {
+                var victim = g.furniture.Find(f => f.lot == House.PlayerLotId && f.def.id == "plant");
+                int n0 = g.furniture.Count; float m0 = g.money;
+                if (victim != null)
+                {
+                    g.SellFurniture(victim);
+                    int n1 = g.furniture.Count;
+                    g.Undo(); int n2 = g.furniture.Count; float m2 = g.money;
+                    g.Redo(); int n3 = g.furniture.Count;
+                    g.Undo();
+                    log.WriteLine($"ОТМЕНА: мебели {n0} → продажа {n1} → отмена {n2} (монет {m0:0}→{m2:0}) → повтор {n3}");
+                }
+                var sofaSt = g.furniture.Find(f => f.def.id == "sofa")?.style;
+                if (sofaSt != null)
+                {
+                    var c0 = sofaSt.Get(0).c1;
+                    var ns = sofaSt.Get(0).Clone(); ns.c1 = Color.magenta;
+                    g.StyleEdit(sofaSt, 0, ns);
+                    g.Undo();
+                    log.WriteLine($"ОТМЕНА СТИЛЯ: цвет вернулся {(sofaSt.Get(0).c1 == c0)}");
+                }
+            }
 
             // команды игрока и перекраска — проверяем, что ничего не падает
             var rf = g.foxes[0];

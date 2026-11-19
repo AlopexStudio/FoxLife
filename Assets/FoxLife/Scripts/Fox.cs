@@ -472,9 +472,34 @@ namespace FoxLife
 
         // ================= команды =================
 
+        /// <summary>Клетка — внутри чужого дома, куда нас не приглашали? Тогда номер участка, иначе −1.</summary>
+        public int ForeignHomeAt(Vector2Int c, int level = 0)
+        {
+            var lot = G.house.LotAt(c);
+            if (lot == null || lot.kind != LotKind.Home || lot.id == home || IsGuestAt(lot.id)) return -1;
+            if (G.house.RoomAt(level, c) == null) return -1;                 // во дворе — можно
+            if (!G.foxes.Exists(o => o != null && o.home == lot.id)) return -1; // дом пустой
+            return lot.id;
+        }
+
         public void Command(FoxAction a)
         {
             a.byPlayer = true;
+            // в чужой дом — только с разрешения жильцов: сначала постучаться
+            if (a.kind != ActKind.Work)
+            {
+                int foreign = -1;
+                if (a.kind == ActKind.Move) foreign = ForeignHomeAt(GridMap.CellOf(a.moveTarget), G.house.LevelOf(a.moveTarget));
+                else if (a.kind == ActKind.UseObject && a.furn != null) foreign = ForeignHomeAt(a.furn.anchor, a.furn.level);
+                else if (a.kind == ActKind.Social && a.other != null) foreign = ForeignHomeAt(a.other.Cell, a.other.Level);
+                if (foreign >= 0)
+                {
+                    Say("Без приглашения в чужой дом не заходят. Постучусь!");
+                    if (IsPlayer) G.Log($"{foxName}: в чужой дом — только с разрешения. Сначала постучимся.");
+                    VisitHome(foreign);
+                    return;
+                }
+            }
             // «иди сюда» имеет смысл, только если после него ничего нет: любой новый приказ его отменяет
             queue.RemoveAll(q => q.kind == ActKind.Move && q.byPlayer && q.onArrive == null);
             if (current != null && current.kind == ActKind.Move && current.byPlayer && current.onArrive == null) CancelCurrent(false);

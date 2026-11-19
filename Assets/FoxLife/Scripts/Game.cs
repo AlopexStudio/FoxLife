@@ -161,6 +161,8 @@ namespace FoxLife
 
         void ClearWorld()
         {
+            ClearUndo();
+            pendingBefore = null;
             EndTitleScene();
             CancelPlacing();
             ClearHover();
@@ -376,6 +378,7 @@ namespace FoxLife
         {
             if (townBuilder && (m == Mode.Live || m == Mode.Create || m == Mode.Town)) return; // в строительстве города лисички не участвуют
             CancelPlacing();
+            if (m != Mode.Build && m != Mode.Style) ClearUndo(); // история правок — только пока открыт план
             SetWallTool(WallTool.None);
             SetLandTool(LandTool.None);
             mode = m;
@@ -704,8 +707,10 @@ namespace FoxLife
             SetWallTool(WallTool.None);
             SetLandTool(LandTool.None);
             var oldLot = house.PlayerLot;
+            int grant = MoveInGrant(lotId);
             if (!freeBuild) { AddMoney(sale, "Продажа: " + oldLot.name); AddMoney(-price, "Покупка: " + lot.name); }
             House.PlayerLotId = lotId;
+            if (!freeBuild && grant > 0) AddMoney(grant, "Подъёмные на обустройство");
             int i = 0;
             foreach (var f in foxes)
             {
@@ -950,7 +955,9 @@ namespace FoxLife
                 if (Input.GetMouseButtonUp(0))
                 {
                     wallDragging = false;
-                    ApplyWallLine(wallStart, wallEnd, wallTool == WallTool.Erase, wallTool == WallTool.Fence ? EdgeKind.Fence : wallTool == WallTool.Railing ? EdgeKind.Railing : EdgeKind.Wall, lvl);
+                    var wt = wallTool; var ws = wallStart; var we = wallEnd;
+                    Recorded(wt == WallTool.Erase ? "снос стен" : wt == WallTool.Fence ? "забор" : wt == WallTool.Railing ? "перила" : "стены",
+                        () => ApplyWallLine(ws, we, wt == WallTool.Erase, wt == WallTool.Fence ? EdgeKind.Fence : wt == WallTool.Railing ? EdgeKind.Railing : EdgeKind.Wall, lvl));
                 }
                 return;
             }
@@ -973,9 +980,11 @@ namespace FoxLife
                 if (!ok) { Log(want == EdgeKind.RailingOpen ? "Вход делается в перилах." : want == EdgeKind.Gate ? "Калитка ставится в забор." : kind == EdgeKind.None ? "Сначала поставь здесь стену." : "Здесь уже это стоит."); return; }
                 int price = want == EdgeKind.Door ? DoorPrice : want == EdgeKind.Window ? WindowPrice : want == EdgeKind.Gate ? GatePrice : want == EdgeKind.RailingOpen ? RailingGapPrice : ArchPrice;
                 if (!freeBuild && money < price) { Log($"Не хватает монет: нужно {price}."); return; }
+                var doorBefore = Snap();
                 if (!freeBuild) AddMoney(-price, want == EdgeKind.Door ? "Дверь" : want == EdgeKind.Window ? "Окно" : want == EdgeKind.Gate ? "Калитка" : want == EdgeKind.RailingOpen ? "Вход в перилах" : "Проём");
                 house.SetEdge(lvl, ex, ez, vert, want);
                 house.Rebuild(house.LotById(house.EdgeLot(ex, ez, vert)) ?? house.PlayerLot);
+                PushBuild(want == EdgeKind.Door ? "дверь" : want == EdgeKind.Window ? "окно" : want == EdgeKind.Gate ? "калитка" : "проём", doorBefore, Snap());
                 foreach (var fx2 in foxes) fx2.OnEvent(new GameEvent { kind = "buy" });
             }
         }
@@ -1044,8 +1053,26 @@ namespace FoxLife
         public const int FlowerPrice = 5, TreePrice = 40;
         float brushTimer, flattenH;
 
+        static string LandToolName(LandTool t)
+        {
+            switch (t)
+            {
+                case LandTool.Raise: return "подъём земли";
+                case LandTool.Lower: return "углубление земли";
+                case LandTool.Flatten: return "выравнивание";
+                case LandTool.Smooth: return "сглаживание";
+                case LandTool.Pond: return "пруд";
+                case LandTool.Fill: return "засыпка воды";
+                case LandTool.Flowers: return "цветы";
+                case LandTool.Tree: case LandTool.Pine: return "деревья";
+                case LandTool.Remove: return "уборка растений";
+                default: return "покраска земли";
+            }
+        }
+
         public void SetLandTool(LandTool t)
         {
+            EndStroke();
             landTool = t;
             if (t != LandTool.None) SetWallTool(WallTool.None);
             HideWallGhost();
@@ -1076,8 +1103,8 @@ namespace FoxLife
                 : landTool == LandTool.Raise || landTool == LandTool.Fill ? new Color(0.5f, 0.85f, 0.45f) : new Color(0.5f, 0.75f, 1f);
             ShowWallGhost(p + Vector3.up * 0.05f, new Vector3(r * 2f, 0.06f, r * 2f), col);
 
-            if (Input.GetMouseButtonDown(0)) { brushTimer = 0; flattenH = p.y; }
-            if (!Input.GetMouseButton(0)) return;
+            if (Input.GetMouseButtonDown(0)) { brushTimer = 0; flattenH = p.y; BeginStroke(LandToolName(landTool)); }
+            if (!Input.GetMouseButton(0)) { EndStroke(); return; }
             brushTimer -= Time.unscaledDeltaTime;
             if (brushTimer > 0) return;
             brushTimer = plant || landTool == LandTool.Remove ? 0.25f : landTool >= LandTool.Road ? 0.04f : 0.12f;
@@ -1176,9 +1203,11 @@ namespace FoxLife
 
         public void SellFurniture(Furniture f)
         {
+            var before = (mode == Mode.Build || mode == Mode.Style) ? Snap() : null;
             int refund = freeBuild ? 0 : SellValue(f);
             RemoveFurniture(f);
             if (refund > 0) AddMoney(refund, "Продано: " + f.def.name);
+            if (before != null) PushBuild("продажа: " + f.def.name, before, Snap());
         }
 
         public void NotifyStyle()
@@ -1201,6 +1230,7 @@ namespace FoxLife
         void StartMoving(Furniture f)
         {
             CancelPlacing();
+            pendingBefore = Snap();
             foreach (var fox in foxes) fox.CancelFor(f);
             Unregister(f);
             moveOrigAnchor = f.anchor;
@@ -1256,6 +1286,7 @@ namespace FoxLife
                 ghost.level = moveOrigLevel;
                 ghost.fineYaw = moveOrigFine;
                 ghost.Place(moveOrigAnchor, moveOrigRot);
+                pendingBefore = null;
                 FinishGhost();
             }
             else Destroy(ghost.gameObject);
@@ -1267,9 +1298,11 @@ namespace FoxLife
         {
             if (ghost == null) return;
             if (movingExisting && !freeBuild && ghost.def.price > 0) AddMoney(SellValue(ghost), "Продано: " + ghost.def.name);
+            bool wasMoving = movingExisting;
             Destroy(ghost.gameObject);
             ghost = null;
             movingExisting = false;
+            if (wasMoving && pendingBefore != null) { var b = pendingBefore; pendingBefore = null; PushBuild("продажа предмета", b, Snap()); }
         }
 
         void FinishGhost()
@@ -1300,6 +1333,8 @@ namespace FoxLife
             {
                 var def = ghost.def;
                 bool wasNew = !movingExisting;
+                var undoBefore = wasNew ? Snap() : (pendingBefore ?? Snap());
+                pendingBefore = null;
                 if (wasNew)
                 {
                     if (!freeBuild && def.price > 0) AddMoney(-def.price, "Покупка: " + def.name);
@@ -1309,6 +1344,7 @@ namespace FoxLife
                 FinishGhost();
                 ghost = null;
                 movingExisting = false;
+                PushBuild(wasNew ? "покупка: " + def.name : "перенос: " + def.name, undoBefore, Snap());
                 if (wasNew && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))) StartPlacing(def);
             }
         }
@@ -1429,6 +1465,7 @@ namespace FoxLife
             if (Input.GetKeyDown(KeyCode.Alpha1)) SetSpeed(1);
             if (Input.GetKeyDown(KeyCode.Alpha2)) SetSpeed(2);
             if (Input.GetKeyDown(KeyCode.Alpha3)) SetSpeed(3);
+            UndoKeys();
             TownKeys();
             // в игре за семью строительство и стили открываются через мольберт: F2/F3 переключают их, пока план открыт
             if (!townBuilder && (mode == Mode.Build || mode == Mode.Style))
@@ -1740,8 +1777,8 @@ namespace FoxLife
             if (ui.tool == GameUI.StyleTool.Brush || ctrl)
             {
                 if (clipboard == null) { Log("Сначала возьми стиль пипеткой."); return; }
-                if (shift) for (int i = 0; i < st.parts.Count; i++) st.SetStyle(i, clipboard);
-                else st.SetStyle(part, clipboard);
+                if (shift) StyleEditAll(st, clipboard);
+                else StyleEdit(st, part, clipboard);
                 return;
             }
             styleTarget = st;

@@ -872,12 +872,23 @@ namespace FoxLife
 
         // ---------- обустройство ----------
 
+        /// <summary>Отменить / повторить (Ctrl+Z, Ctrl+Shift+Z или Ctrl+Y).</summary>
+        void UndoButtons()
+        {
+            GUI.enabled = G.CanUndo;
+            if (Btn(new GUIContent("←", "Отменить (Ctrl+Z)"), false, W(32))) Defer(() => G.Undo());
+            GUI.enabled = G.CanRedo;
+            if (Btn(new GUIContent("→", "Повторить (Ctrl+Shift+Z или Ctrl+Y)"), false, W(32))) Defer(() => G.Redo());
+            GUI.enabled = true;
+        }
+
         void BuildPanel()
         {
             Begin(new Rect(vw - 340, 130, 330, vh - 130 - 110));
             GUILayout.BeginHorizontal();
             GUILayout.Label(G.townBuilder ? "Город" : "Обустройство", sTitle);
             GUILayout.FlexibleSpace();
+            UndoButtons();
             if (G.townBuilder) { if (Btn(new GUIContent("Готово", "Закончить строительство и вернуться к семьям"), true, W(100))) Defer(() => G.ExitTownBuilder()); }
             else if (Btn(new GUIContent("Переезд…", "Продать свой дом, купить свободный дом или участок и переехать всей семьёй"))) Defer(() => MoveMenu());
             GUILayout.EndHorizontal();
@@ -1159,7 +1170,11 @@ namespace FoxLife
         {
             Begin(new Rect(vw - 420, 74, 410, vh - 74 - 110));
             styleScroll = GUILayout.BeginScrollView(styleScroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
+            GUILayout.BeginHorizontal();
             GUILayout.Label("Создание стиля", sTitle);
+            GUILayout.FlexibleSpace();
+            UndoButtons();
+            GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
             ToolBtn("Выбор", StyleTool.Select, "Клик по детали — открыть её стиль");
@@ -1221,7 +1236,7 @@ namespace FoxLife
                     if (GUI.Button(r, new GUIContent("", pats[i].name), GUIStyle.none))
                     {
                         int k = i;
-                        Defer(() => { var ns = t.Get(part).Clone(); ns.pattern = k; t.SetStyle(part, ns); });
+                        Defer(() => { var ns = t.Get(part).Clone(); ns.pattern = k; G.StyleEdit(t, part, ns); });
                     }
                     if (Event.current.type == EventType.Repaint)
                     {
@@ -1301,18 +1316,18 @@ namespace FoxLife
             if (Mathf.Abs(sc - s.scale) > 0.0001f || Mathf.Abs(gl - s.gloss) > 0.0001f)
             {
                 var ns = s.Clone(); ns.scale = sc; ns.gloss = gl;
-                t.SetStyle(part, ns);
+                G.StyleEdit(t, part, ns);
             }
 
             GUILayout.Space(6);
             GUILayout.BeginHorizontal();
             if (Btn(new GUIContent("Копировать", "Взять стиль этой детали в буфер"))) Defer(() => G.CopyStyle(t, part));
             if (Btn(new GUIContent("Вставить", "Покрасить эту деталь стилем из буфера")) && G.clipboard != null)
-                Defer(() => t.SetStyle(part, G.clipboard));
+                Defer(() => G.StyleEdit(t, part, G.clipboard));
             if (Btn(new GUIContent("Всем деталям", "Сделать все детали предмета как эта"))) Defer(() =>
             {
                 var cur = t.Get(part).Clone();
-                for (int i = 0; i < t.parts.Count; i++) t.SetStyle(i, cur);
+                G.StyleEditAll(t, cur);
             });
             GUILayout.EndHorizontal();
 
@@ -1335,7 +1350,7 @@ namespace FoxLife
                     var r = GUILayoutUtility.GetRect(40, 40, W(40), Hh(40));
                     if (GUI.Button(r, new GUIContent("", Patterns.Get(st.pattern).name), GUIStyle.none))
                     {
-                        if (t != null) Defer(() => { t.SetStyle(part, st); syncTarget = null; });
+                        if (t != null) Defer(() => { G.StyleEdit(t, part, st); syncTarget = null; });
                         Defer(() => { G.clipboard = st.Clone(); G.clipboardName = "Палитра дома"; });
                     }
                     if (Event.current.type == EventType.Repaint) DrawStyleThumb(r, st);
@@ -1399,7 +1414,7 @@ namespace FoxLife
         {
             var ns = t.Get(part).Clone();
             if (colorSlot == 0) ns.c1 = c; else ns.c2 = c;
-            t.SetStyle(part, ns);
+            G.StyleEdit(t, part, ns);
             if (updateHex) hexText = ColorUtility.ToHtmlStringRGB(c);
         }
 

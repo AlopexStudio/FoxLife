@@ -133,6 +133,26 @@ namespace FoxLife
         public readonly Dictionary<int, float> lotMoney = new Dictionary<int, float>();
         public const float FamilyStartMoney = 2000f;
 
+        /// <summary>
+        /// «Подъёмные» при заселении: на пустой участок — хватит на небольшой дом с мебелью,
+        /// в пустой дом без обстановки — на мебель. В обжитой дом — ничего.
+        /// </summary>
+        public int MoveInGrant(int lot)
+        {
+            bool hasHouse = house.rooms.Exists(r => r.lot == lot);
+            if (!hasHouse) return 12000;
+            return LotFurnitureValue(lot) < 3000 ? 4000 : 0;
+        }
+
+        void GiveMoveInGrant(int lot, string who)
+        {
+            int g = MoveInGrant(lot);
+            if (g <= 0) return;
+            if (lot == House.PlayerLotId) AddMoney(g, "Подъёмные на обустройство");
+            else lotMoney[lot] = MoneyOf(lot) + g;
+            Log($"{who}: подъёмные на обустройство +{g} мон.");
+        }
+
         public List<Fox> FamilyOf(int lot) => foxes.FindAll(f => f.home == lot);
 
         public List<string> StoredGroups()
@@ -212,6 +232,7 @@ namespace FoxLife
             }
             if (lotMoney.TryGetValue(from, out var m)) { lotMoney.Remove(from); lotMoney[to] = m; }
             if (House.PlayerLotId == from) House.PlayerLotId = to;
+            GiveMoveInGrant(to, FamilyTitle(FamilyOf(to)));
             house.focusLot = -2;
             return true;
         }
@@ -258,6 +279,7 @@ namespace FoxLife
             }
             if (storedMoney.TryGetValue(group, out var m)) { storedMoney.Remove(group); if (lot == House.PlayerLotId) money = m; else lotMoney[lot] = m; }
             Log($"Семья заселилась: {l.name}.");
+            GiveMoveInGrant(lot, FamilyTitle(FamilyOf(lot)));
         }
 
         /// <summary>Новая семья на свободном участке — одна случайная лисичка, остальное настраивается.</summary>
@@ -266,7 +288,7 @@ namespace FoxLife
             var l = house.LotById(lot);
             if (l == null || FamilyOf(lot).Count > 0) return null;
             var f = AddRandomFox(lot);
-            if (f != null) lotMoney[lot] = FamilyStartMoney;
+            if (f != null) lotMoney[lot] = FamilyStartMoney + MoveInGrant(lot);
             return f;
         }
 

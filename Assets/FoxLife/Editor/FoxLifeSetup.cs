@@ -155,14 +155,18 @@ public static class FoxLifeSetup
         B("m_SupportsHDR", true);
         I("m_MSAA", 4);
         B("m_MainLightShadowsSupported", true);
-        I("m_MainLightShadowmapResolution", 2048);
+        I("m_MainLightShadowmapResolution", 4096);
         I("m_AdditionalLightsRenderingMode", 1); // попиксельно
         I("m_AdditionalLightsPerObjectLimit", 8);
         B("m_AdditionalLightShadowsSupported", true);
         I("m_AdditionalLightsShadowmapResolution", 2048);
-        F("m_ShadowDistance", 45f);
+        // чёткие тени — до ~36 м от камеры (раньше ~13 м), дальше — попроще, всего до 60 м
+        F("m_ShadowDistance", 60f);
         I("m_ShadowCascadeCount", 2);
-        F("m_Cascade2Split", 0.3f);
+        F("m_Cascade2Split", 0.6f);
+        // небольшое смещение по нормали: тонкие воксельные ступеньки крыш не «худеют» в тени и не дают полос на полу
+        F("m_ShadowDepthBias", 1.0f);
+        F("m_ShadowNormalBias", 0.35f);
         B("m_SoftShadowsSupported", true);
         ps.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(asset);
