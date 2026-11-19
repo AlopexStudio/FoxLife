@@ -46,6 +46,8 @@ namespace FoxLife
         public float pregnantMinutes = -1f;
         public int element = -1, likedWeather = -1, dislikedWeather = -1;
         public List<SaveRel> romance = new List<SaveRel>();
+        // ключи от чужих домов (постоянные)
+        public List<HouseKey> keys = new List<HouseKey>();
     }
 
     [Serializable]
@@ -322,6 +324,7 @@ namespace FoxLife
                         outfits = f.outfits != null ? new List<Outfit>(f.outfits) : null,
                     };
                     foreach (var kv in f.romance) sf.romance.Add(new SaveRel { other = kv.Key.id, value = kv.Value });
+                    sf.keys = f.SavedKeys();
 
                     foreach (var kv in f.rel) sf.rels.Add(new SaveRel { other = kv.Key.id, value = kv.Value });
                     foreach (var m in f.moodlets) sf.moodlets.Add(new SaveMoodlet { name = m.name, value = m.value, minutesLeft = m.minutesLeft });
@@ -513,6 +516,8 @@ namespace FoxLife
                 if (sf.dreamsDone != null) fox.dreamsDone.AddRange(sf.dreamsDone);
                 if (sf.tallyK != null && sf.tallyV != null) for (int ti = 0; ti < sf.tallyK.Count && ti < sf.tallyV.Count; ti++) fox.tally[sf.tallyK[ti]] = sf.tallyV[ti];
                 if (sf.memories != null) { fox.memories.Clear(); fox.memories.AddRange(sf.memories); }
+                fox.keys.Clear();
+                if (sf.keys != null) foreach (var k in sf.keys) if (k != null && k.kind == (int)KeyKind.Trusted) fox.keys.Add(k);
                 byName[sf.name] = fox;
                 byId[fox.id] = fox;
             }

@@ -94,6 +94,8 @@ namespace FoxLife
                 case "play3": s = (x, y) => Max(Tri(x, y, new Vector2(0.06f, 0.28f), new Vector2(0.06f, 0.72f), new Vector2(0.34f, 0.5f)), Tri(x, y, new Vector2(0.36f, 0.28f), new Vector2(0.36f, 0.72f), new Vector2(0.64f, 0.5f)), Tri(x, y, new Vector2(0.66f, 0.28f), new Vector2(0.66f, 0.72f), new Vector2(0.94f, 0.5f))); break;
                 case "roof": s = (x, y) => Mathf.Max(Tri(x, y, new Vector2(0.5f, 0.18f), new Vector2(0.08f, 0.62f), new Vector2(0.92f, 0.62f)) - Tri(x, y, new Vector2(0.5f, 0.36f), new Vector2(0.28f, 0.6f), new Vector2(0.72f, 0.6f)), 0); break;
                 case "walls": s = (x, y) => Max(Box(x, y, 0.12f, 0.2f, 0.3f, 0.82f), Box(x, y, 0.41f, 0.42f, 0.59f, 0.82f), Box(x, y, 0.7f, 0.64f, 0.88f, 0.82f)); break;
+                case "names": s = (x, y) => Mathf.Max(Max(Box(x, y, 0.14f, 0.3f, 0.72f, 0.7f), Tri(x, y, new Vector2(0.72f, 0.3f), new Vector2(0.72f, 0.7f), new Vector2(0.9f, 0.5f))) - Circle(x, y, 0.27f, 0.5f, 0.06f), 0); break;
+                case "phrases": s = (x, y) => Max(Box(x, y, 0.14f, 0.22f, 0.86f, 0.62f), Tri(x, y, new Vector2(0.28f, 0.6f), new Vector2(0.48f, 0.6f), new Vector2(0.22f, 0.86f))); break;
                 case "auto": s = (x, y) => Mathf.Max(Ring(x, y, 0.5f, 0.5f, 0.3f, 0.07f) - Box(x, y, 0.45f, 0.1f, 0.9f, 0.32f), Tri(x, y, new Vector2(0.62f, 0.12f), new Vector2(0.62f, 0.38f), new Vector2(0.86f, 0.25f))); break;
                 case "sun": s = (x, y) => Mathf.Max(Circle(x, y, 0.5f, 0.5f, 0.2f), Star(x, y, 0.5f, 0.5f, 0.42f, 8, 0.6f) - Circle(x, y, 0.5f, 0.5f, 0.27f)); break;
                 case "cloud": s = (x, y) => Max(Circle(x, y, 0.36f, 0.58f, 0.2f), Circle(x, y, 0.58f, 0.48f, 0.24f), Circle(x, y, 0.75f, 0.62f, 0.15f), Box(x, y, 0.2f, 0.62f, 0.85f, 0.77f)); break;
@@ -178,6 +180,7 @@ namespace FoxLife
 
         void LateUpdate()
         {
+            UpdateFoxSeen();
             if (portraitQueue.Count == 0) return;
             var list = new List<Fox>(portraitQueue);
             portraitQueue.Clear();
@@ -316,8 +319,9 @@ namespace FoxLife
             // вид: этажи, крыша, стены, свобода воли. Если кнопок режимов нет (в жизни) — в один ряд на их месте, иначе под ними
             bool side = !town && !plan;
             float y1 = side ? y0 + 7 : y0 + 62;
-            float xs = side ? x0 + 180 - 5 * 44 : x0;
-            if (side) Reg(new Rect(xs - 4, y1 - 4, 5 * 44 + 8, 48));
+            float xs = side ? x0 + 180 - 7 * 44 : x0;
+            if (side) Reg(new Rect(xs - 4, y1 - 4, 7 * 44 + 8, 48));
+            else Reg(new Rect(x0 - 4, y1 - 4, 7 * 46 + 16, 48));
             Rect Slot(int i) => side ? new Rect(xs + i * 44, y1, 40, 40) : new Rect(x0 + (i < 2 ? i * 46 : i * 46 + 8), y1, 40, 40);
             for (int lv = 0; lv < House.Levels; lv++)
             {
@@ -332,6 +336,23 @@ namespace FoxLife
             if (RoundBtn(Slot(2), "roof", G.house.showRoof, "Показать или спрятать крыши")) Defer(() => { G.house.showRoof = !G.house.showRoof; G.house.ApplyVisibility(); });
             if (RoundBtn(Slot(3), "walls", G.house.wallMode != House.WallMode.Up, "Стены: " + G.house.WallModeName + " (нажми, чтобы сменить)")) Defer(() => G.house.CycleWallMode());
             if (RoundBtn(Slot(4), "auto", G.autonomy, "Свобода воли: " + (G.autonomy ? "лисички сами решают, чем заняться" : "выключена"))) Defer(() => G.autonomy = !G.autonomy);
+            LabelBtn(Slot(5), "names", "Имена над лисичками", NameMode, m => NameMode = m);
+            LabelBtn(Slot(6), "phrases", "Фразы лисичек", PhraseMode, m => PhraseMode = m);
+        }
+
+        /// <summary>Кнопка с тремя режимами: всегда, только видимых, никогда (по кругу).</summary>
+        void LabelBtn(Rect r, string icon, string what, LabelMode m, System.Action<LabelMode> set)
+        {
+            string tip = what + ": " + LabelModeNames[(int)m] + (m == LabelMode.Visible ? " (не сквозь стены, крыши, вещи и холмы)" : "") + ". Нажми, чтобы сменить.";
+            if (RoundBtn(r, icon, m != LabelMode.Never, tip)) Defer(() => set((LabelMode)(((int)m + 1) % 3)));
+            if (Event.current.type == EventType.Repaint && m == LabelMode.Visible)
+            {
+                // «только видимые» — маленький глазок в углу кнопки
+                var old = GUI.color;
+                GUI.color = new Color(1f, 0.85f, 0.4f);
+                GUI.DrawTexture(new Rect(r.xMax - 13, r.yMax - 13, 12, 12), texDot);
+                GUI.color = old;
+            }
         }
 
         // ================= время (внизу слева или вверху слева) =================

@@ -39,6 +39,8 @@ namespace FoxLife
         public float chaseAngle, chaseDir = 1f, chaseSwap;
         public bool chasing, booped, together;
         public int repaths;
+        public Vector3 targetSeen;          // где был собеседник, когда прокладывали путь
+        public float repathTimer;
     }
 
     /// <summary>Лисичка: внешность, нужды, настроение, отношения и свобода воли, зависящая от характера.</summary>
@@ -360,6 +362,8 @@ namespace FoxLife
                 PersonalityEvents(dm);
                 UpdateLife(dm);
                 UpdateFamily(dm);
+                UpdateKeys(dm);
+                UpdateSideTalk(dm);
                 if (needs[(int)Need.Energy] <= 0.5f && !sleeping && !atWork) PassOut();
 
                 if (current == null)
@@ -472,13 +476,12 @@ namespace FoxLife
 
         // ================= команды =================
 
-        /// <summary>Клетка — внутри чужого дома, куда нас не приглашали? Тогда номер участка, иначе −1.</summary>
+        /// <summary>Клетка — внутри чужого дома, от которого у нас нет ключа? Тогда номер участка, иначе −1.</summary>
         public int ForeignHomeAt(Vector2Int c, int level = 0)
         {
             var lot = G.house.LotAt(c);
-            if (lot == null || lot.kind != LotKind.Home || lot.id == home || IsGuestAt(lot.id)) return -1;
+            if (lot == null || CanEnter(lot.id)) return -1;                   // общественное, пустое или есть ключ
             if (G.house.RoomAt(level, c) == null) return -1;                 // во дворе — можно
-            if (!G.foxes.Exists(o => o != null && o.home == lot.id)) return -1; // дом пустой
             return lot.id;
         }
 
@@ -494,11 +497,15 @@ namespace FoxLife
                 else if (a.kind == ActKind.Social && a.other != null) foreign = ForeignHomeAt(a.other.Cell, a.other.Level);
                 if (foreign >= 0)
                 {
-                    Say("Без приглашения в чужой дом не заходят. Постучусь!");
-                    if (IsPlayer) G.Log($"{foxName}: в чужой дом — только с разрешения. Сначала постучимся.");
-                    VisitHome(foreign);
+                    // без ключа — сначала постучаться; впустят — займётся тем, что велели
+                    queue.RemoveAll(q => q.kind == ActKind.Move && q.byPlayer);
+                    if (current != null && current.kind == ActKind.Move && current.byPlayer) CancelCurrent(false);
+                    if (current != null && !current.byPlayer && current.kind != ActKind.BeTalkedTo && current.kind != ActKind.Work) CancelCurrent(false);
+                    if (queue.Count < 5) KnockAt(foreign, null, a.kind == ActKind.Move ? null : a);
                     return;
                 }
+                // поболтать, не отрываясь от дела: оба заняты и сидят рядом
+                if (a.kind == ActKind.Social && a.other != null && TryStartSideTalk(a.other, a.social)) return;
             }
             // «иди сюда» имеет смысл, только если после него ничего нет: любой новый приказ его отменяет
             queue.RemoveAll(q => q.kind == ActKind.Move && q.byPlayer && q.onArrive == null);
@@ -891,6 +898,8 @@ namespace FoxLife
             if (atWork) return career != null && career.id == "school" ? "сейчас на уроке" : "сейчас на работе";
             if (carried) return "сейчас на руках";
             if (sleeping) return "спит";
+            if (side != null) return "болтает с " + (side.other != null ? side.other.foxName : "кем-то");
+            if (knock != null) return "стучится в дверь";
             if (current == null) return null;
             switch (current.kind)
             {
@@ -920,17 +929,31 @@ namespace FoxLife
                 var why = o.BusyReason(this);
                 if (why != null) { Fail(a, o.foxName + " " + why); return; }
                 if (!PathNear(o)) { Fail(a, "Не подойти"); return; }
+                a.targetSeen = o.transform.position;
+                a.repathTimer = 0.5f;
                 a.stage = 1;
             }
             if (a.stage == 1)
             {
+                // собеседник ушёл с места — идём за ним, а не туда, где он был
+                a.repathTimer -= dr;
+                if (a.repathTimer <= 0)
+                {
+                    a.repathTimer = 0.5f;
+                    if (Vector3.Distance(Flat(o.transform.position), Flat(a.targetSeen)) > 0.9f)
+                    {
+                        a.targetSeen = o.transform.position;
+                        PathNear(o);
+                    }
+                }
                 bool arrived = FollowPath(dr);
                 float dist = Vector3.Distance(Flat(transform.position), Flat(o.transform.position));
                 if (dist < 1.25f) arrived = true;
                 if (!arrived) return;
                 if (dist > 1.9f)
                 {
-                    if (++a.repaths > 4 || !PathNear(o)) Fail(a, "Не догнать");
+                    if (++a.repaths > 12 || !PathNear(o)) Fail(a, "Не догнать");
+                    else a.targetSeen = o.transform.position;
                     return;
                 }
                 var why2 = o.BusyReason(this);
@@ -944,7 +967,7 @@ namespace FoxLife
                 Face(o.transform.position);
                 pose = Pose.Talk;
                 float chance = Mathf.Clamp(a.social.accept(this, o) + SkillLevel(Skill.Charisma) * 0.015f + (HasPerk("charm") ? 0.1f : 0f), 0.05f, 0.95f);
-                a.success = Random.value < chance;
+                a.success = a.social.sure || Random.value < chance;
                 a.elapsed = 0;
                 a.stage = 2;
                 Say(Phrases.Pick("say:" + a.social.name, this, o, a.social.say));
@@ -1059,7 +1082,7 @@ namespace FoxLife
                 if (s.moodNoB != null) o.AddMoodlet(s.moodNoB, s.valNoB, 120);
                 if (s.name == "Подразнить" && pers.A <= 3) AddMoodlet("Пакость удалась", 3, 60);
             }
-            G.LogPair(this, o, $"{foxName} и {o.foxName}: «{s.name}» — {(a.success ? "удачно" : "неудачно")} ({(a.success ? "+" + s.relYes : s.relNo.ToString())})");
+            G.LogPair(this, o, $"{foxName} и {o.foxName}: «{s.name}» — {(a.success ? "удачно" : "неудачно")} ({(a.success ? s.relYes : s.relNo):+0;-0;0})");
             OnEvent(new GameEvent { kind = "social", arg = s.name, other = o, success = a.success });
             o.OnEvent(new GameEvent { kind = "social_target", arg = s.name, other = this, success = a.success });
         }
@@ -1587,6 +1610,7 @@ namespace FoxLife
                 if (current == null) return "Ничего не делает";
                 if (current.kind == ActKind.UseObject && current.stage < 2) return "Идёт: " + current.inter.name.ToLower();
                 if (current.kind == ActKind.Social && current.stage < 2) return "Идёт к собеседнику: " + current.other.foxName;
+                if (side != null && side.other != null) return current.label + " · болтает с " + side.other.foxName;
                 return current.label;
             }
         }

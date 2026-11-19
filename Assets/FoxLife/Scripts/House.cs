@@ -790,7 +790,7 @@ namespace FoxLife
                 }
                 Voxelizer.Bake(e.opening.transform, vox);
             }
-            foreach (var pl in pendingLeaves) doors.Add(new DoorLeaf { pivot = pl.t, center = pl.t.parent.TransformPoint(pl.c) });
+            foreach (var pl in pendingLeaves) doors.Add(new DoorLeaf { pivot = pl.t, center = pl.t.parent.TransformPoint(pl.c), lot = lot.id, level = level, a = ca, b = cb });
             pendingLeaves.Clear();
         }
 
@@ -910,10 +910,56 @@ namespace FoxLife
             public Transform pivot;
             public Vector3 center;
             public float angle;
+            public int lot = -1, level;
+            public Vector2Int a, b;   // клетки по обе стороны двери
         }
 
         public readonly List<DoorLeaf> doors = new List<DoorLeaf>();
         readonly List<(Transform t, Vector3 c)> pendingLeaves = new List<(Transform t, Vector3 c)>();
+
+        /// <summary>Клетка снаружи двери (не в комнате) и внутри.</summary>
+        /// <summary>Снаружи — сторона без комнаты; если комнаты с обеих сторон (крыльцо-веранда) — та, что ближе к входу участка.</summary>
+        bool AOutside(DoorLeaf d)
+        {
+            bool ra = RoomAt(d.level, d.a) != null, rb = RoomAt(d.level, d.b) != null;
+            if (ra != rb) return !ra;
+            var lot = LotById(d.lot);
+            if (lot == null) return true;
+            return (d.a - lot.entry).sqrMagnitude <= (d.b - lot.entry).sqrMagnitude;
+        }
+        public Vector2Int DoorOutside(DoorLeaf d) => AOutside(d) ? d.a : d.b;
+        public Vector2Int DoorInside(DoorLeaf d) => AOutside(d) ? d.b : d.a;
+
+        /// <summary>Входная дверь дома: на первом этаже, ведёт на улицу, ближайшая к входу участка.</summary>
+        public DoorLeaf FrontDoor(int lotId) => FrontDoor(lotId, true) ?? FrontDoor(lotId, false);
+
+        DoorLeaf FrontDoor(int lotId, bool strict)
+        {
+            var lot = LotById(lotId);
+            DoorLeaf best = null; float bd = float.MaxValue;
+            foreach (var d in doors)
+            {
+                if (d.pivot == null || d.lot != lotId || d.level != 0) continue;
+                if (strict && (RoomAt(0, d.a) == null) == (RoomAt(0, d.b) == null)) continue; // дверь между комнатами
+                float dist = lot != null ? (GridMap.Center(lot.entry) - d.center).sqrMagnitude : 0f;
+                if (dist < bd) { bd = dist; best = d; }
+            }
+            return best;
+        }
+
+        /// <summary>Дверь в этой точке (клик по двери или стене рядом с ней).</summary>
+        public DoorLeaf DoorNear(Vector3 p)
+        {
+            foreach (var d in doors)
+            {
+                if (d.pivot == null) continue;
+                float dy = p.y - d.center.y;
+                if (dy < -0.2f || dy > 1.75f) continue;
+                float dx = p.x - d.center.x, dz = p.z - d.center.z;
+                if (dx * dx + dz * dz < 0.5f * 0.5f) return d;
+            }
+            return null;
+        }
 
         public void UpdateDoors(List<Fox> foxes, float dt)
         {
@@ -929,7 +975,9 @@ namespace FoxLife
                     float dy = p.y - d.center.y;
                     if (dy < -0.6f || dy > 1.6f) continue;
                     float dx = p.x - d.center.x, dz = p.z - d.center.z;
-                    if (dx * dx + dz * dz < 1.35f * 1.35f) { near = true; break; }
+                    if (dx * dx + dz * dz >= 1.35f * 1.35f) continue;
+                    if (d.lot >= 0 && !f.CanEnter(d.lot)) continue; // без ключа дверь не открывается
+                    near = true; break;
                 }
                 float target = near ? 92f : 0f;
                 if (Mathf.Abs(d.angle - target) < 0.1f) continue;
@@ -1349,6 +1397,8 @@ namespace FoxLife
             {
                 var l = LotAt(GridMap.CellOf(Game.I.cam.target));
                 int f = l != null && l.kind != LotKind.Park && l.kind != LotKind.Square && l.kind != LotKind.Market && l.kind != LotKind.Camp ? l.id : -1;
+                // в чужой дом заглянуть можно, только если у кого-то из семьи есть от него ключ
+                if (f >= 0 && Game.I.mode == Mode.Live && !Game.I.townBuilder && !Game.I.HouseholdCanEnter(f)) f = -1;
                 if (f != focusLot) { focusLot = f; ApplyVisibility(); }
             }
             Vector3 toCam = -cam.transform.forward; toCam.y = 0; toCam.Normalize();

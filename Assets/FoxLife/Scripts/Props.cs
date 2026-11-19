@@ -567,8 +567,9 @@ namespace FoxLife
             foreach (var sgn in new[] { -1f, 1f })
                 Shapes.Box(st, 0, t, V(sgn * 0.85f, 0.5f, -1.25f), V(0.05f, 1.0f, 0.55f), V(0, sgn * -40f, sgn * 30f));
             Shapes.Box(st, 2, t, V(0, 0.03f, 0), V(1.5f, 0.04f, 2.0f));
-            Shapes.Box(st, 3, t, V(0, 1.33f, 0), V(0.08f, 0.08f, 2.3f));
-            foreach (var z in new[] { -1.2f, 1.2f }) Shapes.Box(st, 3, t, V(0, 0.66f, z), V(0.07f, 1.35f, 0.07f));
+            Shapes.Box(st, 3, t, V(0, 1.33f, 0), V(0.08f, 0.08f, 2.4f));
+            // стойки под концами конька: верх стойки заходит в конёк, а не стоит рядом
+            foreach (var z in new[] { -1.13f, 1.13f }) Shapes.Box(st, 3, t, V(0, 0.68f, z), V(0.07f, 1.38f, 0.07f));
             Bake(st, 0.0625f);
             return st;
         }

@@ -259,6 +259,14 @@ namespace FoxLife
         /// <summary>Лисичка из нашей семьи (живёт в лисьем доме, ею управляет игрок).</summary>
         public static bool IsPlayer(Fox f) => f != null && f.home == House.PlayerLotId;
         public List<Fox> Household => foxes.FindAll(f => f.home == House.PlayerLotId);
+
+        /// <summary>Есть ли у кого-то из нашей семьи ключ от этого дома (или он открыт для всех).</summary>
+        public bool HouseholdCanEnter(int lotId)
+        {
+            if (lotId == House.PlayerLotId || !Fox.LotLocked(lotId)) return true;
+            foreach (var f in foxes) if (f != null && f.home == House.PlayerLotId && f.KeyTo(lotId) != KeyKind.None) return true;
+            return false;
+        }
         public int HomeCount(int home) { int n = 0; foreach (var f in foxes) if (f.home == home) n++; return n; }
         public bool KnownToPlayer(Fox f) { if (IsPlayer(f)) return true; foreach (var o in foxes) if (o.home == House.PlayerLotId && Social.Rel(o, f) >= 20) return true; return false; }
 
@@ -1645,11 +1653,33 @@ namespace FoxLife
                 OpenFurnitureMenu(furn);
                 return;
             }
+            if (selected != null && furn == null && house.DoorNear(hit.point) is House.DoorLeaf door && OpenDoorMenu(door)) return;
             if (selected != null && (st.kind == SurfaceKind.Floor || (st.hidden && st.kind == SurfaceKind.Outdoor) || furn != null))
             {
                 var p = hit.point;
                 selected.Command(new FoxAction { kind = ActKind.Move, moveTarget = p, label = "Идёт сюда" });
             }
+        }
+
+        /// <summary>Клик по двери чужого дома: войти (если есть ключ) или постучаться.</summary>
+        bool OpenDoorMenu(House.DoorLeaf door)
+        {
+            var me = selected;
+            var lot = house.LotById(door.lot);
+            if (lot == null || lot.id == me.home || !Fox.LotLocked(lot.id)) return false;
+            var items = new List<PieItem>();
+            var key = me.KeyTo(lot.id);
+            var outside = house.DoorOutside(door);
+            var inside = house.DoorInside(door);
+            if (key != KeyKind.None)
+                items.Add(new PieItem("Войти" + (key == KeyKind.Trusted ? " (свой ключ)" : ""), () => me.Command(new FoxAction { kind = ActKind.Move, moveTarget = GridMap.Center(inside) + Vector3.up * house.FloorY(0, inside), label = "Заходит: " + lot.name })));
+            else
+            {
+                var d = door;
+                items.Add(new PieItem("Постучаться", () => me.CommandKnock(lot.id, d)));
+            }
+            ui.OpenPie(Input.mousePosition, "Дверь: " + lot.name, items);
+            return true;
         }
 
         void OpenFurnitureMenu(Furniture f)
@@ -1712,6 +1742,19 @@ namespace FoxLife
                 else if (System.Array.IndexOf(Mischief, sd.name) >= 0) mischief.Add(it);
                 else if (System.Array.IndexOf(Romance, sd.name) >= 0) romance.Add(it);
                 else kids.Add(it);
+            }
+            // ключи от нашего дома: дать другу (если вся семья согласна) или забрать
+            if (target.home != me.home)
+            {
+                if (target.KeyTo(me.home) == KeyKind.Trusted)
+                    friendly.Add(new PieItem(Social.TakeKey.name, () => me.Command(new FoxAction { kind = ActKind.Social, other = target, social = Social.TakeKey, label = Social.TakeKey.name + ": " + target.foxName })));
+                else
+                {
+                    var gk = new PieItem(Social.GiveKey.name, () => me.Command(new FoxAction { kind = ActKind.Social, other = target, social = Social.GiveKey, label = Social.GiveKey.name + ": " + target.foxName }));
+                    var whyKey = me.GiveKeyReason(target);
+                    if (whyKey != null) { gk.enabled = false; gk.reason = whyKey; }
+                    friendly.Add(gk);
+                }
             }
             items.Add(new PieItem("Дружба") { sub = friendly });
             items.Add(new PieItem("Озорство") { sub = mischief });

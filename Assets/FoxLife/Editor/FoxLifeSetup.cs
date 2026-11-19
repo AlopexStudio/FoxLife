@@ -90,7 +90,7 @@ public static class FoxLifeSetup
 
     /// <summary>
     /// Настройки URP: Forward+ (много фонарей без потери скорости), тени солнца и фонарей, HDR, сглаживание
-    /// и два своих полноэкранных прохода: «антиблик» до постобработки и «миниатюра» после неё.
+    /// и свой полноэкранный проход «миниатюра» после постобработки (старый «антиблик» больше не нужен — в URP бликов нет).
     /// Сама постобработка (свечение, ACES, цвет, виньетка) — объёмом URP, его создаёт игра (PostFX.cs).
     /// </summary>
     [MenuItem("FoxLife/Setup URP")]
@@ -131,7 +131,6 @@ public static class FoxLifeSetup
             AssetDatabase.AddObjectToAsset(f, rd);
             rd.rendererFeatures.Add(f);
         }
-        Add("Антиблик", Mat("Hidden/FoxLife/Despeckle", "Despeckle"), FullScreenPassRendererFeature.InjectionPoint.BeforeRenderingPostProcessing);
         Add("Миниатюра", Mat("Hidden/FoxLife/TiltShift", "TiltShift"), FullScreenPassRendererFeature.InjectionPoint.AfterRenderingPostProcessing);
         EditorUtility.SetDirty(rd);
         AssetDatabase.SaveAssets();
@@ -165,8 +164,8 @@ public static class FoxLifeSetup
         I("m_ShadowCascadeCount", 2);
         F("m_Cascade2Split", 0.6f);
         // небольшое смещение по нормали: тонкие воксельные ступеньки крыш не «худеют» в тени и не дают полос на полу
-        F("m_ShadowDepthBias", 1.0f);
-        F("m_ShadowNormalBias", 0.35f);
+        F("m_ShadowDepthBias", 1.2f);
+        F("m_ShadowNormalBias", 0.1f); // большой сдвиг по нормали «сжимает» вокселы и открывает щёлки света на рёбрах
         B("m_SoftShadowsSupported", true);
         ps.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(asset);

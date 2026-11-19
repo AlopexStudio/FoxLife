@@ -12,6 +12,8 @@ namespace FoxLife
     {
         string dir;
         StreamWriter log;
+        bool wardrobeOnly, keysOnly;
+        public static bool Active; // «-foxwardrobe папка»: только снимки одежды крупным планом (быстро)
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Init()
@@ -23,10 +25,23 @@ namespace FoxLife
                     var go = new GameObject("AutoShots");
                     go.AddComponent<AutoShots>().dir = args[i + 1];
                 }
+                else if (args[i] == "-foxkeys")
+                {
+                    var a = new GameObject("AutoShots").AddComponent<AutoShots>();
+                    a.dir = args[i + 1];
+                    a.keysOnly = true;
+                }
+                else if (args[i] == "-foxwardrobe")
+                {
+                    var a = new GameObject("AutoShots").AddComponent<AutoShots>();
+                    a.dir = args[i + 1];
+                    a.wardrobeOnly = true;
+                }
         }
 
         void Start()
         {
+            Active = true;
             Directory.CreateDirectory(dir);
             Application.runInBackground = true; // чтобы прогон не вставал на паузу без фокуса окна
             SaveSystem.PathOverride = Path.Combine(dir, "test_save.json"); // не трогаем настоящее сохранение
@@ -36,6 +51,8 @@ namespace FoxLife
                 if (t == LogType.Exception || t == LogType.Error) log.WriteLine($"[{t}] {c}\n{st}");
                 else log.WriteLine($"[{t}] {c}");
             };
+            if (wardrobeOnly) { StartCoroutine(WardrobeShots()); return; }
+            if (keysOnly) { StartCoroutine(KeysOnly()); return; }
             StartCoroutine(Run());
             StartCoroutine(Fps());
         }
@@ -119,6 +136,91 @@ namespace FoxLife
             log.WriteLine($"ПИКСЕЛИ {tag}: NaN/inf {nan}, отрицательных {neg}, ярче 3: {hot}, максимум {maxL:0.00}");
             Destroy(tex);
             rt.Release();
+        }
+
+        /// <summary>Вся одежда на лисичке крупным планом, спереди и сбоку.</summary>
+        IEnumerator WardrobeShots()
+        {
+            var g = Game.I;
+            while (g.loading) yield return null;
+            g.NewGame();
+            yield return new WaitForSeconds(0.3f);
+            while (g.loading) yield return null;
+            g.PlayFamily(0);
+            yield return new WaitForSeconds(2f);
+            g.SetSpeed(0);
+            var f = g.Household[0];
+            var sq = g.house.lots.Find(l => l.kind == LotKind.Square || l.kind == LotKind.Park);
+            if (sq != null) { var c = GridMap.Center(sq.entry); f.transform.position = c + Vector3.up * g.house.FloorY(0, sq.entry); }
+            f.queue.Clear();
+            g.cam.minDist = 1.2f;
+            var heads = Wardrobe.ForSlot(ClothSlot.Head); var necks = Wardrobe.ForSlot(ClothSlot.Neck);
+            var bodies = Wardrobe.ForSlot(ClothSlot.Body); var eyes = Wardrobe.ForSlot(ClothSlot.Eyes);
+            int n = Mathf.Max(Mathf.Max(heads.Count, necks.Count), Mathf.Max(bodies.Count, eyes.Count));
+            for (int i = 0; i < n; i++)
+            {
+                f.SetItem(0, ClothSlot.Head, heads[i % heads.Count].id);
+                f.SetItem(0, ClothSlot.Neck, necks[i % necks.Count].id);
+                f.SetItem(0, ClothSlot.Body, bodies[i % bodies.Count].id);
+                f.SetItem(0, ClothSlot.Eyes, eyes[i % eyes.Count].id);
+                f.Wear(0);
+                log.WriteLine($"ГАРДЕРОБ {i}: {heads[i % heads.Count].id}, {necks[i % necks.Count].id}, {bodies[i % bodies.Count].id}, {eyes[i % eyes.Count].id}");
+                for (int k = 0; k < 3; k++)
+                {
+                    g.cam.target = f.transform.position + Vector3.up * 0.2f; g.cam.dist = k == 2 ? 1.3f : 2.6f; g.cam.pitch = k == 2 ? 18f : 22f;
+                    g.cam.yaw = f.transform.eulerAngles.y + (k == 0 ? 150f : k == 1 ? 60f : 180f);
+                    g.cam.Snap();
+                    yield return new WaitForSeconds(0.3f);
+                    yield return Shot($"w{i:00}_{k}");
+                }
+            }
+            Application.Quit();
+        }
+
+        IEnumerator KeysOnly()
+        {
+            var g = Game.I;
+            while (g.loading) yield return null;
+            g.NewGame();
+            yield return new WaitForSeconds(0.3f);
+            while (g.loading) yield return null;
+            g.PlayFamily(0);
+            yield return new WaitForSeconds(2f);
+            yield return KeyTest();
+            foreach (var e in g.log) log.WriteLine("ЖУРНАЛ " + e.time + " " + e.text);
+            Application.Quit();
+        }
+
+        IEnumerator KeyTest()
+        {
+            var g = Game.I;
+            var me = g.Household[0];
+            var nb = g.foxes.Find(o => o != null && o.home != House.PlayerLotId && o.home >= 0 && Fox.LotLocked(o.home) && o.stage >= LifeStage.Teen && g.house.LotAt(o.Cell) != null && g.house.LotAt(o.Cell).id == o.home && !o.sleeping && !o.atWork);
+            if (nb == null) { log.WriteLine("КЛЮЧИ: соседей дома нет"); yield break; }
+            int lotId = nb.home;
+            log.WriteLine($"КЛЮЧИ: {me.foxName} → {g.house.LotById(lotId).name}: войти можно {me.CanEnter(lotId)}, видно внутри {g.HouseholdCanEnter(lotId)}, входная дверь {(g.house.FrontDoor(lotId) != null)}");
+            foreach (var m in g.foxes) if (m != null && m.home == lotId && m != me) Social.AddRel(me, m, 75f);
+            me.CommandKnock(lotId, null);
+            g.SetSpeed(3);
+            float t0 = Time.realtimeSinceStartup;
+            string last = null;
+            while (Time.realtimeSinceStartup - t0 < 50f && me.KeyTo(lotId) == KeyKind.None)
+            {
+                if (me.ActivityText != last) { last = me.ActivityText; log.WriteLine($"КЛЮЧИ ход: {g.ClockText} {last}, клетка {me.Cell}"); }
+                yield return new WaitForSecondsRealtime(0.25f);
+            }
+            log.WriteLine($"КЛЮЧИ: получен ключ {me.KeyTo(lotId)}, {me.foxName}: {me.ActivityText}, видно внутри {g.HouseholdCanEnter(lotId)}");
+            yield return new WaitForSecondsRealtime(4f);
+            g.SetSpeed(1);
+            g.cam.target = me.transform.position; g.cam.dist = 14f; g.cam.pitch = 45f;
+            yield return new WaitForSeconds(1.5f);
+            yield return Shot("26_keys");
+            foreach (var m in g.foxes) if (m != null && m.home == lotId && m != me) Social.AddRel(me, m, -150f);
+            g.SetSpeed(3);
+            t0 = Time.realtimeSinceStartup;
+            while (Time.realtimeSinceStartup - t0 < 40f && me.KeyTo(lotId) == KeyKind.Trusted) yield return new WaitForSecondsRealtime(0.5f);
+            g.SetSpeed(1);
+            log.WriteLine($"КЛЮЧИ: после ссоры ключ {me.KeyTo(lotId)} (через {Time.realtimeSinceStartup - t0:0} с), нужно для гостя {nb.GuestNeed:0}, для ключа {nb.TrustNeed:0}");
         }
 
         IEnumerator Run()
@@ -257,6 +359,8 @@ namespace FoxLife
             yield return new WaitForSeconds(1.5f);
             yield return Shot("25_outing");
             g.SetSpeed(1);
+
+            yield return KeyTest();
             g.cam.target = new Vector3(7f, 0, 4f); g.cam.yaw = 0; g.cam.pitch = 48; g.cam.dist = 15f;
 
             // телевизор и мольберт: вокселы экрана и холста

@@ -13,6 +13,7 @@ namespace FoxLife
         bool rotating, panning;
         public bool edgeScroll = true;
         public float minPitch = 18f;
+        public float minDist = 3.5f;   // автотест подлетает ближе
 
         /// <summary>Сразу встать в нужное место (без плавного подлёта).</summary>
         public void Snap() { targetS = target; yawS = yaw; pitchS = pitch; distS = dist; }
@@ -66,7 +67,9 @@ namespace FoxLife
                 follow = null;
             }
 
-            if (!typing)
+            // с зажатым Ctrl клавиши — это сочетания (Ctrl+Z — отмена), а не движение камеры
+            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || Input.GetKey(KeyCode.LeftCommand);
+            if (!typing && !ctrl)
             {
                 Vector3 mv = Vector3.zero;
                 if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) mv += fwd;
@@ -99,18 +102,28 @@ namespace FoxLife
             if (follow != null) target = new Vector3(follow.position.x, target.y, follow.position.z);
 
             pitch = Mathf.Clamp(pitch, minPitch, 85f);
-            dist = Mathf.Clamp(dist, 3.5f, 48f);
+            dist = Mathf.Clamp(dist, minDist, 48f);
             target.x = Mathf.Clamp(target.x, Town.MinX - 6f, Town.MinX + Town.W + 6f);
             target.z = Mathf.Clamp(target.z, Town.MinZ - 6f, Town.MinZ + Town.H + 6f);
             // камера держится над землёй: в горах поднимается, в низинах опускается
             if (Game.I != null && Game.I.house != null && Game.I.house.terrain != null)
-                target.y = Mathf.Lerp(target.y, Game.I.house.GroundUnder(target) + (Game.I.house.viewLevel * House.WallH), 1f - Mathf.Exp(-3f * dt));
+            {
+                float ty = Game.I.house.GroundUnder(target) + (Game.I.house.viewLevel * House.WallH);
+                target.y = Mathf.Abs(target.y - ty) < 0.01f ? ty : Mathf.Lerp(target.y, ty, 1f - Mathf.Exp(-3f * dt));
+            }
 
             float k = 1f - Mathf.Exp(-10f * dt);
             targetS = Vector3.Lerp(targetS, target, k);
             yawS = Mathf.LerpAngle(yawS, yaw, k);
             pitchS = Mathf.Lerp(pitchS, pitch, k);
             distS = Mathf.Lerp(distS, dist, k);
+            // Хвост плавной доводки — сдвиги меньше пикселя ещё секунды две, от них дрожат края вокселей
+            // и тени. Когда до цели совсем чуть-чуть, встаём ровно в неё.
+            float eps = Mathf.Max(0.002f, dist * 0.0015f);
+            if ((targetS - target).sqrMagnitude < eps * eps) targetS = target;
+            if (Mathf.Abs(Mathf.DeltaAngle(yawS, yaw)) < 0.08f) yawS = yaw;
+            if (Mathf.Abs(pitchS - pitch) < 0.08f) pitchS = pitch;
+            if (Mathf.Abs(distS - dist) < eps) distS = dist;
 
             var rot = Quaternion.Euler(pitchS, yawS, 0);
             var pos = targetS + Vector3.up * 0.4f + rot * new Vector3(0, 0, -distS);

@@ -345,6 +345,52 @@ namespace FoxLife
         readonly List<Rect> bubbleRects = new List<Rect>();
         readonly Dictionary<Fox, float> bubbleLift = new Dictionary<Fox, float>();
 
+        /// <summary>Имена и фразы над лисичками: всегда (хоть через весь город), только видимые (не сквозь стены, крыши,
+        /// вещи и холмы) или никогда.</summary>
+        public enum LabelMode { Always = 0, Visible = 1, Never = 2 }
+        public static readonly string[] LabelModeNames = { "всегда", "только видимых", "никогда" };
+        LabelMode nameMode = (LabelMode)PlayerPrefs.GetInt("fox_names", 0), phraseMode = (LabelMode)PlayerPrefs.GetInt("fox_phrases", 0);
+        public LabelMode NameMode { get => nameMode; set { nameMode = value; PlayerPrefs.SetInt("fox_names", (int)value); } }
+        public LabelMode PhraseMode { get => phraseMode; set { phraseMode = value; PlayerPrefs.SetInt("fox_phrases", (int)value); } }
+
+        // видно ли лисичку с камеры: считается в LateUpdate, а не в OnGUI (тот вызывается несколько раз за кадр)
+        readonly Dictionary<Fox, bool> foxSeen = new Dictionary<Fox, bool>();
+        readonly RaycastHit[] seenHits = new RaycastHit[32];
+        float seenTimer;
+
+        void UpdateFoxSeen()
+        {
+            if (nameMode != LabelMode.Visible && phraseMode != LabelMode.Visible) return;
+            seenTimer -= Time.unscaledDeltaTime;
+            if (seenTimer > 0) return;
+            seenTimer = 0.1f;
+            var cam = Camera.main;
+            if (cam == null || G == null) return;
+            var from = cam.transform.position;
+            foreach (var f in G.foxes)
+            {
+                if (f == null) continue;
+                var to = f.transform.position + Vector3.up * (0.75f * f.size);
+                var d = to - from;
+                float len = d.magnitude;
+                bool seen = true;
+                int n = Physics.RaycastNonAlloc(from, d / len, seenHits, len - 0.2f, ~0, QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < n && seen; i++)
+                {
+                    var c = seenHits[i].collider;
+                    if (c == null || c.GetComponentInParent<Fox>() != null) continue; // сами лисички (и их одежда) не заслоняют
+                    var r = c.GetComponent<Renderer>();
+                    if (r != null && (!r.enabled || r.forceRenderingOff)) continue;
+                    seen = false;
+                }
+                foxSeen[f] = seen;
+            }
+        }
+
+        public bool FoxSeen(Fox f) => !foxSeen.TryGetValue(f, out var s) || s;
+
+        bool LabelOn(LabelMode m, Fox f) => m == LabelMode.Always || (m == LabelMode.Visible && FoxSeen(f));
+
         void WorldLabels()
         {
             var cam = Camera.main;
@@ -360,13 +406,17 @@ namespace FoxLife
                 var sp = cam.WorldToScreenPoint(wp);
                 if (sp.z < 0) continue;
                 float x = sp.x / scale, y = (Screen.height - sp.y) / scale;
-                var nameRect = new Rect(x - 70, y - 4, 140, 20);
-                var old = GUI.color;
-                GUI.color = new Color(0, 0, 0, 0.6f);
-                GUI.Label(new Rect(nameRect.x + 1, nameRect.y + 1, nameRect.width, nameRect.height), f.foxName, sName);
-                GUI.color = f == G.selected ? new Color(1f, 0.85f, 0.55f) : mine ? Color.white : new Color(0.78f, 0.9f, 1f);
-                GUI.Label(nameRect, f.foxName, sName);
-                GUI.color = old;
+                if (LabelOn(nameMode, f))
+                {
+                    var nameRect = new Rect(x - 70, y - 4, 140, 20);
+                    var old = GUI.color;
+                    GUI.color = new Color(0, 0, 0, 0.6f);
+                    GUI.Label(new Rect(nameRect.x + 1, nameRect.y + 1, nameRect.width, nameRect.height), f.foxName, sName);
+                    GUI.color = f == G.selected ? new Color(1f, 0.85f, 0.55f) : mine ? Color.white : new Color(0.78f, 0.9f, 1f);
+                    GUI.Label(nameRect, f.foxName, sName);
+                    GUI.color = old;
+                }
+                if (!LabelOn(phraseMode, f)) continue;
 
                 string b = f.bubbleTimer > 0 ? f.bubble : (f.sleeping ? "Хр-р-р…" : null);
                 if (string.IsNullOrEmpty(b)) continue;
@@ -643,7 +693,17 @@ namespace FoxLife
                         GUILayout.Label(Social.RelLabel(r) + $" ({Mathf.RoundToInt(r)})", sLabel);
                         GUILayout.EndHorizontal();
                         Bar("Дружба", (r + 100f) / 200f, r >= 0 ? new Color(0.4f, 0.7f, 0.9f) : new Color(0.85f, 0.4f, 0.35f), 80, 260);
-                        if (Family.CanRomance(f, o))
+                        // ключ, который нам дала эта лисичка (семейный не пишем — он и так у всех жильцов)
+                        var key = f.KeyFrom(o);
+                        if (key != null && o.home != f.home)
+                        {
+                            var kl = G.house.LotById(key.lot);
+                            bool trusted = key.kind == (int)KeyKind.Trusted;
+                            string verb = trusted ? "Дал" + (o.female ? "а" : "") + " постоянный ключ от дома" : "Впустил" + (o.female ? "а" : "") + " в гости: гостевой ключ";
+                            ColorLabel(verb + (kl != null ? " (" + kl.name + ")" : ""), sSmall, trusted ? new Color(0.62f, 0.45f, 0.1f) : new Color(0.35f, 0.45f, 0.55f));
+                        }
+                        // романтика — только если между ними уже что-то было
+                        if (Mathf.Abs(Social.Rom(f, o)) > 0.01f)
                         {
                             float rm = Social.Rom(f, o);
                             Bar("Романтика", (rm + 100f) / 200f, new Color(0.9f, 0.45f, 0.6f), 80, 260);

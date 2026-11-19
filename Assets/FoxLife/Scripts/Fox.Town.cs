@@ -93,6 +93,7 @@ namespace FoxLife
                 onArrive = () =>
                 {
                     guest.BeGuest(myHome, 3f);
+                    guest.GiveKey(myHome, KeyKind.Guest, host); // пригласили — дверь открыта
                     guest.Say(Phrases.Pick("guest:arrive", guest, host));
                     guest.AddMoodlet("В гостях у " + host.foxName, 5, 240);
                     host.AddMoodlet("Пришли гости", 4, 240);
@@ -117,31 +118,12 @@ namespace FoxLife
             G.LogPair(this, friend, $"{foxName} и {friend.foxName} идут вместе: {lot.name}.");
         }
 
-        /// <summary>Сходить в гости: постучать в дверь, а там уж как встретят.</summary>
+        /// <summary>Сходить в гости: с ключом — просто войти, без ключа — постучать в дверь, а там уж как встретят.</summary>
         public void VisitHome(int lotId)
         {
             var lot = G.house.LotById(lotId);
             if (lot == null || lotId == home) return;
-            var entry = lot.entry;
-            var me = this;
-            queue.Add(new FoxAction
-            {
-                kind = ActKind.Move, byPlayer = true, label = "Идёт в гости: " + lot.name,
-                moveTarget = GridMap.Center(entry) + Vector3.up * G.house.FloorY(0, entry),
-                onArrive = () =>
-                {
-                    Fox host = null; float best = float.MinValue;
-                    foreach (var o in G.foxes)
-                        if (o.home == lotId && !o.atWork && Social.Rel(o, me) > best) { best = Social.Rel(o, me); host = o; }
-                    if (host == null) { me.Say("Никого нет дома..."); me.AddMoodlet("Никого не застал(а)", -2, 90); return; }
-                    if (best < 5f && Random.value < 0.6f) { host.Say("Мы сейчас заняты..."); me.AddMoodlet("Не впустили", -4, 120); G.LogFox(me, $"{host.foxName} не впускает {me.foxName}."); return; }
-                    me.BeGuest(lotId, 3f);
-                    host.Say(Phrases.Pick("host:welcome", host, me));
-                    me.AddMoodlet("В гостях у " + host.foxName, 5, 240);
-                    Social.AddRel(me, host, 3f);
-                    G.LogPair(me, host, $"{me.foxName} в гостях у {host.foxName}.");
-                },
-            });
+            KnockAt(lotId, null, null, true);
         }
 
         float eventTimer;
@@ -180,20 +162,10 @@ namespace FoxLife
             if (friend == null) return;
             var lot = G.house.LotById(friend.home);
             if (lot == null) return;
-            var entry = lot.entry;
-            var me = this; var host = friend;
-            queue.Add(new FoxAction
-            {
-                kind = ActKind.Move, label = "Идёт в гости: " + host.foxName,
-                moveTarget = GridMap.Center(entry) + Vector3.up * G.house.FloorY(0, entry),
-                onArrive = () =>
-                {
-                    me.BeGuest(host.home, 2f);
-                    me.Say(Phrases.Pick("guest:arrive", me, host));
-                    host.AddMoodlet("Заглянул(а) " + me.foxName, 4, 180);
-                    if (host.IsPlayer) G.Log($"К вам заглянул(а) в гости {me.foxName}!");
-                },
-            });
+            if (refusedAt.TryGetValue(friend.home, out var rt) && G.minutes - rt < 240f) return; // недавно не пустили — не навязываемся
+            // с ключом заходят сами, без ключа — стучат
+            KnockAt(friend.home, null, null, false);
+            if (friend.IsPlayer) G.Log($"{foxName} идёт к вам в гости.");
         }
     }
 }

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 namespace FoxLife
@@ -11,7 +11,7 @@ namespace FoxLife
     {
         const int Rate = 44100;
         AudioSource music, birds, crickets, wind, rain, sfx;
-        AudioClip click, coin, chime, thunder;
+        AudioClip click, coin, chime, thunder, knock, bell;
         public float musicVolume = 0.5f, soundVolume = 0.7f;
         float lastChime;
 
@@ -28,6 +28,30 @@ namespace FoxLife
             click = Clip("click", 0.05f, (t, i) => Mathf.Sin(2 * Mathf.PI * 1400 * t) * Mathf.Exp(-t * 90f) * 0.4f);
             coin = Clip("coin", 0.5f, (t, i) => (Mathf.Sin(2 * Mathf.PI * 1318.5f * t) * (t < 0.08f ? 1 : 0) + Mathf.Sin(2 * Mathf.PI * 1568f * t) * (t >= 0.08f ? 1 : 0)) * Mathf.Exp(-(t < 0.08f ? t : t - 0.08f) * 9f) * 0.3f);
             chime = Clip("chime", 1.2f, (t, i) => (Mathf.Sin(2 * Mathf.PI * 1046.5f * t) + 0.4f * Mathf.Sin(2 * Mathf.PI * 2093f * t) + 0.2f * Mathf.Sin(2 * Mathf.PI * 3136f * t)) * Mathf.Exp(-t * 4f) * 0.18f);
+            // стук в дверь: три глухих удара по дереву (низкий тон + короткий шорох)
+            var kr = new System.Random(11);
+            knock = Clip("knock", 0.75f, (t, i) =>
+            {
+                float s = 0;
+                foreach (var t0 in new[] { 0f, 0.2f, 0.43f })
+                {
+                    float u = t - t0;
+                    if (u < 0 || u > 0.18f) continue;
+                    float env = Mathf.Exp(-u * 38f);
+                    float n = (float)kr.NextDouble() * 2f - 1f;
+                    s += (Mathf.Sin(2 * Mathf.PI * 170f * u) * 0.8f + Mathf.Sin(2 * Mathf.PI * 95f * u) * 0.6f + Mathf.Sin(2 * Mathf.PI * 410f * u) * 0.25f) * env
+                        + n * Mathf.Exp(-u * 160f) * 0.5f;
+                }
+                return s * 0.45f;
+            });
+            // дверной звонок «динь-дон»
+            bell = Clip("bell", 1.6f, (t, i) =>
+            {
+                float a = t < 0.5f ? (Mathf.Sin(2 * Mathf.PI * 880f * t) + 0.3f * Mathf.Sin(2 * Mathf.PI * 1760f * t)) * Mathf.Exp(-t * 5f) : 0f;
+                float u = t - 0.45f;
+                float b = u > 0 ? (Mathf.Sin(2 * Mathf.PI * 698.5f * u) + 0.3f * Mathf.Sin(2 * Mathf.PI * 1397f * u)) * Mathf.Exp(-u * 3f) : 0f;
+                return (a + b) * 0.2f;
+            });
             var rnd = new System.Random(3);
             float lp = 0, lp2 = 0;
             thunder = Clip("thunder", 4.5f, (t, i) =>
@@ -249,6 +273,18 @@ namespace FoxLife
             lastChime = Time.unscaledTime;
             sfx.PlayOneShot(chime, soundVolume * 0.6f);
         }
+
+        /// <summary>Громкость звука в мире: чем дальше от камеры, тем тише.</summary>
+        float Near(Vector3 p)
+        {
+            var cam = Camera.main;
+            if (cam == null || Game.I == null || Game.I.cam == null) return 1f;
+            float d = Vector3.Distance(p, Game.I.cam.target);
+            return Mathf.Clamp01(1f - (d - 6f) / 30f);
+        }
+
+        public void Knock(Vector3 p) { float v = Near(p); if (sfx != null && v > 0.02f) sfx.PlayOneShot(knock, soundVolume * 0.9f * v); }
+        public void Doorbell(Vector3 p) { float v = Near(p); if (sfx != null && v > 0.02f) sfx.PlayOneShot(bell, soundVolume * 0.7f * v); }
 
         public void Thunder(float delay) { if (sfx != null) StartCoroutine(Later(delay)); }
 

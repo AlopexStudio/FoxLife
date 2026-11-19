@@ -21,6 +21,7 @@ namespace FoxLife
         public bool boop;    // бупнуть: лёгкое касание носиком
         public float duration = 22f;
         public Action<Fox, Fox> onSuccess;
+        public bool sure;    // исход не случаен (ключи)
     }
 
     public static class Social
@@ -87,6 +88,27 @@ namespace FoxLife
             if (v < 70) return "Друзья";
             return "Лучшие друзья";
         }
+
+        /// <summary>Член семьи забирает постоянный ключ от дома (не в общем списке: по обстоятельствам).</summary>
+        public static readonly SocialDef TakeKey = new SocialDef
+        {
+            name = "Забрать ключ от дома", say = "Верни, пожалуйста, ключ от нашего дома.", yes = "Ну… держи.", no = "Ну… держи.",
+            relYes = -3, relNo = -3, sure = true, duration = 14f,
+            want = (a, b) => 0f, accept = (a, b) => 1f,
+            available = (a, b) => b.KeyTo(a.home) == KeyKind.Trusted && a.home != b.home,
+            onSuccess = (a, b) => b.LoseKey(a.home, a),
+        };
+
+        /// <summary>Дать постоянный ключ от нашего дома — если вся семья согласна.</summary>
+        public static readonly SocialDef GiveKey = new SocialDef
+        {
+            name = "Дать ключ от дома", say = "Держи ключ от нашего дома — заходи, когда захочешь!", yes = "Спасибо! Буду беречь.", no = "Спасибо!",
+            relYes = 4, relNo = 0, sure = true, duration = 14f,
+            moodYesA = "Доверили ключ другу", valYesA = 3, moodYesB = "Мне доверили ключ", valYesB = 8,
+            want = (a, b) => 0f, accept = (a, b) => 1f,
+            available = (a, b) => a.GiveKeyReason(b) == null,
+            onSuccess = (a, b) => { b.GiveKey(a.home, KeyKind.Trusted, a); Game.I.LogPair(a, b, $"{a.foxName} даёт {b.foxName} постоянный ключ от дома."); },
+        };
 
         static void Build()
         {

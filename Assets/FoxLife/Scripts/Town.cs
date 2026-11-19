@@ -234,6 +234,7 @@ namespace FoxLife
             {
                 var l = Lots[li];
                 if (l.kind == LotKind.Square || l.removed) continue;
+                if (l.kind == LotKind.Home && l.template < 0) continue; // к пустому участку дорожку не ведём
                 float dir = l.frontSouth ? -1f : 1f;
                 float z = l.frontSouth ? l.rect.yMin : l.rect.yMax;
                 float start = z, endH = LotElev(li);
@@ -910,7 +911,7 @@ namespace FoxLife
             int yz = f.south ? f.z0 + d + 1 : f.z0 - 2;
             if (yz >= lot.rect.yMin && yz < lot.rect.yMax)
             {
-                PutAt(g, lot, "bench", f.x0 + 6, yz, f.south ? 0 : 2);
+                PutAt(g, lot, "bench", f.x0 + 6, yz, f.south ? 2 : 0); // спинкой к дому
                 PutAt(g, lot, "flowerbed", f.x0 + 1, yz);
                 PutAt(g, lot, "flowerbed", f.x0 + 3, yz);
                 PutAt(g, lot, "birdbath", f.x0 + 9, yz);
@@ -1171,7 +1172,7 @@ namespace FoxLife
             foreach (var lx in new[] { 3, 10 }) Put(g, lot, f, "painting", lx, 8);
             Put(g, lot, f, "plant", 0, 0); Put(g, lot, f, "plant", 13, 0); Put(g, lot, f, "lamp", 4, 1); Put(g, lot, f, "lamp", 10, 1);
             PutAt(g, lot, "easel", lot.rect.xMin + 3, lot.rect.yMax - 2, 2);
-            PutAt(g, lot, "bench", lot.rect.xMin + 9, lot.rect.yMax - 2, 0);
+            PutAt(g, lot, "bench", lot.rect.xMin + 9, lot.rect.yMax - 2, 2);
         }
 
         static void BuildObservatory(Game g, House.Lot lot, System.Random rnd)
@@ -1187,7 +1188,7 @@ namespace FoxLife
             int zt = lot.rect.yMax - 2;
             PutAt(g, lot, "telescope", lot.rect.xMin + 2, zt);
             PutAt(g, lot, "telescope", lot.rect.xMax - 3, zt);
-            PutAt(g, lot, "bench", lot.rect.xMin + 6, zt, 0);
+            PutAt(g, lot, "bench", lot.rect.xMin + 6, zt, 2);
         }
 
         static void BuildCamp(Game g, House.Lot lot)
