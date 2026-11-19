@@ -36,6 +36,7 @@ namespace FoxLife
         public static readonly string[] SlotNames = { "Голова", "Шея", "Тело", "Глаза" };
 
         static List<ClothingDef> all;
+        static Mesh fezCrown;
         public static List<ClothingDef> All { get { if (all == null) Build(); return all; } }
         public static ClothingDef Get(string id) { foreach (var d in All) if (d.id == id) return d; return null; }
         public static List<ClothingDef> ForSlot(ClothSlot s) => All.FindAll(d => d.slot == s);
@@ -184,6 +185,14 @@ namespace FoxLife
                 Shapes.Cyl(st, 0, t, V(0.02f, 0.33f, -0.02f), 0.26f, 0.26f);
                 Shapes.Cyl(st, 1, t, V(0.02f, 0.24f, -0.02f), 0.265f, 0.05f);
             });
+            Add("fez", "Феска", ClothSlot.Head, new[] { ("Фетр", M("Ткань", "#AA3548")), ("Кисточка", M("Ткань", "#31252D")) }, (st, t) =>
+            {
+                Shapes.MeshPart(FezCrown(), st, 0, t, V(0, 0.29f, 0.087f), V(0.27f, 0.23f, 0.19f), collider: true);
+                Shapes.Cyl(st, 1, t, V(0, 0.407f, 0.087f), 0.036f, 0.012f);
+                Shapes.Box(st, 1, t, V(0.012f, 0.41f, 0.13f), V(0.012f, 0.01f, 0.085f), V(0, 16, 0));
+                Shapes.Box(st, 1, t, V(0.025f, 0.366f, 0.177f), V(0.012f, 0.088f, 0.012f), V(-8, 0, 0));
+                Shapes.Cyl(st, 1, t, V(0.025f, 0.31f, 0.184f), 0.034f, 0.062f, V(-8, 0, 0));
+            });
             Add("earmuffs", "Наушники-грелки", ClothSlot.Head, new[] { ("Мех", M("Ворс", "#F5A3C1")), ("Дужка", M("Гладкий", "#C9B4E8")) }, (st, t) =>
             {
                 foreach (var x in new[] { -0.25f, 0.25f }) Shapes.Ball(st, 0, t, V(x, 0.06f, -0.02f), V(0.1f, 0.14f, 0.14f));
@@ -305,6 +314,43 @@ namespace FoxLife
                 Shapes.Cyl(st, 1, t, V(0.11f, 0.05f, 0.212f), 0.11f, 0.01f, V(90, 0, 0));
                 Shapes.Box(st, 0, t, V(0.175f, -0.07f, 0.205f), V(0.012f, 0.2f, 0.012f), V(0, 0, 12));
             }, true);
+        }
+
+        // Плоский верх и сужающиеся стенки. Отдельные вершины крышек сохраняют чёткий край.
+        static Mesh FezCrown()
+        {
+            if (fezCrown != null) return fezCrown;
+            const int sides = 18;
+            const float topRadius = 0.39f;
+            var vertices = new List<Vector3>();
+            var normals = new List<Vector3>();
+            var triangles = new List<int>();
+            for (int i = 0; i < sides; i++)
+            {
+                float angle = i * 2f * Mathf.PI / sides;
+                var radial = V(Mathf.Cos(angle), 0, Mathf.Sin(angle));
+                var bottom = radial * 0.5f + Vector3.down * 0.5f;
+                var top = radial * topRadius + Vector3.up * 0.5f;
+                var wallNormal = (radial + Vector3.up * (0.5f - topRadius)).normalized;
+                int ring = vertices.Count;
+                int next = (i + 1) % sides * 4;
+                vertices.AddRange(new[] { bottom, top, bottom, top });
+                normals.AddRange(new[] { wallNormal, wallNormal, Vector3.down, Vector3.up });
+                triangles.AddRange(new[]
+                {
+                    ring, ring + 1, next,
+                    next, ring + 1, next + 1,
+                    ring + 2, next + 2, sides * 4,
+                    ring + 3, sides * 4 + 1, next + 3
+                });
+            }
+            vertices.AddRange(new[] { Vector3.down * 0.5f, Vector3.up * 0.5f });
+            normals.AddRange(new[] { Vector3.down, Vector3.up });
+            fezCrown = new Mesh { name = "Феска" };
+            fezCrown.SetVertices(vertices);
+            fezCrown.SetNormals(normals);
+            fezCrown.SetTriangles(triangles, 0);
+            return fezCrown;
         }
 
         public static OutfitItem Item(string id)
