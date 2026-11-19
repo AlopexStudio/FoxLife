@@ -1,0 +1,36 @@
+# Unity: всё, что пересоздаётся само
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# сборки и снимки автотестов
+/[Bb]uild/
+/[Bb]uilds/
+/StyleTests/
+
+# файлы IDE и системы
+.vs/
+.vscode/
+.idea/
+*.csproj
+*.sln
+*.suo
+*.user
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.apk
+*.aab
+*.unitypackage
+sysinfo.txt
+crashlytics-build.properties
+.DS_Store
+Thumbs.db
