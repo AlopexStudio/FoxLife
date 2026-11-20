@@ -19,7 +19,7 @@ namespace FoxLife
     /// <summary>Строчка чата.</summary>
     public class ChatLine
     {
-        public string who, text;
+        public string who, text, fox;
         public float time;
         public bool mine;
     }
@@ -172,10 +172,11 @@ namespace FoxLife
 
         public readonly List<ChatLine> chat = new List<ChatLine>();
 
-        void AddChat(string who, string text, bool mine)
+        void AddChat(string who, string text, bool mine, string foxId)
         {
             if (string.IsNullOrWhiteSpace(text)) return;
-            chat.Add(new ChatLine { who = who ?? "?", text = text, time = Time.unscaledTime, mine = mine });
+            chat.Add(new ChatLine { who = who ?? "?", text = text, time = Time.unscaledTime, mine = mine, fox = foxId });
+            G.ui.ChatBubble(FoxById(foxId), text);
             if (chat.Count > 40) chat.RemoveAt(0);
             Debug.Log($"FoxLife: чат: {who}: {text}");
         }
@@ -191,23 +192,72 @@ namespace FoxLife
         {
             text = ChatClean(text);
             if (text.Length == 0) return;
+            string fox = G.selected != null ? G.selected.id : "";
             if (role == Role.Host)
             {
-                AddChat(myName, text, true);
-                Broadcast(Pack(Msg.Chat, w => { WStr(w, myName); WStr(w, text); }));
+                AddChat(myName, text, true, fox);
+                Broadcast(Pack(Msg.Chat, w => { WStr(w, myName); WStr(w, text); WStr(w, fox); }));
             }
             else if (role == Role.Client && server != null)
-                server.Send(Pack(Msg.Chat, w => WStr(w, text))); // своё увидим, когда хост разошлёт всем
+                server.Send(Pack(Msg.Chat, w => { WStr(w, text); WStr(w, fox); })); // своё увидим, когда хост разошлёт всем
         }
 
-        void HostChat(NetLink p, string text)
+        void HostChat(NetLink p, string text, string fox)
         {
             text = ChatClean(text);
             if (text.Length == 0) return;
-            AddChat(p.name, text, false);
-            Broadcast(Pack(Msg.Chat, w => { WStr(w, p.name); WStr(w, text); }));
+            var f = FoxById(fox);
+            if (f == null || f.home != p.lot) fox = ""; // облачко — только над своей лисичкой
+            AddChat(p.name, text, false, fox);
+            Broadcast(Pack(Msg.Chat, w => { WStr(w, p.name); WStr(w, text); WStr(w, fox); }));
         }
 
-        void ClientChat(string who, string text) => AddChat(who, text, who == myName);
+        void ClientChat(string who, string text, string fox) => AddChat(who, text, who == myName, fox);
+
+        // ================= игроки: цвета, выбранные лисички, голоса за скорость =================
+
+        static readonly Color[] PlayerColors =
+        {
+            new Color(1f, 0.6f, 0.52f),   // коралловый
+            new Color(0.78f, 0.66f, 1f),  // сиреневый
+            new Color(0.5f, 0.92f, 0.68f),// мятный
+            new Color(1f, 0.84f, 0.38f),  // солнечный
+            new Color(0.5f, 0.85f, 1f),   // небесный
+        };
+
+        /// <summary>
+        /// Лисичка из семьи другого игрока: его цвет и играет ли он сейчас именно за неё.
+        /// Цвет у игрока один на всех компьютерах (порядок участков у всех одинаковый).
+        /// </summary>
+        public bool OtherPlayer(Fox f, out Color c, out bool controlled, out string who)
+        {
+            c = Color.white; controlled = false; who = null;
+            if (role == Role.None || f == null || f.home < 0 || f.home == House.PlayerLotId) return false;
+            var taken = TakenLots();
+            int i = taken.IndexOf(f.home);
+            if (i < 0) return false;
+            c = PlayerColors[i % PlayerColors.Length];
+            who = OwnerName(f.home);
+            controlled = f.id != null && f.id == SelectedOf(f.home, i);
+            return true;
+        }
+
+        string SelectedOf(int lot, int index)
+        {
+            if (role == Role.Client) return index < takenSel.Count ? takenSel[index] : null;
+            if (lot == House.PlayerLotId) return G.selected != null ? G.selected.id : null;
+            var p = PeerOf(lot);
+            return p != null ? p.selected : null;
+        }
+
+        /// <summary>За какие скорости проголосовали другие игроки (без меня).</summary>
+        public HashSet<int> OtherVotes()
+        {
+            var s = new HashSet<int>();
+            if (role == Role.Host) { foreach (var p in peers) if (p.lot >= 0 && !p.closed) s.Add(p.vote); }
+            else if (role == Role.Client)
+                for (int i = 0; i < takenLots.Count && i < takenVotes.Count; i++) if (takenLots[i] != myLot) s.Add(takenVotes[i]);
+            return s;
+        }
     }
 }

@@ -116,6 +116,25 @@ namespace FoxLife
         public bool chatOpen;
         string chatText = "";
 
+        /// <summary>Где показывать сообщения игроков: в чате, облачками над их лисичками, и там и там, нигде.</summary>
+        public enum ChatShow { Both = 0, Chat = 1, Bubbles = 2, None = 3 }
+        public static readonly string[] ChatShowNames = { "в чате и облачками", "только в чате", "только облачками", "нигде" };
+        public ChatShow chatShow = (ChatShow)PlayerPrefs.GetInt("fox_chatshow", 0);
+        public void SetChatShow(ChatShow v) { chatShow = v; PlayerPrefs.SetInt("fox_chatshow", (int)v); }
+        bool ChatInBox => chatShow == ChatShow.Both || chatShow == ChatShow.Chat;
+        bool ChatInBubbles => chatShow == ChatShow.Both || chatShow == ChatShow.Bubbles;
+
+        // облачка сообщений над лисичками игроков (по реальному времени — не замирают на паузе)
+        readonly Dictionary<Fox, (string text, float until)> chatBubbles = new Dictionary<Fox, (string, float)>();
+
+        public void ChatBubble(Fox f, string text)
+        {
+            if (f == null || !ChatInBubbles) return;
+            chatBubbles[f] = (text, Time.unscaledTime + Mathf.Clamp(3.5f + text.Length * 0.07f, 4f, 12f));
+        }
+
+        string ChatBubbleOf(Fox f) => chatBubbles.TryGetValue(f, out var b) && b.until > Time.unscaledTime ? b.text : null;
+
         /// <summary>Чат по сети: Enter — написать, Enter — отправить, Esc — закрыть. Старые строчки тают через полминуты.</summary>
         void ChatBox()
         {
@@ -145,7 +164,7 @@ namespace FoxLife
                 y -= 4;
             }
             int shown = 0;
-            for (int i = n.chat.Count - 1; i >= 0 && shown < (chatOpen ? 10 : 6); i--)
+            for (int i = n.chat.Count - 1; i >= 0 && (chatOpen || ChatInBox) && shown < (chatOpen ? 10 : 6); i--)
             {
                 var c = n.chat[i];
                 float age = Time.unscaledTime - c.time;
@@ -264,7 +283,7 @@ namespace FoxLife
                 foreach (var p in n.peers) if (!p.closed) names.Add(p.name + (p.lot < 0 ? " (выбирает)" : ""));
                 text = names.Count == 0 ? "Игра открыта для друзей · ждём" : "Вместе играют " + string.Join(", ", names);
             }
-            else text = "В гостях у " + n.hostName;
+            else text = n.reconnecting ? "Связь с " + n.hostName + " пропала · переподключаемся…" : "В гостях у " + n.hostName;
             if (!chatOpen) text += " · Enter — чат";
             if (G.mode == Mode.Create) text += " · пауза, пока настраиваешь лисичек";
             else if (G.speedIndex == 0 && G.wantSpeed != 0) text += " · пауза у друга";

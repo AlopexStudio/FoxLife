@@ -94,6 +94,7 @@ namespace FoxLife
 
         bool Btn(Rect r, string text) => Clicked(GUI.Button(r, text, sBtn));
         bool Btn(Rect r, string text, GUIStyle st) => Clicked(GUI.Button(r, text, st));
+        bool Btn(Rect r, GUIContent c, bool on) => Clicked(GUI.Button(r, c, on ? sBtnOn : sBtn));
 
         /// <summary>
         /// Стиль, в который текст точно влезает: перенос строк включён, а если даже одно слово

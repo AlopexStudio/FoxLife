@@ -54,8 +54,8 @@ namespace FoxLife
             byNid.Clear(); dirtyFurn.Clear(); delFurn.Clear(); dirtyFoxStyle.Clear(); foxStyleTime.Clear(); lastLot.Clear();
             roster.Clear(); unacked.Clear();
             tempCounter = 0; moneySeqOut = 0; pendingOpen = null; waitingPlan = null; byeReason = null; pickerNote = null;
-            takenLots.Clear(); takenNames.Clear();
-            sentAuto = null;
+            takenLots.Clear(); takenNames.Clear(); takenSel.Clear(); takenVotes.Clear();
+            sentAuto = null; byeFrom = null;
         }
 
         static Fox FoxById(string id)
@@ -162,15 +162,20 @@ namespace FoxLife
                 int n = 0;
                 while (!p.closed && n++ < 500 && p.inbox.TryDequeue(out var m))
                 {
+                    p.lastHeard = Time.unscaledTime;
                     try { HostHandle(p, m); }
                     catch (Exception e) { Debug.LogError("FoxLife: сеть: сообщение от " + p.name + ": " + e); }
                     finally { Applying = false; From = -1; }
                 }
+                // друг молчит (пинг раз в 2 с): связь пропала, хотя сокет ещё «жив»
+                if (!p.closed && Time.unscaledTime - p.lastHeard > 30f) { p.error = "нет ответа 30 секунд"; p.closed = true; }
                 if (p.closed && p.inbox.IsEmpty)
                 {
                     peers.RemoveAt(i);
                     p.Close();
-                    if (p.lot >= 0) G.Log($"{p.name} выходит из игры. Семья живёт дальше сама.");
+                    if (p.lot >= 0) G.Log(byeFrom != p
+                        ? $"{p.name}: связь пропала. Семья пока живёт сама — переподключившись, можно играть дальше."
+                        : $"{p.name} выходит из игры. Семья живёт дальше сама.");
                     SetStatus(p.name + " отключается" + (p.error != null ? ": " + p.error : ""));
                 }
             }
@@ -230,7 +235,9 @@ namespace FoxLife
                     p.autonomy = r.ReadBoolean();
                     p.autoOutfits = r.ReadBoolean();
                     p.vote = r.ReadByte();
+                    p.selected = RStr(r);
                     break;
+                case Msg.Ping: break;
                 case Msg.Money:
                 {
                     float d = r.ReadSingle();
@@ -246,8 +253,8 @@ namespace FoxLife
                 case Msg.Prop: ApplyProp(r); Broadcast(m, p.id); break;
                 case Msg.FoxStyle: ApplyFoxStyle(r, p); break;
                 case Msg.FoxEdit: ApplyFoxEdit(r, p); break;
-                case Msg.Chat: HostChat(p, RStr(r)); break;
-                case Msg.Bye: p.closed = true; break;
+                case Msg.Chat: HostChat(p, RStr(r), RStr(r)); break;
+                case Msg.Bye: byeFrom = p; p.closed = true; break;
             }
         }
 
@@ -273,6 +280,9 @@ namespace FoxLife
             if (p.lot >= 0) return;
             var l = G.house.LotById(lot);
             string err = null;
+            // тот же игрок переподключился, а старое соединение ещё не отвалилось — освобождаем его семью
+            var old = PeerOf(lot);
+            if (old != null && old != p && old.name == p.name) { old.error = "переподключился"; old.lot = -1; old.closed = true; }
             if (l == null || l.removed || l.kind != LotKind.Home) err = "Этот участок не для жилья.";
             else if (TakenLots().Contains(lot)) err = "За эту семью уже играют.";
             else if (create)
@@ -323,6 +333,7 @@ namespace FoxLife
                 }
                 case "plandone": if (fox.current != null) fox.current.netDone = true; break;
                 case "addfox": case "removefox": HostCasOp(p, fox, op); break;
+                case "letin": { var v = FoxById(a1); if (v != null && v.KnockingAt == p.lot) v.PlayerLetIn(fox); break; }
             }
         }
 
@@ -387,7 +398,13 @@ namespace FoxLife
                     w.Write(pp.lot >= 0 ? G.MoneyOf(pp.lot) : 0f);
                     w.Write(pp.moneySeq);
                     w.Write((byte)taken.Count);
-                    foreach (var lot in taken) { w.Write(lot); WStr(w, OwnerName(lot)); }
+                    foreach (var lot in taken)
+                    {
+                        w.Write(lot); WStr(w, OwnerName(lot));
+                        var owner = PeerOf(lot);
+                        WStr(w, owner != null ? owner.selected : lot == House.PlayerLotId && G.selected != null ? G.selected.id : null);
+                        w.Write((byte)(owner != null ? owner.vote : HostVote()));
+                    }
                     w.Write((ushort)list.Count);
                     for (int i = 0; i < list.Count; i++)
                     {
@@ -521,12 +538,70 @@ namespace FoxLife
         string byeReason;
         public string pickerNote;
         bool selectPending;
-        (bool a, bool o, int v)? sentAuto;
+        (bool a, bool o, int v, string s)? sentAuto;
+        float lastHeard, pingTimer;
+        NetLink byeFrom;
+
+        // ----- переподключение после обрыва -----
+        public bool reconnecting;
+        float reconnectUntil, nextRetry;
+        int rejoinLot = -1;
+        string rejoinSel;
+        (Vector3 target, float dist, float pitch, float yaw) rejoinCam;
+        public readonly List<string> takenSel = new List<string>();
+        public readonly List<int> takenVotes = new List<int>();
+
+        /// <summary>Для автотеста: оборвать соединение без «пока», как при пропавшем интернете.</summary>
+        public void DebugDropLink() { server?.Close(); }
+
+        /// <summary>Связь с хозяином оборвалась посреди игры: город остаётся на экране, пробуем переподключиться минуту.</summary>
+        void LoseConnection()
+        {
+            try { server.Close(); } catch { }
+            server = null;
+            reconnecting = true;
+            reconnectUntil = Time.unscaledTime + 60f;
+            nextRetry = Time.unscaledTime + 1f;
+            rejoinLot = myLot;
+            rejoinSel = G.selected != null ? G.selected.id : null;
+            rejoinCam = (G.cam.target, G.cam.dist, G.cam.pitch, G.cam.yaw);
+            G.speedIndex = 0;
+            SetStatus("Связь с хозяином пропала. Переподключаемся…");
+            G.Log("Связь с хозяином пропала. Переподключаемся…");
+        }
+
+        /// <summary>Пока переподключаемся: раз в 3 с стучимся к хозяину; через минуту сдаёмся.</summary>
+        bool ReconnectUpdate()
+        {
+            if (!reconnecting) return false;
+            if (connecting && connected == null && connectError == null) return true;
+            if (connected != null)
+            {
+                server = new NetLink(connected);
+                connected = null; connecting = false; reconnecting = false;
+                lastHeard = Time.unscaledTime;
+                myLot = -1; worldReady = false; sentAuto = null;
+                roster.Clear(); unacked.Clear(); byeReason = null;
+                server.Send(Pack(Msg.Hello, w => { w.Write(Protocol); WStr(w, myName); }));
+                SetStatus("Связь вернулась! Загружаем город заново…");
+                return true;
+            }
+            connecting = false; connectError = null;
+            if (Time.unscaledTime > reconnectUntil)
+            {
+                reconnecting = false; rejoinLot = -1;
+                Stop("Связь с хозяином потеряна: переподключиться не получилось.");
+                return true;
+            }
+            if (Time.unscaledTime >= nextRetry) { nextRetry = Time.unscaledTime + 3f; BeginConnect(joinAddress, port); }
+            return true;
+        }
         class OpenReq { public Fox fox; public int kind; public float time; }
         OpenReq pendingOpen, waitingPlan;
 
         void ClientUpdate()
         {
+            if (ReconnectUpdate()) return;
             if (connecting)
             {
                 if (connectError != null)
@@ -553,19 +628,28 @@ namespace FoxLife
             int n = 0;
             while (!loadingWorld && n++ < 3000 && server != null && server.inbox.TryDequeue(out var m))
             {
+                lastHeard = Time.unscaledTime;
                 try { ClientHandle(m); }
                 catch (Exception e) { Debug.LogError("FoxLife: сеть: сообщение от хоста: " + e); }
                 finally { Applying = false; }
             }
             if (server == null) return;
-            if (server.closed && server.inbox.IsEmpty && !loadingWorld)
+            if (loadingWorld || G.loading || !worldReady) lastHeard = Time.unscaledTime;
+            bool silent = Time.unscaledTime - lastHeard > 8f; // хост шлёт снимки 10 раз в секунду
+            if ((server.closed && server.inbox.IsEmpty && !loadingWorld) || silent)
             {
                 string why = byeReason ?? (server.error != null ? "Связь с хозяином потеряна: " + server.error : "Связь с хозяином потеряна.");
+                if (byeReason == null && myLot >= 0) { LoseConnection(); return; } // не «пока», а обрыв — переподключаемся
+                server.Close();
                 server = null;
                 Stop(why);
                 return;
             }
+            // пинг — всегда, и пока грузится город: иначе хост решит, что связь пропала
+            pingTimer -= Time.unscaledDeltaTime;
+            if (pingTimer <= 0f) { pingTimer = 2f; server.Send(Pack(Msg.Ping, null)); }
             if (!worldReady || G.loading) return;
+            if (rejoinLot >= 0 && myLot < 0) { int rl = rejoinLot; rejoinLot = -1; Claim(rl, false); }
 
             if (myLot >= 0)
             {
@@ -574,9 +658,12 @@ namespace FoxLife
                 {
                     selectPending = false;
                     var f = G.Household[0];
-                    G.Select(f);
+                    var back = rejoinSel != null ? G.Household.Find(x => x.id == rejoinSel) : null;
+                    G.Select(back ?? f);
                     var l = G.house.LotById(myLot);
-                    if (l != null) { G.cam.Focus(GridMap.Center(l.entry), 18f); G.cam.dist = 18f; G.cam.pitch = 48f; }
+                    if (back != null) { G.cam.target = rejoinCam.target; G.cam.dist = rejoinCam.dist; G.cam.pitch = rejoinCam.pitch; G.cam.yaw = rejoinCam.yaw; }
+                    else if (l != null) { G.cam.Focus(GridMap.Center(l.entry), 18f); G.cam.dist = 18f; G.cam.pitch = 48f; }
+                    rejoinSel = null;
                     lastLot[myLot] = LotJson(myLot);
                     if (claimCreate)
                     {
@@ -587,11 +674,11 @@ namespace FoxLife
                 }
             }
             int vote = G.ui.screen != GameUI.MenuScreen.None || G.mode == Mode.Create ? 0 : G.wantSpeed;
-            var now = (G.autonomy, G.autoOutfits, vote);
+            var now = (G.autonomy, G.autoOutfits, vote, G.selected != null ? G.selected.id : "");
             if (myLot >= 0 && (sentAuto == null || sentAuto.Value != now))
             {
                 sentAuto = now;
-                server.Send(Pack(Msg.Settings, w => { w.Write(now.autonomy); w.Write(now.autoOutfits); w.Write((byte)now.vote); }));
+                server.Send(Pack(Msg.Settings, w => { w.Write(now.autonomy); w.Write(now.autoOutfits); w.Write((byte)now.vote); WStr(w, now.Item4); }));
             }
             UpdatePlans();
             if (myLot >= 0) CasUpdate();
@@ -659,7 +746,7 @@ namespace FoxLife
                     break;
                 }
                 case Msg.Tick: ApplyTick(r); break;
-                case Msg.Chat: ClientChat(RStr(r), RStr(r)); break;
+                case Msg.Chat: ClientChat(RStr(r), RStr(r), RStr(r)); break;
                 case Msg.Roster: ApplyRoster(r); break;
                 case Msg.FoxFull: ApplyFoxFull(r); break;
                 case Msg.Claimed:
@@ -790,8 +877,8 @@ namespace FoxLife
             float money = r.ReadSingle();
             int ack = r.ReadInt32();
             int tn = r.ReadByte();
-            takenLots.Clear(); takenNames.Clear();
-            for (int i = 0; i < tn; i++) { takenLots.Add(r.ReadInt32()); takenNames.Add(RStr(r) ?? "?"); }
+            takenLots.Clear(); takenNames.Clear(); takenSel.Clear(); takenVotes.Clear();
+            for (int i = 0; i < tn; i++) { takenLots.Add(r.ReadInt32()); takenNames.Add(RStr(r) ?? "?"); takenSel.Add(RStr(r)); takenVotes.Add(r.ReadByte()); }
             G.minutes = minutes;
             G.speedIndex = Mathf.Clamp(speed, 0, Game.Speeds.Length - 1);
             if (G.weather != null) { G.weather.kind = wk; G.weather.hoursLeft = 99f; }

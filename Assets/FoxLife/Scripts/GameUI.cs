@@ -312,7 +312,7 @@ namespace FoxLife
                 HouseholdStrip();
                 switch (G.mode)
                 {
-                    case Mode.Live: PortraitCard(); InfoPanel(); Notifications(); break;
+                    case Mode.Live: PortraitCard(); InfoPanel(); Notifications(); KnockNotice(); break;
                     case Mode.Build: BuildPanel(); break;
                     case Mode.Style: StylePanel(); break;
                     case Mode.Create: CreatePanel(); break;
@@ -477,7 +477,11 @@ namespace FoxLife
             {
                 if (G.house.HiddenAt(f.Level, f.Cell)) continue;
                 bool mine = Game.IsPlayer(f);
-                if (!mine && Vector3.Distance(f.transform.position, G.cam.target) > 22f) continue; // соседей подписываем, только когда они рядом
+                string chatB = ChatBubbleOf(f);
+                Color pc = Color.white; bool ctrl = false;
+                bool other = Net.Active && Net.I.OtherPlayer(f, out pc, out ctrl, out _);
+                // соседей подписываем, только когда они рядом (лисичку другого игрока и того, кто пишет в чат, — всегда)
+                if (!mine && !(other && ctrl) && chatB == null && Vector3.Distance(f.transform.position, G.cam.target) > 22f) continue;
                 var wp = f.transform.position + Vector3.up * (1.05f * f.size);
                 var sp = cam.WorldToScreenPoint(wp);
                 if (sp.z < 0) continue;
@@ -488,13 +492,15 @@ namespace FoxLife
                     var old = GUI.color;
                     GUI.color = new Color(0, 0, 0, 0.6f);
                     GUI.Label(new Rect(nameRect.x + 1, nameRect.y + 1, nameRect.width, nameRect.height), f.foxName, sName);
-                    GUI.color = f == G.selected ? new Color(1f, 0.85f, 0.55f) : mine ? Color.white : new Color(0.78f, 0.9f, 1f);
-                    GUI.Label(nameRect, f.foxName, sName);
+                    // свои — белым (выбранная — золотом), семьи других игроков — их цветом, за кого они играют — ярко и со звёздочкой
+                    GUI.color = f == G.selected ? new Color(1f, 0.85f, 0.55f) : mine ? Color.white
+                        : other ? (ctrl ? pc : Color.Lerp(pc, Color.white, 0.45f)) : new Color(0.78f, 0.9f, 1f);
+                    GUI.Label(nameRect, other && ctrl ? "★ " + f.foxName : f.foxName, sName);
                     GUI.color = old;
                 }
-                if (!LabelOn(phraseMode, f)) continue;
+                if (chatB == null && !LabelOn(phraseMode, f)) continue;
 
-                string b = f.bubbleTimer > 0 ? f.bubble : (f.sleeping ? "Хр-р-р…" : null);
+                string b = chatB ?? (f.bubbleTimer > 0 ? f.bubble : (f.sleeping ? "Хр-р-р…" : null));
                 if (string.IsNullOrEmpty(b)) continue;
                 var c = new GUIContent(BubbleText(b));
                 var size = BubbleSize(c);
@@ -568,7 +574,7 @@ namespace FoxLife
         {
             Begin(new Rect(10, 10, vw - 20, 56));
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Лисья жизнь", sTitle, W(150));
+            GUILayout.Label("Лисья Жизнь", sTitle, W(150));
             ModeBtn("Жизнь", Mode.Live, "F1");
             ModeBtn("Обустройство", Mode.Build, "F2");
             ModeBtn("Создание стиля", Mode.Style, "F3");

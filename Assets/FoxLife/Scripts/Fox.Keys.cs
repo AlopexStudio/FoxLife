@@ -37,10 +37,31 @@ namespace FoxLife
             public FoxAction then;
             public bool pushy;
             public float lastTry;
+            public bool forced; // открыть велел игрок — впускают без раздумий
         }
         KnockState knock;
 
         public bool Knocking => knock != null;
+
+        /// <summary>В чью дверь стучится (-1 — не стучится). У друга по сети — по занятию и месту.</summary>
+        public int KnockingAt => knock != null ? knock.lot
+            : current != null && current.label == "Стучится в дверь" && G.house != null ? (G.house.LotAt(Cell)?.id ?? -1) : -1;
+
+        /// <summary>Уже идут открывать?</summary>
+        public bool DoorAnswered => knock != null && knock.opener != null;
+
+        /// <summary>Игрок велел своей лисичке открыть дверь: она идёт к двери и впускает гостя.</summary>
+        public void PlayerLetIn(Fox opener)
+        {
+            if (opener == null) return;
+            if (Net.IsClient) { Net.I.SendOp(opener, "letin", id); return; }
+            if (knock == null || opener.KeyTo(knock.lot) == KeyKind.None) return;
+            if (knock.opener != null && knock.opener != opener) knock.opener.queue.RemoveAll(a => a.label != null && a.label.StartsWith("Идёт открывать дверь"));
+            knock.opener = opener;
+            knock.forced = true;
+            knock.waited = Mathf.Min(knock.waited, 10f);
+            opener.GoOpenDoor(this, knock.lot, knock.door);
+        }
 
         // ---------- кто куда может войти ----------
 
@@ -257,8 +278,8 @@ namespace FoxLife
                 Social.AddRel(opener, this, -5f);
                 opener.AddMoodlet("Настырный гость", -3, 90);
             }
-            bool ok = Social.Rel(opener, this) >= opener.GuestNeed;
-            var objector = ok ? GuestObjector(lotId, opener) : null;
+            bool ok = k.forced || Social.Rel(opener, this) >= opener.GuestNeed;
+            var objector = ok && !k.forced ? GuestObjector(lotId, opener) : null;
             if (!ok || objector != null)
             {
                 refusedAt[lotId] = G.minutes;

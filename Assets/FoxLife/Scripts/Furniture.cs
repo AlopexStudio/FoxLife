@@ -249,6 +249,31 @@ namespace FoxLife
             };
         }
 
+        /// <summary>В палатках можно поспать: двое рядышком на коврике, вход спереди.</summary>
+        static void AddTentSleep(List<FurnitureDef> all)
+        {
+            var tentSleep = new Interaction
+            {
+                name = "Поспать в палатке", verb = "Спит в палатке", duration = 540, pose = Pose.Lie, onObject = true, sleep = true, endWhenFull = true,
+                energy = 0.13f, fun = 0.05f, tags = ActTag.Comfort, bubble = "Как в походе!",
+                onFinish = f => Mood(f, f.needs[(int)Need.Energy] > 85, "Ночь в палатке", 6, 360),
+            };
+            var tentNap = new Interaction
+            {
+                name = "Вздремнуть в палатке", verb = "Дремлет в палатке", duration = 60, pose = Pose.Lie, onObject = true, sleep = true,
+                energy = 0.22f, fun = 0.05f, tags = ActTag.Comfort, bubble = "Шуршит листва…",
+            };
+            foreach (var d in all)
+            {
+                if (d.id != "p_tent" && d.id != "p_tent2") continue;
+                d.description = "Палатка: можно поспать вдвоём, как в походе.";
+                d.slots.Add(Slot(V(-0.38f, 0.07f, -0.15f), 180, C(0, 3), C(1, 3)));
+                d.slots.Add(Slot(V(0.38f, 0.07f, -0.15f), 180, C(2, 3), C(1, 3)));
+                d.actions.Add(tentSleep);
+                d.actions.Add(tentNap);
+            }
+        }
+
         static void AddTownProps(List<FurnitureDef> all)
         {
             const string C = "Город", N = "Природа";
@@ -363,6 +388,7 @@ namespace FoxLife
                 { "telescope", 600 }, { "bridge", 350 }, { "piano", 900 }, { "schooldesk", 120 }, { "chalkboard", 150 }, { "marketstall", 400 }, { "campfire", 250 }, { "berrybush", 80 },
             };
             AddTownProps(all);
+            AddTentSleep(all);
             foreach (var d in all) if (prices.TryGetValue(d.id, out var pr)) d.price = pr;
             // навыки
             Sk("Приготовить ужин", Skill.Cooking, 1f); Sk("Перекусить", Skill.Cooking, 0.15f);

@@ -128,7 +128,7 @@ namespace FoxLife
         }
 
         /// <summary>Круглая кнопка со значком (как в Sims 4). Возвращает true по нажатию.</summary>
-        bool RoundBtn(Rect r, string icon, bool on, string tipText, Color? tint = null)
+        bool RoundBtn(Rect r, string icon, bool on, string tipText, Color? tint = null, Color? fill = null)
         {
             EnsureSims();
             bool hover = r.Contains(Event.current.mousePosition);
@@ -138,11 +138,12 @@ namespace FoxLife
                 var old = GUI.color;
                 GUI.color = new Color(0, 0, 0, 0.12f);
                 GUI.DrawTexture(new Rect(r.x + 1, r.y + 2, r.width, r.height), texDot);
-                GUI.color = on ? SimsBlue : hover ? SimsBlueLight : Color.white;
+                bool filled = on || fill.HasValue;
+                GUI.color = on ? SimsBlue : fill ?? (hover ? SimsBlueLight : Color.white);
                 GUI.DrawTexture(r, texDot);
-                GUI.color = on ? new Color(0.1f, 0.45f, 0.68f) : new Color(0.75f, 0.82f, 0.88f);
+                GUI.color = on ? new Color(0.1f, 0.45f, 0.68f) : fill.HasValue ? fill.Value * 0.75f + new Color(0, 0, 0, 0.25f) : new Color(0.75f, 0.82f, 0.88f);
                 GUI.DrawTexture(r, texRing);
-                GUI.color = on ? Color.white : tint ?? SimsInk;
+                GUI.color = filled ? Color.white : tint ?? SimsInk;
                 float p = r.width * 0.22f;
                 GUI.DrawTexture(new Rect(r.x + p, r.y + p, r.width - 2 * p, r.height - 2 * p), Icon(icon));
                 GUI.color = old;
@@ -364,10 +365,16 @@ namespace FoxLife
             string[] ic = { "pause", "play1", "play2", "play3" };
             string[] spTip = { "Пауза (пробел)", "Обычная скорость (1)", "Быстро (2)", "Очень быстро (3)" };
             var row = GUILayoutUtility.GetRect(4 * 36, 34, GUILayout.Width(4 * 36), GUILayout.Height(34));
+            // по сети: синим — что выбрал я, оранжевым — что выбрали другие (если не то же самое)
+            bool net = Net.Active && !(Net.IsClient && Net.I.reconnecting);
+            int mineV = net ? G.wantSpeed : G.speedIndex;
+            var others = net ? Net.I.OtherVotes() : null;
             for (int i = 0; i < 4; i++)
             {
                 int k = i;
-                if (RoundBtn(new Rect(row.x + i * 36, row.y, 32, 32), ic[i], G.speedIndex == i, spTip[i])) Defer(() => G.SetSpeed(k));
+                bool theirs = others != null && i != mineV && others.Contains(i);
+                string t = spTip[i] + (theirs ? " — так выбрал другой игрок" : "") + (net && i == G.speedIndex && i != mineV ? " (сейчас идёт эта скорость)" : "");
+                if (RoundBtn(new Rect(row.x + i * 36, row.y, 32, 32), ic[i], mineV == i, t, null, theirs ? new Color(1f, 0.62f, 0.3f) : (Color?)null)) Defer(() => G.SetSpeed(k));
             }
             GUILayout.Space(8);
             GUILayout.BeginVertical();
@@ -578,6 +585,47 @@ namespace FoxLife
         }
 
         // ================= уведомления (вверху слева) =================
+
+        // кто стучится к нам в дверь: можно сразу впустить, не дожидаясь, пока откроют сами
+        readonly HashSet<Fox> knockDismissed = new HashSet<Fox>();
+
+        void KnockNotice()
+        {
+            int lot = House.PlayerLotId;
+            float y = 40;
+            foreach (var v in G.foxes)
+            {
+                if (v == null || Game.IsPlayer(v)) continue;
+                if (v.KnockingAt != lot) { knockDismissed.Remove(v); continue; }
+                if (knockDismissed.Contains(v)) continue;
+                // кто откроет: выбранная лисичка, если она дома, иначе ближайшая к двери
+                Fox opener = G.selected != null && Game.IsPlayer(G.selected) && G.house.LotAt(G.selected.Cell)?.id == lot && !G.selected.atWork ? G.selected : null;
+                if (opener == null)
+                {
+                    float bd = float.MaxValue;
+                    foreach (var f in G.Household)
+                    {
+                        if (f.atWork || f.sleeping || G.house.LotAt(f.Cell)?.id != lot) continue;
+                        float d = Vector3.Distance(f.transform.position, v.transform.position);
+                        if (d < bd) { bd = d; opener = f; }
+                    }
+                }
+                var r = new Rect((vw - 420) / 2, y, 420, 74);
+                GUI.Box(r, GUIContent.none, sPanel);
+                if (Event.current.type == EventType.Repaint) Fill(new Rect(r.x + 6, r.y + 8, 4, r.height - 16), new Color(1f, 0.62f, 0.3f));
+                GUI.Label(new Rect(r.x + 18, r.y + 8, r.width - 30, 24), $"{v.foxName} стучится в дверь", sBold);
+                var vv = v; var op = opener;
+                if (op != null)
+                {
+                    if (Btn(new Rect(r.x + 18, r.y + 36, 200, 30), new GUIContent("Впустить", $"{op.foxName} откроет дверь и пустит в гости"), true))
+                        Defer(() => { vv.PlayerLetIn(op); knockDismissed.Add(vv); });
+                }
+                else GUI.Label(new Rect(r.x + 18, r.y + 40, 200, 24), "Дома никого нет.", sSmall);
+                if (Btn(new Rect(r.x + 226, r.y + 36, 176, 30), new GUIContent("Не сейчас", "Пусть решают сами"), false))
+                    Defer(() => knockDismissed.Add(vv));
+                y += 80;
+            }
+        }
 
         void Notifications()
         {

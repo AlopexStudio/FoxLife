@@ -32,7 +32,7 @@ namespace FoxLife
             Fill(new Rect(0, 0, vw, vh), new Color(0.86f, 0.93f, 0.98f, 1f));
             var big = new GUIStyle(sTitle) { fontSize = 44, alignment = TextAnchor.MiddleCenter };
             big.normal.textColor = SimsInk;
-            GUI.Label(new Rect(0, vh / 2 - 120, vw, 60), "Лисья жизнь", big);
+            GUI.Label(new Rect(0, vh / 2 - 120, vw, 60), "Лисья Жизнь", big);
             var sub = new GUIStyle(sBold) { fontSize = 18, alignment = TextAnchor.MiddleCenter };
             sub.normal.textColor = SimsInk;
             GUI.Label(new Rect(0, vh / 2 - 40, vw, 30), G.loadingText, sub);
@@ -82,9 +82,9 @@ namespace FoxLife
             smallSt.normal.textColor = Color.white;
             var old = GUI.color;
             GUI.color = new Color(0, 0, 0, 0.45f);
-            GUI.Label(new Rect(x0 + 3, y0 + 4, 600, 80), "Лисья жизнь", big);
+            GUI.Label(new Rect(x0 + 3, y0 + 4, 600, 80), "Лисья Жизнь", big);
             GUI.color = new Color(1f, 0.86f, 0.62f);
-            GUI.Label(new Rect(x0, y0, 600, 80), "Лисья жизнь", big);
+            GUI.Label(new Rect(x0, y0, 600, 80), "Лисья Жизнь", big);
             GUI.color = new Color(1f, 0.95f, 0.88f, 0.85f);
             GUI.Label(new Rect(x0 + 4, y0 + 74, 600, 30), "уютная жизнь в Лисьей Долине", subSt);
             if (G.TitleSceneActive)
@@ -116,7 +116,7 @@ namespace FoxLife
             {
                 var big = new GUIStyle(sTitle) { fontSize = 28, alignment = TextAnchor.MiddleCenter };
                 GUILayout.Space(4);
-                GUILayout.Label("Лисья жизнь", big);
+                GUILayout.Label("Лисья Жизнь", big);
                 GUILayout.Label("пауза", sub);
                 GUILayout.Space(16);
             }
@@ -208,7 +208,7 @@ namespace FoxLife
         void SettingsScreen()
         {
             bool inGame = settingsFrom == MenuScreen.Pause;
-            float w = 560, h = inGame ? 760 : 420;
+            float w = 560, h = inGame ? 800 : 420;
             var r = new Rect((vw - w) / 2, Mathf.Max(10, (vh - h) / 2), w, Mathf.Min(h, vh - 20));
             GUILayout.BeginArea(r, sPanel);
             settingsScroll = GUILayout.BeginScrollView(settingsScroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
@@ -243,6 +243,8 @@ namespace FoxLife
             {
                 GUILayout.Space(8);
                 GUILayout.Label("Игра", sBig);
+                if (Btn(new GUIContent("Сообщения игроков — " + ChatShowNames[(int)chatShow], "Игра по сети: где показывать, что пишут друзья. Облачками — будто это говорят их лисички"), false, Hh(36)))
+                    Defer(() => SetChatShow((ChatShow)(((int)chatShow + 1) % 4)));
                 if (Net.IsClient) GUILayout.Label("По сети погоду, время суток и правила города меняет хозяин игры.", sWrap);
                 else if (Btn(new GUIContent("Жизнь лисичек — " + Family.LifespanName(G.lifespan), "Как быстро лисички растут и стареют"), false, Hh(36)))
                     Defer(() => G.lifespan = (Lifespan)(((int)G.lifespan + 1) % 4));

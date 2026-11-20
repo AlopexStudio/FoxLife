@@ -18,7 +18,7 @@ namespace FoxLife
         Tick, Roster, FoxFull, FoxStyle,
         Furn, FurnDel, NidMap, LotState, Terrain, Prop,
         Cmd, Op, Settings, Money, Log, Open, Sfx, Bye,
-        FoxEdit, Chat,
+        FoxEdit, Chat, Ping,
     }
 
     /// <summary>
@@ -43,6 +43,8 @@ namespace FoxLife
         public int vote = 1;            // за какую скорость времени
         public bool autonomy = true, autoOutfits = true;
         public int moneySeq;
+        public float lastHeard = Time.unscaledTime; // когда от него что-то приходило (молчит долго — связь пропала)
+        public string selected;                     // за какую лисичку сейчас играет
         /// <summary>Временные номера мебели, которую поставил игрок, → настоящие номера у хоста.</summary>
         public readonly Dictionary<int, int> tempNid = new Dictionary<int, int>();
         // что уже отправлено (дальше шлём только изменения)
@@ -126,7 +128,7 @@ namespace FoxLife
     {
         public static Net I;
         public const int DefaultPort = 7777;
-        public const int Protocol = 5;
+        public const int Protocol = 6;
         public enum Role { None, Host, Client }
         public Role role;
 
@@ -311,12 +313,21 @@ namespace FoxLife
             chat.Clear();
             myName = string.IsNullOrEmpty(name) ? "Друг" : name;
             joinAddress = address;
+            port = p;
+            reconnecting = false; rejoinLot = -1;
             connecting = true;
             worldReady = false;
             loadingWorld = false;
             myLot = -1;
             connected = null; connectError = null;
             SetStatus("Подключаемся к " + address + "…");
+            BeginConnect(address, p);
+        }
+
+        void BeginConnect(string address, int p)
+        {
+            connecting = true;
+            connected = null; connectError = null;
             new Thread(() =>
             {
                 try
@@ -351,7 +362,8 @@ namespace FoxLife
                 server.Close();
                 server = null;
             }
-            bool replaced = worldReady || loadingWorld; // город друга уже (или почти) загружен вместо своего
+            bool replaced = worldReady || loadingWorld || reconnecting; // город друга уже (или почти) загружен вместо своего
+            reconnecting = false; rejoinLot = -1;
             role = Role.None;
             connecting = false;
             worldReady = false;

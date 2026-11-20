@@ -54,8 +54,10 @@ namespace FoxLife
             int shot = 0;
             bool saidHi = false;
             t0 = Time.realtimeSinceStartup;
-            while (Time.realtimeSinceStartup - t0 < 120f && net.peers.Count > 0)
+            float lastPeer = Time.realtimeSinceStartup;
+            while (Time.realtimeSinceStartup - t0 < 300f && Time.realtimeSinceStartup - lastPeer < 30f)
             {
+                if (net.peers.Exists(p => p.lot >= 0)) { lastPeer = Time.realtimeSinceStartup; peer = net.peers.Find(p => p.lot >= 0); }
                 foreach (var f in g.FamilyOf(lot)) log.WriteLine($"СЕТЬ хост {Time.realtimeSinceStartup:0}: друг: {FoxLine(f)}");
                 log.WriteLine($"СЕТЬ хост: скорость {g.speedIndex} (моя {g.wantSpeed}, у друга {peer.vote}), денег у друга {g.MoneyOf(lot):0}, мебели у друга {FurnOn(lot)}, свобода воли друга {peer.autonomy}, стен у друга {g.NetLotData(lot).edges.Count}");
                 if (shot >= 1 && net.chat.Count > 0 && !saidHi) { saidHi = true; net.SendChat("Привет, заходи на чай!"); }
@@ -236,6 +238,24 @@ namespace FoxLife
             g.cam.Focus(new Vector3(20f, 0, -5f), 999f); g.cam.dist = 70f; g.cam.pitch = 55f;
             yield return new WaitForSeconds(1.5f);
             yield return Shot("net_join_3_town");
+            // обрыв связи без «пока»: гость должен сам переподключиться к той же семье
+            {
+                int lotWas = net.myLot;
+                string selWas = g.selected != null ? g.selected.foxName : "-";
+                net.DebugDropLink();
+                float td = Time.realtimeSinceStartup;
+                bool sawReconnect = false;
+                while (Time.realtimeSinceStartup - td < 60f)
+                {
+                    if (net.reconnecting) sawReconnect = true;
+                    if (sawReconnect && !net.reconnecting && net.myLot == lotWas && g.selected != null) break;
+                    if (net.role == Net.Role.None) break;
+                    yield return new WaitForSecondsRealtime(0.25f);
+                }
+                log.WriteLine($"СЕТЬ гость: обрыв → переподключение {(sawReconnect ? "было" : "НЕ было")}, роль {net.role}, участок {net.myLot} (был {lotWas}), выбрана {(g.selected != null ? g.selected.foxName : "-")} (была {selWas}), за {Time.realtimeSinceStartup - td:0} с");
+                yield return new WaitForSecondsRealtime(3f);
+                yield return Shot("net_join_4_rejoined");
+            }
             foreach (var f in g.Household) log.WriteLine("СЕТЬ гость итог: " + FoxLine(f));
             foreach (var e in g.log) log.WriteLine("ЖУРНАЛ " + e.time + " " + e.text);
             net.Stop(null);

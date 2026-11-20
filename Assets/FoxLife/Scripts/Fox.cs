@@ -1266,6 +1266,9 @@ namespace FoxLife
             // желание выбраться в город: общительным и любопытным — сильнее, скучающим — тоже
             float outing = (pers.E - 5.5f) * 0.03f + (pers.O - 5.5f) * 0.025f + (100f - needs[(int)Need.Fun]) / 100f * 0.15f
                 + (100f - needs[(int)Need.Social]) / 100f * 0.1f - 0.1f;
+            // одно и то же занятие (гитара, книга, телевизор…) делают там, где ближе: своя гитара дома
+            // лучше чужой на другом конце города. Из одинаковых занятий остаётся одно — самое удобное.
+            var bestSame = new Dictionary<string, (float s, float pick, FoxAction a)>();
             foreach (var f in G.furniture)
             {
                 if (f.def.actions.Count == 0 || !f.HasFreeSlot(this)) continue;
@@ -1289,9 +1292,13 @@ namespace FoxLife
                 {
                     if (it.playerOnly || !CanUse(it) || (it.blocked != null && it.blocked(this, f) != null)) continue;
                     float s = ScoreInteraction(it, f) + pubBonus + Random.value * 0.08f;
-                    cands.Add((s, new FoxAction { kind = ActKind.UseObject, furn = f, inter = it, label = it.verb ?? it.name }));
+                    var act = new FoxAction { kind = ActKind.UseObject, furn = f, inter = it, label = it.verb ?? it.name };
+                    bool here = hereLot != null && hereLot.id == f.lot;
+                    float pick = s - Vector3.Distance(transform.position, f.transform.position) * 0.03f - (here ? 0f : 0.15f) - (ev != null ? -0.3f : 0f);
+                    if (!bestSame.TryGetValue(it.name, out var cur) || pick > cur.pick) bestSame[it.name] = (s, pick, act);
                 }
             }
+            foreach (var b in bestSame.Values) cands.Add((b.s, b.a));
             // прогулка в парк днём
             if (open && stage >= LifeStage.Kit)
             {

@@ -327,8 +327,9 @@ namespace FoxLife
             string name = Names.Pick(fem, n => foxes.Exists(f => f.foxName == n) || stored.Exists(f => f.foxName == n));
             var cell = homeLot != null ? homeLot.entry : new Vector2Int(4, 2);
             var rr = homeLot != null ? homeLot.rect : new RectInt(0, 0, House.W, House.H);
-            for (int i = 0; i < 30 && !house.grid.IsFree(cell); i++) cell = new Vector2Int(Random.Range(rr.xMin, rr.xMax), Random.Range(rr.yMin, rr.yMax));
-            var fox = CreateFox(name, Personality.Random(), Random.Range(0, FurPresets.Length), GridMap.Center(cell),
+            cell = FreeSpawnCell(cell, rr);
+            var spawn = GridMap.Center(cell) + new Vector3(Random.Range(-0.2f, 0.2f), 0, Random.Range(-0.2f, 0.2f));
+            var fox = CreateFox(name, Personality.Random(), Random.Range(0, FurPresets.Length), spawn,
                 Random.Range(0.85f, 1.4f), Random.Range(0.85f, 1.3f), Random.Range(0.88f, 1.08f), fem);
             fox.home = home;
             fox.stageDays = Random.Range(0, 6);
@@ -338,6 +339,41 @@ namespace FoxLife
             LogFox(fox, $"В доме появилась новая лисичка — {name}!");
             fox.Remember("Переезд в лисий дом");
             return fox;
+        }
+
+        /// <summary>Свободная клетка рядом с входом, где ещё никто не стоит (новые лисички не появляются друг в друге).</summary>
+        public Vector2Int FreeSpawnCell(Vector2Int start, RectInt rr)
+        {
+            bool Taken(Vector2Int c)
+            {
+                var p = GridMap.Center(c);
+                foreach (var f in foxes)
+                {
+                    if (f == null) continue;
+                    var d = f.transform.position - p; d.y = 0;
+                    if (d.sqrMagnitude < 0.8f * 0.8f) return true;
+                }
+                return false;
+            }
+            for (int ring = 0; ring <= 6; ring++)
+            {
+                var cand = new List<Vector2Int>();
+                for (int dx = -ring; dx <= ring; dx++)
+                    for (int dz = -ring; dz <= ring; dz++)
+                    {
+                        if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dz)) != ring) continue;
+                        var c = start + new Vector2Int(dx, dz);
+                        if (!rr.Contains(c) || !house.grid.IsFree(c) || Taken(c)) continue;
+                        cand.Add(c);
+                    }
+                if (cand.Count > 0) return cand[Random.Range(0, cand.Count)];
+            }
+            for (int i = 0; i < 30; i++)
+            {
+                var c = new Vector2Int(Random.Range(rr.xMin, rr.xMax), Random.Range(rr.yMin, rr.yMax));
+                if (house.grid.IsFree(c) && !Taken(c)) return c;
+            }
+            return start;
         }
 
         public void RemoveFox(Fox f, string reason = null)
