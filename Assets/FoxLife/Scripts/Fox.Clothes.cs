@@ -34,6 +34,7 @@ namespace FoxLife
             if (outfits == null || outfits.Length != 3) outfits = Wardrobe.Defaults(this);
             int d = DesiredOutfit;
             if (d != wornOutfit) Wear(d);
+            UpdateRideVisual();
         }
 
         bool undressed;
@@ -54,6 +55,8 @@ namespace FoxLife
             SyncWorn();
             foreach (var w in worn) if (w.st != null) Destroy(w.st.gameObject);
             worn.Clear();
+            foreach (var b in rideBits) if (b != null) Destroy(b);
+            rideBits.Clear();
             wornOutfit = i;
             if (outfits == null || i < 0 || i >= outfits.Length) return;
             foreach (var item in outfits[i].items)
@@ -71,11 +74,12 @@ namespace FoxLife
                     var s = k < item.styles.Count && item.styles[k] != null ? item.styles[k] : def.parts[k].style.Clone();
                     st.AddPart(def.parts[k].name, s, def.glassLast && k == def.parts.Length - 1);
                 }
-                def.build(st, go.transform);
+                if (def.buildOnFox != null) def.buildOnFox(st, this); else def.build(st, go.transform);
                 foreach (var p in st.parts) p.mat.SetFloat("_Voxel", 0.03f);
                 worn.Add((item, st));
             }
             if (hiddenByLevel) foreach (var w in worn) foreach (var r in w.st.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
+            rideShown = true; // транспорт спрячется в следующем кадре, если лисичка не катится
         }
 
         /// <summary>Перенести цвета надетых вещей обратно в наряд (после «Создания стиля»).</summary>

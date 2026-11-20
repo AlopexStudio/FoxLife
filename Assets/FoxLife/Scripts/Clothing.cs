@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace FoxLife
 {
-    public enum ClothSlot { Head, Neck, Body, Eyes }
+    public enum ClothSlot { Head, Neck, Body, Eyes, Ride }
 
     /// <summary>Вещь гардероба: из простых форм, каждая деталь красится той же системой стиля.</summary>
     public class ClothingDef
@@ -14,6 +14,7 @@ namespace FoxLife
         public (string name, StyleData style)[] parts;
         public Action<Styleable, Transform> build;
         public bool glassLast; // последняя деталь — стекло (очки)
+        public Action<Styleable, Fox> buildOnFox; // для транспорта: детали на лапах и под лисичкой
     }
 
     [Serializable]
@@ -33,7 +34,7 @@ namespace FoxLife
     public static class Wardrobe
     {
         public static readonly string[] OutfitNames = { "Повседневный", "Пижама", "Дождевик" };
-        public static readonly string[] SlotNames = { "Голова", "Шея", "Тело", "Глаза" };
+        public static readonly string[] SlotNames = { "Голова", "Шея", "Тело", "Глаза", "Транспорт" };
 
         static List<ClothingDef> all;
         static Mesh fezCrown;
@@ -314,6 +315,41 @@ namespace FoxLife
                 Shapes.Cyl(st, 1, t, V(0.11f, 0.05f, 0.212f), 0.11f, 0.01f, V(90, 0, 0));
                 Shapes.Box(st, 0, t, V(0.175f, -0.07f, 0.205f), V(0.012f, 0.2f, 0.012f), V(0, 0, 12));
             }, true);
+
+            // ----- транспорт: на улице лисичка катится быстрее, в доме — убирает -----
+            all.Add(new ClothingDef
+            {
+                id = "rollers", name = "Роликовые коньки", slot = ClothSlot.Ride,
+                parts = new[] { ("Ботинки", M("Гладкий", "#E57373", null, 1, 0.35f)), ("Колёсики", M("Гладкий", "#F2D98A", null, 1, 0.55f)), ("Шнурки", M("Гладкий", "#FFF8EE")) },
+                build = (st, t) => { },
+                buildOnFox = (st, f) =>
+                {
+                    foreach (var leg in f.Legs)
+                    {
+                        if (leg == null) continue;
+                        var h = f.RideHolder(leg);
+                        Shapes.Box(st, 0, h, V(0, -0.255f, 0.025f), V(0.15f, 0.1f, 0.2f));
+                        Shapes.Box(st, 2, h, V(0, -0.2f, 0.07f), V(0.155f, 0.02f, 0.06f));
+                        for (int k = 0; k < 3; k++) Shapes.Box(st, 1, h, V(0, -0.325f, -0.05f + k * 0.07f), V(0.06f, 0.05f, 0.05f));
+                    }
+                },
+            });
+            all.Add(new ClothingDef
+            {
+                id = "skateboard", name = "Скейтборд", slot = ClothSlot.Ride,
+                parts = new[] { ("Доска", M("Полоска", "#5B7FA8", "#F2C14E", 2f, 0.3f)), ("Колёса", M("Гладкий", "#F4EBDD", null, 1, 0.5f)), ("Подвески", M("Гладкий", "#9AA0A8", null, 1, 0.8f)) },
+                build = (st, t) =>
+                {
+                    Shapes.Box(st, 0, t, V(0, -0.43f, 0), V(0.34f, 0.035f, 0.92f));
+                    Shapes.Box(st, 0, t, V(0, -0.415f, 0.5f), V(0.3f, 0.035f, 0.12f), V(-18, 0, 0));
+                    Shapes.Box(st, 0, t, V(0, -0.415f, -0.5f), V(0.3f, 0.035f, 0.12f), V(18, 0, 0));
+                    foreach (var z in new[] { -0.3f, 0.3f })
+                    {
+                        Shapes.Box(st, 2, t, V(0, -0.465f, z), V(0.24f, 0.03f, 0.05f));
+                        foreach (var x in new[] { -0.13f, 0.13f }) Shapes.Box(st, 1, t, V(x, -0.495f, z), V(0.06f, 0.07f, 0.07f));
+                    }
+                },
+            });
         }
 
         // Плоский верх и сужающиеся стенки. Отдельные вершины крышек сохраняют чёткий край.

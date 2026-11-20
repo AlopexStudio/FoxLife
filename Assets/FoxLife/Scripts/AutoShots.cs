@@ -90,7 +90,7 @@ namespace FoxLife
             var g = Game.I;
             log.WriteLine($"--- {g.ClockText}, тарелок: {g.PlateCount}, монет: {g.money:0}");
             foreach (var f in g.foxes)
-                log.WriteLine($"{f.foxName} [{f.Summary}, {f.StageName}{(f.carried ? ", НЕСУТ" : "")}{(f.heldKind != null ? ", во рту " + f.heldKind : "")}]: {f.ActivityText} | настр {f.Mood:0} | нужды {string.Join(",", System.Array.ConvertAll(f.needs, n => n.ToString("0")))} | здоровье {f.health:0} менталка {f.mental:0} комфорт {f.comfort:0}{(f.Sick ? " БОЛЕЕТ" : "")} | увлечения {string.Join(",", f.interests)} | навыки {string.Join(",", f.skillLvl)} | работа {(f.career != null ? f.JobTitle + " " + f.performance.ToString("0") : "-")} | счастье {f.happiness} | желания: {string.Join("; ", f.wants.ConvertAll(w => w.DisplayText))} | страх {f.fearId} | мечта {(f.Dream != null ? f.Dream.name + " " + Mathf.RoundToInt(Dreams.Progress(f, f.Dream) * 100) + "%" : "-")}{(f.running ? " | бежит" : "")}");
+                log.WriteLine($"{f.foxName} [{f.Summary}, {f.StageName}{(f.carried ? ", НЕСУТ" : "")}{(f.heldKind != null ? ", во рту " + f.heldKind : "")}]: {f.ActivityText} | настр {f.Mood:0} | нужды {string.Join(",", System.Array.ConvertAll(f.needs, n => n.ToString("0")))} | здоровье {f.health:0} менталка {f.mental:0} комфорт {f.comfort:0}{(f.Sick ? " БОЛЕЕТ" : "")} | увлечения {string.Join(",", f.interests)} | навыки {string.Join(",", f.skillLvl)} | работа {(f.career != null ? f.JobTitle + " " + f.performance.ToString("0") : "-")} | счастье {f.happiness} | желания: {string.Join("; ", f.wants.ConvertAll(w => w.DisplayText))} | страх {f.fearId} | мечта {(f.Dream != null ? f.Dream.name + " ур." + (f.dreamLevel + 1) + " " + Mathf.RoundToInt(Dreams.Progress(f, f.Dream) * 100) + "%" : "-")}{(f.running ? " | бежит" : "")}");
         }
 
         /// <summary>Кадр без постобработки: ищем NaN/бесконечность и сверхъяркие пиксели и под ними — объект.</summary>
@@ -438,6 +438,33 @@ namespace FoxLife
             g.cam.target = new Vector3(10f, 0, -15f); g.cam.yaw = 0; g.cam.pitch = 40; g.cam.dist = 26f;
             yield return new WaitForSeconds(1.5f);
             yield return Shot("25_outing");
+            // транспорт: скейтборд и ролики — на улице быстрее, в доме убираются
+            {
+                var sk = g.Household.Count > 0 ? g.Household[0] : null;
+                var rl = g.Household.Count > 1 ? g.Household[1] : null;
+                int sp0 = g.speedIndex;
+                g.SetSpeed(1);
+                var start = GridMap.Center(g.house.PlayerLot.entry) + new Vector3(0, 0, -3f);
+                var goal = start + new Vector3(14f, 0, -4f);
+                foreach (var (fx, id, dx) in new[] { (sk, "skateboard", 0f), (rl, "rollers", 1.2f) })
+                {
+                    if (fx == null) continue;
+                    fx.SetItem(0, ClothSlot.Ride, id);
+                    fx.CancelCurrentPublic(); fx.queue.Clear();
+                    fx.transform.position = start + new Vector3(dx, 0, 0);
+                    fx.Command(new FoxAction { kind = ActKind.Move, moveTarget = goal + new Vector3(dx, 0, 0), label = "Катается" });
+                }
+                yield return new WaitForSeconds(0.6f);
+                var p0 = sk != null ? sk.transform.position : Vector3.zero;
+                float t0r = Time.time;
+                yield return new WaitForSeconds(1.2f);
+                g.cam.target = sk != null ? sk.transform.position : start; g.cam.yaw = 20; g.cam.pitch = 30; g.cam.dist = 7f;
+                yield return new WaitForSeconds(0.5f);
+                if (sk != null) log.WriteLine($"ТРАНСПОРТ: {sk.foxName} {sk.RideId} катится={sk.Riding}, скорость {Vector3.Distance(p0, sk.transform.position) / Mathf.Max(0.01f, Time.time - t0r):0.0} м/с; {(rl != null ? rl.foxName + " " + rl.RideId + " катится=" + rl.Riding : "")}");
+                yield return Shot("25b_ride");
+                foreach (var fx in new[] { sk, rl }) if (fx != null) fx.SetItem(0, ClothSlot.Ride, null);
+                g.SetSpeed(sp0);
+            }
             g.SetSpeed(1);
 
             yield return KeyTest();

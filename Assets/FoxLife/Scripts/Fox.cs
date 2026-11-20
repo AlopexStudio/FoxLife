@@ -1417,7 +1417,7 @@ namespace FoxLife
             var tgt = path[pathIdx];
             var d3 = tgt - pos;                  // по лестнице — и вверх, и вперёд
             var d = d3; d.y = 0;
-            float step = WalkSpeedNow * (running ? RunMul : 1f) * dr;
+            float step = WalkSpeedNow * MoveMul * dr;
             if (d3.magnitude <= step)
             {
                 transform.position = tgt;
@@ -1456,7 +1456,8 @@ namespace FoxLife
             float tailYaw = Mathf.Sin(animT * 1.7f) * 12f, tailPitch = 0;
             bool eyesClosed = sleeping;
 
-            if (walking && running)
+            if (walking && AnimateRide(ref basePos, ref tPos, ref tRot, ref swing, ref frontComp, ref hindFold, ref tailPitch, ref tailYaw, ref headPitch)) { }
+            else if (walking && running)
             {
                 // галоп: длинные махи лап, корпус качается, хвост вытянут
                 float g = animT * 16f;

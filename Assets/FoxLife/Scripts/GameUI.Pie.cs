@@ -186,7 +186,7 @@ namespace FoxLife
                         GUILayout.Label("Чего хочется", sBold);
                         foreach (var wish in o.wants) GUILayout.Label("• " + wish.DisplayText, sWrap);
                     }
-                    if (k01 >= 0.6f && o.Dream != null) GUILayout.Label($"Мечта всей жизни — «{o.Dream.name}» ({Mathf.RoundToInt(Dreams.Progress(o, o.Dream) * 100)}%).", sWrap);
+                    if (k01 >= 0.6f && o.Dream != null) GUILayout.Label($"Мечта всей жизни — «{o.Dream.name}», уровень {Mathf.Min(o.dreamLevel, o.Dream.Levels - 1) + 1} из {o.Dream.Levels} ({Mathf.RoundToInt(Dreams.Total(o, o.Dream) * 100)}%).", sWrap);
                     float rel = Social.Rel(me, o);
                     GUILayout.Space(6);
                     if (Btn(new GUIContent($"Наши отношения — {Social.RelLabel(rel).ToLower()} ({Mathf.RoundToInt(rel)}) →", "Открыть мысли о нас"))) Defer(() => thinkTab = 1);

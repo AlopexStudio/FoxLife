@@ -325,6 +325,7 @@ namespace FoxLife
 
         // ---------- мечта всей жизни ----------
         public string dream;
+        public int dreamLevel;   // на каком уровне мечты (0..2): у каждого уровня своё звание и требования выше
         public readonly List<string> dreamsDone = new List<string>();
         public readonly Dictionary<string, int> tally = new Dictionary<string, int>();
         float dreamTimer;
@@ -336,6 +337,7 @@ namespace FoxLife
         public void ChooseDream(string id)
         {
             if (Dreams.Get(id) == null) return;
+            if (id != dream) dreamLevel = 0;
             dream = id;
             AddMoodlet("Новая мечта", 4, 240);
             Remember("Мечта всей жизни — «" + Dreams.Get(id).name + "»");
@@ -356,20 +358,37 @@ namespace FoxLife
             if (d == null || stage < d.minStage)
             {
                 var p = Dreams.Pick(this);
-                if (p != null && p.id != dream) { dream = p.id; if (G.started) Remember("Мечта всей жизни — «" + p.name + "»"); }
+                if (p != null && p.id != dream) { dream = p.id; dreamLevel = 0; if (G.started) Remember("Мечта всей жизни — «" + p.name + "»"); }
                 return;
             }
+            if (dreamLevel >= d.Levels) dreamLevel = d.Levels - 1;
             if (Dreams.Progress(this, d) < 0.999f) return;
+            int reward = Dreams.LevelReward[Mathf.Clamp(dreamLevel, 0, Dreams.LevelReward.Length - 1)];
+            if (dreamLevel < d.Levels - 1)
+            {
+                // очередной уровень мечты пройден — дальше требования выше
+                string title = d.levels[dreamLevel].title;
+                dreamLevel++;
+                happiness += reward;
+                MentalChange(12f + dreamLevel * 4f);
+                AddMoodlet("Шаг к мечте", 10 + dreamLevel * 3, 1440);
+                Say("Я — " + title.ToLower() + "! Дальше — больше!");
+                Remember($"Мечта «{d.name}»: новое звание — {title.ToLower()}");
+                G.LogFox(this, $"{foxName}: уровень мечты «{d.name}» — {title}! Следующий: {d.levels[dreamLevel].title.ToLower()}. (+{reward} очков счастья)");
+                return;
+            }
             // мечта сбылась!
             dreamsDone.Add(d.id);
-            happiness += Dreams.Reward;
+            happiness += reward;
+            MentalChange(30f);
             AddMoodlet("Мечта сбылась!", 25, 4320);
             Say("Неужели… моя мечта сбылась!");
             Remember("Сбылась мечта всей жизни «" + d.name + "»");
-            G.LogFox(this, $"{foxName}: сбылась мечта всей жизни «{d.name}»! (+{Dreams.Reward} очков счастья)");
+            G.LogFox(this, $"{foxName}: сбылась мечта всей жизни «{d.name}»! (+{reward} очков счастья)");
             foreach (var o in G.foxes)
                 if (o != this && o.home == home && Social.Rel(o, this) >= 30) o.AddMoodlet($"Мечта {NameIn(NameCase.Genitive)} сбылась", 8, 720);
             dream = null; // новая мечта — по характеру, или игрок выберет сам
+            dreamLevel = 0;
         }
 
         void UpdateLife(float dm)

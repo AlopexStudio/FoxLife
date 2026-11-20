@@ -970,12 +970,21 @@ namespace FoxLife
             {
                 ColorLabel(dd.name, sBig, new Color(0.75f, 0.45f, 0.15f));
                 GUILayout.Label(dd.desc, sWrap);
-                foreach (var st in dd.steps)
+                // три уровня: пройденные — галочкой, текущий — с шагами, будущие — названием
+                int lv = Mathf.Clamp(f.dreamLevel, 0, dd.Levels - 1);
+                for (int i = 0; i < dd.Levels; i++)
                 {
-                    float p = Mathf.Clamp01(st.progress(f));
-                    Bar(st.text + (p >= 0.999f ? " — готово" : ""), p, p >= 0.999f ? new Color(0.45f, 0.75f, 0.4f) : new Color(0.95f, 0.7f, 0.35f), 210, 140);
+                    var L = dd.levels[i];
+                    if (i < lv) { ColorLabel($"✓ Уровень {i + 1}: {L.title}", sBold, new Color(0.35f, 0.6f, 0.3f)); continue; }
+                    if (i > lv) { ColorLabel($"Уровень {i + 1}: {L.title}  (+{Dreams.LevelReward[i]})", sSmall, new Color(0.55f, 0.5f, 0.45f)); continue; }
+                    ColorLabel($"Уровень {i + 1}: {L.title}  (+{Dreams.LevelReward[i]} очков счастья)", sBold, new Color(0.85f, 0.5f, 0.15f));
+                    foreach (var st in L.steps)
+                    {
+                        float p = Mathf.Clamp01(st.progress(f));
+                        Bar("   " + st.text + (p >= 0.999f ? " — готово" : ""), p, p >= 0.999f ? new Color(0.45f, 0.75f, 0.4f) : new Color(0.95f, 0.7f, 0.35f), 210, 140);
+                    }
                 }
-                GUILayout.Label($"Исполнение мечты принесёт {Dreams.Reward} очков счастья и долгую радость.", sSmall);
+                GUILayout.Label($"Вся мечта — {Dreams.Reward} очков счастья, рост менталки и долгая радость.", sSmall);
             }
             if (f.dreamsDone.Count > 0) GUILayout.Label("Исполнившиеся мечты — " + string.Join(", ", f.dreamsDone.ConvertAll(id => Dreams.Get(id)?.name ?? id)), sSmall);
             if (f.stage >= LifeStage.Teen && Btn(new GUIContent("Выбрать другую мечту…", "Мечта по душе — любая из подходящих по возрасту"), false))
@@ -2002,17 +2011,54 @@ namespace FoxLife
             "Лисий дом", "нет Лисьего дома", "к Лисьему дому", "в Лисий дом", "за Лисьим домом", "в Лисьем доме"
         };
 
+        bool nameFormsOpen;
+
+        /// <summary>
+        /// Имя и его формы: маленькая история с пропусками («Без ___ в долине было бы скучно»).
+        /// В пустом пропуске серым — как скажет игра сама; можно вписать свою форму.
+        /// </summary>
         void FoxNameFields(Fox f)
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label(NameCaseLabels[0], sBold, W(138));
+            GUILayout.Label("Имя", sBold, W(50));
             GUI.SetNextControlName("foxname");
-            string next = GUILayout.TextField(f.foxName, 18, sField, W(130));
+            string next = GUILayout.TextField(f.foxName, 18, sField, W(200));
             if (next != f.foxName && !string.IsNullOrWhiteSpace(next)) f.Rename(next);
-            GUILayout.Label(NameCaseExamples[0], sSmall);
+            GUILayout.FlexibleSpace();
+            if (Btn(new GUIContent(nameFormsOpen ? "Как звучит ▾" : "Как звучит ▸", "Как имя меняется в разговорах лисичек — можно поправить"), nameFormsOpen, W(130)))
+                Defer(() => nameFormsOpen = !nameFormsOpen);
             GUILayout.EndHorizontal();
-            f.nameOverrides = DrawCaseFields("foxcase", f.nameOverrides, c => Names.DefaultForm(f.foxName, c), NameCaseExamples);
-            GUILayout.Label("Пустое поле — готовая форма.\nДля своего имени впиши падежи вручную.", sWrap);
+            if (!nameFormsOpen) return;
+            var box = new GUIStyle(sWrap) { fontSize = 14 };
+            GUILayout.Space(2);
+            GUILayout.Label("Так о лисичке будут говорить в долине. Если звучит неправильно — впиши свою форму в пропуск.", sSmall);
+            for (int i = 1; i < 6; i++)
+            {
+                var c = (NameCase)i;
+                var line = NameStory.For(f, c);
+                string control = "foxcase" + i;
+                string current = f.nameOverrides?[i - 1] ?? "";
+                string shown = current.Length > 0 ? current : Names.DefaultForm(f.foxName, c);
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(new GUIContent(NameStory.Fill(line.pre, shown), NameCaseLabels[i] + " падеж"), box, GUILayout.ExpandWidth(false));
+                GUI.SetNextControlName(control);
+                string val = GUILayout.TextField(current, RussianCases.MaxFormLength, sField, W(Mathf.Clamp(sField.CalcSize(new GUIContent(shown)).x + 18, 70, 170)));
+                if (val != current)
+                {
+                    if (f.nameOverrides == null) f.nameOverrides = new string[RussianCases.CaseCount];
+                    f.nameOverrides[i - 1] = val;
+                }
+                if (Event.current.type == EventType.Repaint && val.Length == 0 && GUI.GetNameOfFocusedControl() != control)
+                {
+                    var r = GUILayoutUtility.GetLastRect(); r.xMin += 6;
+                    var old = GUI.color; GUI.color = new Color(1, 1, 1, 0.55f);
+                    GUI.Label(r, shown, sLabel);
+                    GUI.color = old;
+                }
+                GUILayout.Label(line.post, box, GUILayout.ExpandWidth(false));
+                GUILayout.FlexibleSpace();
+                GUILayout.EndHorizontal();
+            }
         }
 
         string[] DrawCaseFields(string key, string[] forms, System.Func<NameCase, string> defaultForm, string[] examples)
@@ -2056,7 +2102,7 @@ namespace FoxLife
             GUILayout.EndHorizontal();
             GUILayout.Label(outfitTab == 0 ? "В этом лисичка ходит обычно." : outfitTab == 1 ? "Переодевается в это ко сну." : "Надевает под дождём на улице.", sSmall);
             if (f.outfits != null)
-                for (int si = 0; si < 4; si++)
+                for (int si = 0; si < Wardrobe.SlotNames.Length; si++)
                 {
                     var slot = (ClothSlot)si;
                     var cur = f.outfits[outfitTab].Get(slot);
