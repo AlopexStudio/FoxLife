@@ -42,7 +42,7 @@ namespace FoxLife
             e.undo();
             e.key = null;
             redoList.Add(e);
-            Log("Отменено: " + e.name);
+            Log("Отменено действие «" + e.name + "»");
         }
 
         public void Redo()
@@ -53,7 +53,7 @@ namespace FoxLife
             redoList.RemoveAt(redoList.Count - 1);
             e.redo();
             undoList.Add(e);
-            Log("Повторено: " + e.name);
+            Log("Повторено действие «" + e.name + "»");
         }
 
         public bool CanUndo => undoList.Count > 0;
@@ -78,7 +78,7 @@ namespace FoxLife
             var before = st.Get(part).Clone();
             st.SetStyle(part, s);
             var after = s.Clone();
-            PushUndo("стиль: " + (st.displayName ?? "деталь"),
+            PushUndo("оформление · " + (st.displayName ?? "деталь"),
                 () => { if (st != null) st.SetStyle(part, before); },
                 () => { if (st != null) st.SetStyle(part, after); },
                 (st, part));
@@ -92,7 +92,7 @@ namespace FoxLife
             foreach (var p in st.parts) before.Add(p.style.Clone());
             for (int i = 0; i < st.parts.Count; i++) st.SetStyle(i, s);
             var after = s.Clone();
-            PushUndo("стиль: " + (st.displayName ?? "предмет"),
+            PushUndo("оформление · " + (st.displayName ?? "предмет"),
                 () => { if (st != null) for (int i = 0; i < st.parts.Count && i < before.Count; i++) st.SetStyle(i, before[i]); },
                 () => { if (st != null) for (int i = 0; i < st.parts.Count; i++) st.SetStyle(i, after); });
         }

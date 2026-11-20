@@ -35,7 +35,7 @@ namespace FoxLife
             cam.Focus(new Vector3(20f, 0, -5f), 999f);
             cam.dist = 80f; cam.pitch = 55f;
             ShowLotBorders(true);
-            if (!again) Log("Строительство города: строй и перестраивай где угодно, бесплатно. Вкладка «Участки» — новые участки, снос, названия.");
+            if (!again) Log("В городе можно строить и перестраивать бесплатно. Во вкладке «Участки» можно создавать, переименовывать и сносить участки.");
         }
 
         public void ExitTownBuilder()
@@ -76,6 +76,7 @@ namespace FoxLife
         public void RenameLot(int id, string name)
         {
             if (id < 0 || id >= Town.Lots.Length || string.IsNullOrWhiteSpace(name)) return;
+            if (Town.Lots[id].name != name) Town.Lots[id].nameOverrides = null;
             Town.Lots[id].name = name;
             var l = house.LotById(id);
             if (l != null) { l.name = name; l.root.name = "Участок: " + name; }
@@ -112,7 +113,7 @@ namespace FoxLife
             Town.Lots[id].removed = true;
             Town.Lots[id].rect = Town.Nowhere;
             StartCoroutine(RebuildTownRoutine(true));
-            Log($"Участок снесён: {Town.Lots[id].name}.");
+            Log($"Участок «{Town.Lots[id].name}» снесён.");
         }
 
         /// <summary>Проверка места под новый участок.</summary>
@@ -152,7 +153,7 @@ namespace FoxLife
             var list = new List<Town.LotDef>(Town.Lots) { def };
             Town.SetLots(list.ToArray());
             StartCoroutine(RebuildTownRoutine(true));
-            Log($"Новый участок: {def.name}. Переименовать — во вкладке «Участки».");
+            Log($"Добавлен участок «{def.name}». Его можно переименовать во вкладке «Участки».");
         }
 
         // ---------- размер участка: по клеточке с каждой стороны, с превью; город пересобирается один раз ----------
@@ -393,7 +394,7 @@ namespace FoxLife
             {
                 lotDragging = false;
                 if (lotWhy == null) { AddLot(lotRect, LotKind.Home); lotTool = false; }
-                else Log("Не получится: " + lotWhy.ToLower() + ".");
+                else Log(lotWhy + ".");
                 lotPreview.SetActive(false);
                 return;
             }
@@ -439,7 +440,7 @@ namespace FoxLife
             yield return SaveSystem.LoadAsync(this, r => ok = r, path);
             loading = false;
             started = false;
-            if (ok) { Log($"Добро пожаловать: {townName}!"); EnterTown(); }
+            if (ok) { Log($"Добро пожаловать в город «{townName}»!"); EnterTown(); }
             else { ui.screen = GameUI.MenuScreen.Title; ui.Note("Не получилось открыть город."); }
         }
     }

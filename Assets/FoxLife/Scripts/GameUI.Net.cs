@@ -62,7 +62,7 @@ namespace FoxLife
         {
             var n = Net.Ensure();
             bool busy = n.role == Net.Role.Client;
-            GUILayout.Label("Зайти в город к другу. Друг должен открыть свою игру: «Меню» → «Играть вместе» → «Открыть игру для друзей».", sWrap);
+            GUILayout.Label("Чтобы зайти в город друга, попроси его выбрать в меню «Играть вместе», а затем «Открыть игру для друзей».", sWrap);
             GUILayout.Space(6);
             GUILayout.BeginHorizontal();
             GUILayout.Label("Твоё имя", sBold, W(150));
@@ -204,7 +204,7 @@ namespace FoxLife
                 GUILayout.Label("•  " + a + (a.StartsWith("26.") ? "   (Radmin VPN)" : a.StartsWith("192.168.") || a.StartsWith("10.") ? "   (домашняя сеть)" : ""), sBold);
             GUILayout.Space(8);
             GUILayout.Label("Игроки", sBig);
-            GUILayout.Label("• " + n.myName + " (ты): " + Game.FamilyTitle(G.Household), sSmall);
+            GUILayout.Label("• " + n.myName + " (ты) — " + Game.FamilyTitle(G.Household), sSmall);
             int shown = 0;
             foreach (var p in n.peers)
             {
@@ -237,14 +237,14 @@ namespace FoxLife
                 int ti = taken.IndexOf(l.id);
                 if (ti >= 0)
                 {
-                    GUILayout.Label($"{l.name}: {Game.FamilyTitle(fam)} — играет {n.OwnerName(l.id) ?? "друг"}", sSmall, Hh(34));
+                    GUILayout.Label($"{l.name} · {Game.FamilyTitle(fam)} — играет {n.OwnerName(l.id) ?? "друг"}", sSmall, Hh(34));
                     continue;
                 }
                 if (fam.Count > 0)
                 {
-                    if (Btn(new GUIContent($"{l.name}: {Game.FamilyTitle(fam)}", "Играть за эту семью"), false, Hh(34))) Defer(() => n.Claim(lot.id, false));
+                    if (Btn(new GUIContent($"{l.name} · {Game.FamilyTitle(fam)}", "Играть за эту семью"), false, Hh(34))) Defer(() => n.Claim(lot.id, false));
                 }
-                else if (Btn(new GUIContent($"{l.name}: новая семья, {G.NewFamilyMoney(l.id)} мон.", "Поселить сюда новую лисичку"), false, Hh(34))) Defer(() => n.Claim(lot.id, true));
+                else if (Btn(new GUIContent($"{l.name} · новая семья, {G.NewFamilyMoney(l.id)} мон.", "Поселить сюда новую лисичку"), false, Hh(34))) Defer(() => n.Claim(lot.id, true));
             }
             GUILayout.EndScrollView();
             if (!string.IsNullOrEmpty(n.pickerNote)) GUILayout.Label(n.pickerNote, sBold);
@@ -262,7 +262,7 @@ namespace FoxLife
             {
                 var names = new List<string>();
                 foreach (var p in n.peers) if (!p.closed) names.Add(p.name + (p.lot < 0 ? " (выбирает)" : ""));
-                text = names.Count == 0 ? "Игра открыта для друзей · ждём" : "По сети: " + string.Join(", ", names);
+                text = names.Count == 0 ? "Игра открыта для друзей · ждём" : "Вместе играют " + string.Join(", ", names);
             }
             else text = "В гостях у " + n.hostName;
             if (!chatOpen) text += " · Enter — чат";

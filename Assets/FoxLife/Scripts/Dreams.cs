@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -94,7 +94,7 @@ namespace FoxLife
                     new DreamStep("Харизма 6", f => Lvl(f, Skill.Charisma, 6)),
                     new DreamStep("8 друзей", f => Friends(f, 8)),
                     new DreamStep("Харизма 10", f => Lvl(f, Skill.Charisma, 10)) } },
-            new DreamDef { id = "home", name = "Дом мечты", desc = "Самый уютный дом в долине: обставить его так, чтобы не хотелось уходить.",
+            new DreamDef { id = "home", name = "Дом мечты", desc = "Обставить дом так уютно, чтобы из него не хотелось уходить.",
                 minStage = LifeStage.Adult,
                 weight = f => 0.3f + (f.pers.C - 5) * 0.08f + (5 - f.pers.O) * 0.06f,
                 steps = new[] {

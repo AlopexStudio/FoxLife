@@ -34,6 +34,47 @@ namespace FoxLife
         public void Follow(Transform t) => follow = t;
         public Transform Following => follow;
 
+        public SaveCamera Capture(House house, System.Collections.Generic.List<Fox> foxes)
+        {
+            var followed = follow != null ? foxes.Find(f => f != null && f.transform == follow) : null;
+            return new SaveCamera
+            {
+                captured = true, target = targetS, yaw = yawS, pitch = pitchS, distance = distS,
+                floor = house.viewLevel, wallMode = (int)house.wallMode, followId = followed?.id
+            };
+        }
+
+        public void Restore(Game game, SaveCamera saved)
+        {
+            rotating = panning = false;
+            Follow(null);
+            if (saved != null && saved.captured && Valid(saved.target.x) && Valid(saved.target.y) && Valid(saved.target.z) &&
+                Valid(saved.yaw) && Valid(saved.pitch) && Valid(saved.distance) && saved.distance > 0)
+            {
+                target = saved.target;
+                yaw = saved.yaw;
+                pitch = Mathf.Clamp(saved.pitch, minPitch, 85f);
+                dist = Mathf.Clamp(saved.distance, minDist, 48f);
+                game.house.wallMode = (House.WallMode)Mathf.Clamp(saved.wallMode, 0, 2);
+                game.SetViewLevel(saved.floor);
+                var followed = Fox.FoxById(saved.followId);
+                if (followed != null) Follow(followed.transform);
+            }
+            else
+            {
+                var selected = game.selected;
+                Vector3 center = selected != null ? selected.transform.position : GridMap.Center(game.house.EntryCell);
+                int floor = selected != null ? selected.Level : 0;
+                game.SetViewLevel(floor);
+                target = new Vector3(center.x, game.house.GroundUnder(center) + floor * House.WallH, center.z);
+                yaw = 0f; pitch = 48f; dist = 10f;
+            }
+            Snap();
+            ApplyPose(game);
+        }
+
+        static bool Valid(float n) => !float.IsNaN(n) && !float.IsInfinity(n);
+
         void LateUpdate()
         {
             var game = Game.I;
@@ -125,6 +166,11 @@ namespace FoxLife
             if (Mathf.Abs(pitchS - pitch) < 0.08f) pitchS = pitch;
             if (Mathf.Abs(distS - dist) < eps) distS = dist;
 
+            ApplyPose(game);
+        }
+
+        void ApplyPose(Game game)
+        {
             var rot = Quaternion.Euler(pitchS, yawS, 0);
             var pos = targetS + Vector3.up * 0.4f + rot * new Vector3(0, 0, -distS);
             // камера не уходит под землю на склонах

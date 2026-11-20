@@ -254,6 +254,9 @@ namespace FoxLife
             g.cam.target = new Vector3(10f, 0, -8f); g.cam.dist = 60f; g.cam.pitch = 55f;
             yield return new WaitForSeconds(1.5f);
             yield return Shot("0f_builder_lots");
+            g.ui.lotsEdit = 0;
+            yield return Shot("0fa_lot_cases");
+            g.ui.lotsEdit = -1;
             g.ui.buildTab = 0;
             {
                 var lampDef = Catalog.Get("p_ancient");
@@ -323,6 +326,10 @@ namespace FoxLife
             var chat = Social.All.Find(d => d.name == "Поболтать");
             var compliment = Social.All.Find(d => d.name == "Сделать комплимент");
             var hug = Social.All.Find(d => d.name == "Обнять");
+            if (g.SocialItem(speaker, nameFox, chat).label != "Поговорить" ||
+                g.SocialItem(speaker, nameFox, hug).label != "Обнять" ||
+                new PieItem("Подумать") { sub = new System.Collections.Generic.List<PieItem>() }.DisplayLabel != "Подумать…")
+                Debug.LogError("МЕНЮ: нужна короткая команда без имени и многоточие без пробела.");
             var act = FoxAction.ForSocial(chat, nameFox);
             var queued = FoxAction.ForSocial(compliment, nameFox);
             var receive = new FoxAction { kind = ActKind.BeTalkedTo, social = chat, other = nameFox };
@@ -343,6 +350,16 @@ namespace FoxLife
             speaker.queue.Insert(0, queued);
             log.WriteLine("ОБЩЕНИЕ: " + speaker.ActivityText + " · " + queued.DisplayText());
             yield return Shot("1c_social_cases");
+            g.OpenSocialMenu(nameFox);
+            yield return Shot("1d_social_menu");
+            g.ui.CloseMenu();
+            var oldCareer = speaker.career;
+            int oldCareerLevel = speaker.careerLevel;
+            speaker.career = Careers.Get("art"); speaker.careerLevel = 0;
+            if (!speaker.WorkDescription.StartsWith("Работает уличным художником "))
+                Debug.LogError("РАБОТА: неверная форма должности — " + speaker.WorkDescription);
+            else log.WriteLine("РАБОТА: " + speaker.WorkDescription);
+            speaker.career = oldCareer; speaker.careerLevel = oldCareerLevel;
             speaker.current = savedAction;
             speaker.queue.Remove(queued);
             g.Select(nameFox);
@@ -722,8 +739,18 @@ namespace FoxLife
             string before = $"{g.money:0} мон, {g.foxes[0].JobTitle}, навыки {string.Join(",", g.foxes[0].skillLvl)}, желаний {g.foxes[0].wants.Count}, {g.foxes.Count} лис, {g.furniture.Count} предметов, стены {ColorUtility.ToHtmlStringRGB(g.house.RoomAt(new Vector2Int(1, 1)).st.Get(1).c1) + " комнат " + g.house.rooms.Count}, {g.ClockText}";
             speaker.wants.RemoveAll(w => w.id == "talk");
             speaker.wants.Add(new Want { id = "talk", arg = "Рыжик", text = "Поболтать: Рыжик", points = 120 });
+            const int customLot = 3;
+            g.RenameLot(customLot, "Дом у сада");
+            Town.Lots[customLot].nameOverrides = "Дома у сада|Дому у сада|Дом у сада|Домом у сада|Доме у сада".Split('|');
+            Town.Lots[customLot].preposition = LotPreposition.In;
+            g.cam.Follow(null);
+            g.cam.target = new Vector3(14f, g.house.GroundUnder(new Vector3(14, 0, 8)), 8f);
+            g.cam.yaw = 123f; g.cam.pitch = 37f; g.cam.dist = 11f;
+            g.cam.Snap();
             bool saved = g.SaveGame();
             g.ResetWorld(true);
+            g.SetupTitleScene(0);
+            g.ui.screen = GameUI.MenuScreen.Title;
             yield return null;
             g.ContinueGame();
             yield return new WaitForSeconds(0.2f);
@@ -731,6 +758,15 @@ namespace FoxLife
             bool loaded = g.started;
             string after = $"{g.money:0} мон, {g.foxes[0].JobTitle}, навыки {string.Join(",", g.foxes[0].skillLvl)}, желаний {g.foxes[0].wants.Count}, {g.foxes.Count} лис, {g.furniture.Count} предметов, стены {ColorUtility.ToHtmlStringRGB(g.house.RoomAt(new Vector2Int(1, 1)).st.Get(1).c1) + " комнат " + g.house.rooms.Count}, {g.ClockText}";
             log.WriteLine($"SAVE {saved} LOAD {loaded}\n  до:    {before}\n  после: {after}");
+            var lotWithForms = g.house.LotById(customLot);
+            if (lotWithForms?.At != "в Доме у сада" || lotWithForms.Into != "в Дом у сада" ||
+                lotWithForms.NameIn(NameCase.Genitive) != "Дома у сада")
+                Debug.LogError("УЧАСТКИ: формы названия не восстановились.");
+            else log.WriteLine($"УЧАСТКИ: восстановлены формы — {lotWithForms.At}, {lotWithForms.Into}.");
+            if (Mathf.Abs(g.cam.target.x - 14) > 0.05f || Mathf.Abs(g.cam.target.z - 8) > 0.05f ||
+                Mathf.Abs(Mathf.DeltaAngle(g.cam.yaw, 123)) > 0.05f || Mathf.Abs(g.cam.pitch - 37) > 0.05f || Mathf.Abs(g.cam.dist - 11) > 0.05f)
+                Debug.LogError("КАМЕРА: после загрузки не вернулась к сохранённому ракурсу.");
+            else log.WriteLine("КАМЕРА: положение, углы и масштаб восстановлены после титульной сцены.");
             var loadedFox = g.foxes.Find(f => f.id == nameFoxId);
             if (loadedFox?.NameIn(NameCase.Genitive) != "Рыжи")
                 Debug.LogError("ПАДЕЖИ: ручная форма не восстановилась из сохранения.");
@@ -741,6 +777,11 @@ namespace FoxLife
             else log.WriteLine("ОБЩЕНИЕ: старое желание восстановлено — " + loadedWant.DisplayText);
             yield return new WaitForSeconds(1f);
             yield return Shot("6_loaded");
+            g.cam.Restore(g, null);
+            if (g.selected == null || Vector2.Distance(new Vector2(g.cam.target.x, g.cam.target.z),
+                    new Vector2(g.selected.transform.position.x, g.selected.transform.position.z)) > 0.05f)
+                Debug.LogError("КАМЕРА: без ракурса в сейве не нашла выбранную лисичку.");
+            else log.WriteLine("КАМЕРА: старый сейв открывается у выбранной лисички.");
             g.ui.screen = GameUI.MenuScreen.Pause;
             yield return new WaitForSeconds(0.5f);
             yield return Shot("7_pause");

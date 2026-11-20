@@ -147,7 +147,7 @@ namespace FoxLife
                 new SocialDef
                 {
                     command = "Обсудить идеи с {0}", activity = "Обсуждает идеи с {0}", targetCase = NameCase.Instrumental,
-                    name = "Обсудить идеи", say = "А что, если...", yes = "Гениально!", no = "Чепуха какая-то.",
+                    name = "Обсудить идеи", say = "А что, если…", yes = "Гениально!", no = "Чепуха какая-то.",
                     relYes = 5, relNo = -3,
                     moodYesA = "Интересный разговор", valYesA = 6, moodYesB = "Интересный разговор", valYesB = 6,
                     moodNoA = "Идею не оценили", valNoA = -4,
@@ -158,7 +158,7 @@ namespace FoxLife
                 new SocialDef
                 {
                     command = "Рассказать историю {0}", activity = "Рассказывает историю {0}", targetCase = NameCase.Dative,
-                    name = "Рассказать историю", say = "Слушай, что было!", yes = "Вот это да!", no = "Скукота...",
+                    name = "Рассказать историю", say = "Слушай, что было!", yes = "Вот это да!", no = "Скукота…",
                     relYes = 5, relNo = -3,
                     moodYesA = "Классная история", valYesA = 5, moodYesB = "Классная история", valYesB = 5,
                     moodNoA = "Не дослушали", valNoA = -4,
@@ -168,7 +168,7 @@ namespace FoxLife
                 new SocialDef
                 {
                     command = "Сделать комплимент {0}", activity = "Делает комплимент {0}", targetCase = NameCase.Dative,
-                    name = "Сделать комплимент", say = "Классный хвост!", yes = "Спасибо!", no = "Подлиза...",
+                    name = "Сделать комплимент", say = "Классный хвост!", yes = "Спасибо!", no = "Подлиза…",
                     relYes = 6, relNo = -2,
                     moodYesA = "Доброе дело", valYesA = 4, moodYesB = "Похвалили", valYesB = 8,
                     moodNoA = "Комплимент не оценили", valNoA = -3,
@@ -178,7 +178,7 @@ namespace FoxLife
                 new SocialDef
                 {
                     command = "Обнять {0}", activity = "Обнимает {0}", targetCase = NameCase.Accusative,
-                    name = "Обнять", say = "Иди сюда!", yes = "Тепло...", no = "Не трогай!",
+                    name = "Обнять", say = "Иди сюда!", yes = "Тепло…", no = "Не трогай!",
                     relYes = 8, relNo = -6,
                     moodYesA = "Обнимашки", valYesA = 10, moodYesB = "Обнимашки", valYesB = 10,
                     moodNoA = "Отвергли", valNoA = -8,
@@ -210,7 +210,7 @@ namespace FoxLife
                 new SocialDef
                 {
                     command = "Пожаловаться {0} на жизнь", activity = "Жалуется {0} на жизнь", targetCase = NameCase.Dative,
-                    name = "Пожаловаться на жизнь", say = "Всё плохо...", yes = "Бедняжка...", no = "Опять ноешь?",
+                    name = "Пожаловаться на жизнь", say = "Всё плохо…", yes = "Бедняжка…", no = "Опять ноешь?",
                     relYes = 3, relNo = -4,
                     moodYesA = "Удалось выговориться", valYesA = 8,
                     moodNoA = "Не выслушали", valNoA = -8,
@@ -242,7 +242,7 @@ namespace FoxLife
                 new SocialDef
                 {
                     command = "Поиграть с {0} в догонялки", activity = "Играет с {0} в догонялки", targetCase = NameCase.Instrumental,
-                    name = "Поиграть в догонялки", say = "Догоняй!", yes = "Не догонишь!", no = "Не хочу...",
+                    name = "Поиграть в догонялки", say = "Догоняй!", yes = "Не догонишь!", no = "Не хочу…",
                     relYes = 6, relNo = -2, funYes = 25, chase = true,
                     moodYesA = "Весёлая игра", valYesA = 8, moodYesB = "Весёлая игра", valYesB = 8,
                     available = (a, b) => a.IsChild || b.IsChild,
@@ -264,7 +264,7 @@ namespace FoxLife
                 new SocialDef
                 {
                     command = "Флиртовать с {0}", activity = "Флиртует с {0}", targetCase = NameCase.Instrumental,
-                    name = "Флиртовать", say = "Какие у тебя глаза...", yes = "Ой, ну что ты!", no = "Не надо.",
+                    name = "Флиртовать", say = "Какие у тебя глаза…", yes = "Ой, ну что ты!", no = "Не надо.",
                     relYes = 2, relNo = -3, romYes = 8, romNo = -4,
                     moodYesA = "Флирт", valYesA = 5, moodYesB = "Флирт", valYesB = 5, moodNoA = "Не взаимно", valNoA = -5,
                     available = (a, b) => Family.CanRomance(a, b) && Free(a, b) && Rel(a, b) >= 10,
@@ -274,7 +274,7 @@ namespace FoxLife
                 new SocialDef
                 {
                     command = "Поцеловать {0}", activity = "Целует {0}", targetCase = NameCase.Accusative,
-                    name = "Поцеловать", say = "Иди ко мне...", yes = "Мур...", no = "Ты что?!",
+                    name = "Поцеловать", say = "Иди ко мне…", yes = "Мур…", no = "Ты что?!",
                     relYes = 3, relNo = -6, romYes = 12, romNo = -10,
                     moodYesA = "Поцелуй", valYesA = 10, moodYesB = "Поцелуй", valYesB = 10, moodNoA = "Отказ", valNoA = -8,
                     available = (a, b) => Family.CanRomance(a, b) && Free(a, b) && Rom(a, b) >= 25,
@@ -284,7 +284,7 @@ namespace FoxLife
                 new SocialDef
                 {
                     command = "Признаться {0} в любви", activity = "Признаётся {0} в любви", targetCase = NameCase.Dative,
-                    name = "Признаться в любви", say = "Я тебя люблю!", yes = "И я тебя!", no = "Прости...",
+                    name = "Признаться в любви", say = "Я тебя люблю!", yes = "И я тебя!", no = "Прости…",
                     relYes = 5, relNo = -8, romYes = 15, romNo = -15,
                     moodYesA = "Взаимная любовь", valYesA = 15, moodYesB = "Взаимная любовь", valYesB = 15,
                     moodNoA = "Разбитое сердце", valNoA = -15,
@@ -296,7 +296,7 @@ namespace FoxLife
                 new SocialDef
                 {
                     command = "Сделать предложение {0}", activity = "Делает предложение {0}", targetCase = NameCase.Dative,
-                    name = "Сделать предложение", say = "Будь со мной навсегда!", yes = "Да! Да!", no = "Ещё рано...",
+                    name = "Сделать предложение", say = "Будь со мной навсегда!", yes = "Да! Да!", no = "Ещё рано…",
                     relYes = 8, relNo = -6, romYes = 10, romNo = -12,
                     moodNoA = "Отказ", valNoA = -12,
                     available = (a, b) => a.partnerId == b.id && !a.married && Rom(a, b) >= 70,

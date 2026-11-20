@@ -6,6 +6,7 @@ namespace FoxLife
     public class PieItem
     {
         public string label;
+        public string DisplayLabel => sub == null ? label : label + "…";
         public System.Action act;
         public bool enabled = true;
         public string reason;
@@ -66,7 +67,7 @@ namespace FoxLife
                 var it = pieItems[i];
                 float a = (i / (float)n) * Mathf.PI * 2f;
                 var c = pieCenter + new Vector2(Mathf.Sin(a), -Mathf.Cos(a)) * R;
-                string text = it.label + (it.sub != null ? " …" : "");
+                string text = it.DisplayLabel;
                 float w = Mathf.Min(230, sBtn.CalcSize(new GUIContent(text)).x + 18);
                 var bs = Fit(sBtn, text, w, 52);
                 float bh = Mathf.Max(34, bs.CalcHeight(new GUIContent(text), w) + 4);
@@ -157,7 +158,6 @@ namespace FoxLife
             if (Btn(new GUIContent("×", "Перестать думать об этом"), false, W(30))) Defer(() => { thinkFox = null; infoOpen = false; });
             GUILayout.EndHorizontal();
             float k01 = Knowledge(me, o);
-            string unknown = "Пока не знаю.";
             foxScroll = GUILayout.BeginScrollView(foxScroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
             GUILayout.BeginVertical();
             switch (thinkTab)
@@ -167,24 +167,28 @@ namespace FoxLife
                     GUILayout.Label(o.foxName, sTitle);
                     GUILayout.Label($"{(she ? "Лисица" : "Лис")}, {o.StageName}", sBold);
                     var homeLot = G.house.LotById(o.home);
-                    GUILayout.Label(k01 >= 0.1f && homeLot != null ? "Живёт: " + homeLot.name : "Где живёт — " + unknown.ToLower(), sSmall);
-                    GUILayout.Label(k01 >= 0.25f ? "Работа: " + (o.career != null ? (o.career.id == "school" ? "учится в школе" : o.JobTitle + " (" + Workplaces.PlaceName(o.career) + ")") : "не работает") : "Работа — пока не знаю.", sSmall);
-                    if (k01 >= 0.35f) ColorLabel(o.Summary, sBig, Accent); else GUILayout.Label("Характер: " + unknown.ToLower(), sSmall);
+                    GUILayout.Label(k01 >= 0.1f && homeLot != null ? $"Живёт {homeLot.At}." : "Пока не знаю, где живёт.", sWrap);
+                    GUILayout.Label(k01 >= 0.25f ? o.WorkDescription : "Пока не знаю, чем занимается.", sWrap);
+                    if (k01 >= 0.35f) ColorLabel(o.Summary, sBig, Accent); else GUILayout.Label("Пока плохо знаю характер.", sSmall);
                     int shown = Mathf.FloorToInt(k01 * 5.01f);
                     for (int i = 0; i < 5; i++)
                     {
                         if (i >= shown) break;
-                        GUILayout.Label($"{PersonalityInfo.ScaleNames[i]}: {PersonalityInfo.TierNameFor(i, o.pers.v[i], o.female).ToLower()}", sSmall);
+                        GUILayout.Label($"{PersonalityInfo.ScaleNames[i]} — {PersonalityInfo.TierNameFor(i, o.pers.v[i], o.female).ToLower()}", sSmall);
                     }
                     if (shown < 5) GUILayout.Label($"Ещё {5 - shown} черт характера — пока загадка.", sSmall);
-                    if (k01 >= 0.45f) GUILayout.Label($"Стихия: {Elements.Names[(int)o.Element].ToLower()} — любит {Elements.Music[(int)o.Element]} и {Elements.Tv[(int)o.Element]}", sWrap);
-                    else GUILayout.Label("Любимая стихия — пока загадка.", sSmall);
-                    if (k01 >= 0.55f) GUILayout.Label($"Любит {Fox.WeatherName(o.LikedWeather, accusative: true)}, не любит {Fox.WeatherName(o.DislikedWeather, accusative: true)}", sSmall);
-                    if (k01 >= 0.7f && o.wants.Count > 0) GUILayout.Label("Мечты: " + string.Join("; ", o.wants.ConvertAll(w => w.DisplayText)), sWrap);
-                    if (k01 >= 0.6f && o.Dream != null) GUILayout.Label($"Мечта всей жизни: {o.Dream.name.ToLower()} ({Mathf.RoundToInt(Dreams.Progress(o, o.Dream) * 100)}%)", sWrap);
+                    if (k01 >= 0.45f) GUILayout.Label($"Стихия — {Elements.Names[(int)o.Element].ToLower()}. Любит {Elements.Music[(int)o.Element]} и {Elements.Tv[(int)o.Element]}.", sWrap);
+                    else GUILayout.Label("Пока не знаю, какая стихия ближе.", sSmall);
+                    if (k01 >= 0.55f) GUILayout.Label($"Любит {Fox.WeatherName(o.LikedWeather, accusative: true)}, а {Fox.WeatherName(o.DislikedWeather, accusative: true)} не любит.", sWrap);
+                    if (k01 >= 0.7f && o.wants.Count > 0)
+                    {
+                        GUILayout.Label("Чего хочется", sBold);
+                        foreach (var wish in o.wants) GUILayout.Label("• " + wish.DisplayText, sWrap);
+                    }
+                    if (k01 >= 0.6f && o.Dream != null) GUILayout.Label($"Мечта всей жизни — «{o.Dream.name}» ({Mathf.RoundToInt(Dreams.Progress(o, o.Dream) * 100)}%).", sWrap);
                     float rel = Social.Rel(me, o);
                     GUILayout.Space(6);
-                    if (Btn(new GUIContent($"Наши отношения: {Social.RelLabel(rel).ToLower()} ({Mathf.RoundToInt(rel)}) →", "Подробнее — «О нас»"))) Defer(() => thinkTab = 1);
+                    if (Btn(new GUIContent($"Наши отношения — {Social.RelLabel(rel).ToLower()} ({Mathf.RoundToInt(rel)}) →", "Открыть мысли о нас"))) Defer(() => thinkTab = 1);
                     break;
                 }
                 case 1:
@@ -199,7 +203,7 @@ namespace FoxLife
                     {
                         float rm = Social.Rom(me, o);
                         Bar("Романтика", (rm + 100f) / 200f, new Color(0.9f, 0.45f, 0.6f), 90, 280);
-                        GUILayout.Label($"Чувства: {Social.RomLabel(rm)} · искра: {Family.ChemistryLabel(Family.Chemistry(me, o))}", sSmall);
+                        GUILayout.Label($"Чувства — {Social.RomLabel(rm)} · искра — {Family.ChemistryLabel(Family.Chemistry(me, o))}", sSmall);
                     }
                     GUILayout.Space(6);
                     GUILayout.Label("Что помнится:", sBold);

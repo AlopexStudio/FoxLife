@@ -84,7 +84,7 @@ namespace FoxLife
             {
                 tasteTimer = 90f;
                 var k = G.weather.kind;
-                if (k == LikedWeather) AddMoodlet("Любимая погода: " + WeatherName(k), 4, 150);
+                if (k == LikedWeather) AddMoodlet("Люблю " + WeatherName(k, accusative: true), 4, 150);
                 else if (k == DislikedWeather) AddMoodlet("Не люблю " + WeatherName(k, accusative: true), pers.N >= 7 ? -5 : -3, 150);
             }
             homeTimer -= dm;
@@ -94,8 +94,8 @@ namespace FoxLife
                 var here = G.house.LotAt(Cell);
                 if (here == null || here.id != home) return;
                 float a = HomeAttachment(out string why);
-                if (a >= 2.5f) AddMoodlet("Мой уютный дом" + (why != null ? ": " + why : ""), Mathf.Min(8, 2 + a), 360);
-                else if (a <= 0.5f && stage >= LifeStage.Teen) AddMoodlet("Дома чего-то не хватает" + (why != null ? ": " + why : ""), -3, 360);
+                if (a >= 2.5f) AddMoodlet("Мой уютный дом" + (why != null ? " (" + why + ")" : ""), Mathf.Min(8, 2 + a), 360);
+                else if (a <= 0.5f && stage >= LifeStage.Teen) AddMoodlet("Дома чего-то не хватает" + (why != null ? " (" + why + ")" : ""), -3, 360);
             }
         }
 
@@ -360,15 +360,15 @@ namespace FoxLife
             channel = Random.value < 0.65f ? u.Element : (Element)Random.Range(0, 4);
             if (furn.def.id == "tv")
             {
-                if (channel == u.Element) u.AddMoodlet("Любимая передача: " + Elements.Tv[(int)channel], 4, 180);
-                else if (channel == Elements.Opposite(u.Element)) u.AddMoodlet("Не мой жанр: " + Elements.Tv[(int)channel], -2, 120);
+                if (channel == u.Element) u.AddMoodlet("Смотрю любимую передачу", 4, 180);
+                else if (channel == Elements.Opposite(u.Element)) u.AddMoodlet("Передача не по вкусу", -2, 120);
             }
             if (furn.def.id == "easel")
             {
                 if (paint >= 1f || target == null || paintOwner != u) NewPainting(u);
             }
             if (furn.def.id == "guitar" || furn.def.id == "piano")
-                if (u.Element == channel) u.AddMoodlet("Играю любимое: " + Elements.Music[(int)u.Element], 3, 150);
+                if (u.Element == channel) u.AddMoodlet("Играю любимую музыку", 3, 150);
         }
 
         // ---------- экраны ----------

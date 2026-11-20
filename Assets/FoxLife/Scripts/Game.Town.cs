@@ -119,7 +119,7 @@ namespace FoxLife
             loadingProgress = 0.02f;
             yield return null; yield return null;
             bool ok = false;
-            yield return SaveSystem.LoadAsync(this, r => ok = r);
+            yield return SaveSystem.LoadAsync(this, r => ok = r, restoreCamera: true);
             loading = false;
             if (ok) StartPlaying();
             else { ui.screen = GameUI.MenuScreen.Title; ui.Note("Не получилось загрузить сохранение."); }
@@ -195,7 +195,7 @@ namespace FoxLife
 
         public void EnterTown()
         {
-            if (Net.Active) { Log("Пока играем по сети, город не редактируется: сначала закрой игру для друзей."); ui.screen = GameUI.MenuScreen.None; return; }
+            if (Net.Active) { Log("Чтобы редактировать город, сначала закрой игру для друзей."); ui.screen = GameUI.MenuScreen.None; return; }
             CancelPlacing();
             SetWallTool(WallTool.None);
             SetLandTool(LandTool.None);
@@ -226,7 +226,7 @@ namespace FoxLife
             cam.Focus(GridMap.Center(l.entry), 18f);
             cam.dist = 18f; cam.pitch = 48f;
             if (!started) StartPlaying(); else SetSpeed(1);
-            Log($"Играем за семью: {FamilyTitle(Household)} ({l.name}).");
+            Log($"Теперь играем за семью, которая живёт {l.At}. Знакомьтесь — {FamilyTitle(Household)}.");
         }
 
         static void Teleport(Fox f, House h, House.Lot lot, int i)
@@ -248,7 +248,7 @@ namespace FoxLife
                 f.CancelCurrentPublic();
                 f.queue.Clear();
                 Teleport(f, house, lot, i++);
-                f.Remember("Переезд: " + lot.name);
+                f.Remember("Переезд " + lot.Into);
             }
             if (lotMoney.TryGetValue(from, out var m)) { lotMoney.Remove(from); lotMoney[to] = m; }
             if (House.PlayerLotId == from) House.PlayerLotId = to;
@@ -277,7 +277,7 @@ namespace FoxLife
             }
             if (lotMoney.TryGetValue(lot, out var m)) { lotMoney.Remove(lot); storedMoney[group] = m; }
             else if (lot == House.PlayerLotId) storedMoney[group] = money;
-            Log($"Семья выселена в архив: {FamilyTitle(fam)}.");
+            Log($"Семья ({FamilyTitle(fam)}) переехала в архив.");
         }
 
         public readonly Dictionary<string, float> storedMoney = new Dictionary<string, float>();
@@ -298,7 +298,7 @@ namespace FoxLife
                 Teleport(f, house, l, i++);
             }
             if (storedMoney.TryGetValue(group, out var m)) { storedMoney.Remove(group); if (lot == House.PlayerLotId) money = m; else lotMoney[lot] = m; }
-            Log($"Семья заселилась: {l.name}.");
+            Log($"Семья заселилась {l.Into}.");
             GiveMoveInGrant(lot, FamilyTitle(FamilyOf(lot)));
         }
 

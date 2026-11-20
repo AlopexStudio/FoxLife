@@ -5,6 +5,35 @@ namespace FoxLife
 {
     public enum NameCase { Nominative, Genitive, Dative, Accusative, Instrumental, Prepositional }
 
+    public static class RussianCases
+    {
+        public const int CaseCount = 5, MaxFormLength = 64;
+
+        public static string LowerFirst(string text) =>
+            string.IsNullOrEmpty(text) ? text : char.ToLowerInvariant(text[0]) + text.Substring(1);
+
+        public static string Override(string[] forms, NameCase nameCase)
+        {
+            int i = (int)nameCase - 1;
+            if (forms == null || i < 0 || i >= forms.Length || string.IsNullOrWhiteSpace(forms[i])) return null;
+            return forms[i].Trim();
+        }
+
+        public static string[] CopyOverrides(string[] source)
+        {
+            if (source == null || source.Length != CaseCount) return null;
+            var forms = new string[CaseCount];
+            bool any = false;
+            for (int i = 0; i < forms.Length; i++)
+            {
+                if (string.IsNullOrWhiteSpace(source[i])) continue;
+                forms[i] = source[i].Length > MaxFormLength ? source[i].Substring(0, MaxFormLength) : source[i];
+                any = true;
+            }
+            return any ? forms : null;
+        }
+    }
+
     /// <summary>Имена лисичек по полу: мальчика не назовут Звёздочкой.</summary>
     public static class Names
     {
@@ -83,22 +112,6 @@ namespace FoxLife
             if (root.Equals("Лис", System.StringComparison.OrdinalIgnoreCase)) return FoxForms[index] + suffix;
             if (!Forms.TryGetValue(root, out var forms)) return name;
             return forms[index] + suffix;
-        }
-
-        public const int CaseCount = 5, MaxFormLength = 40;
-
-        public static string[] CopyOverrides(string[] source)
-        {
-            if (source == null || source.Length != CaseCount) return null;
-            var forms = new string[CaseCount];
-            bool any = false;
-            for (int i = 0; i < forms.Length; i++)
-            {
-                if (string.IsNullOrWhiteSpace(source[i])) continue;
-                forms[i] = source[i].Length > MaxFormLength ? source[i].Substring(0, MaxFormLength) : source[i];
-                any = true;
-            }
-            return any ? forms : null;
         }
 
         public static string Pick(bool female, System.Func<string, bool> taken, System.Random rnd = null)

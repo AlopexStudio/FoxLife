@@ -496,7 +496,6 @@ namespace FoxLife
 
                 string b = f.bubbleTimer > 0 ? f.bubble : (f.sleeping ? "Хр-р-р…" : null);
                 if (string.IsNullOrEmpty(b)) continue;
-                b = b.Replace("...", "…").Replace(" …", "\u00A0…"); // многоточие — один знак, не переносится отдельно
                 var c = new GUIContent(BubbleText(b));
                 var size = BubbleSize(c);
                 bubbles.Add((new Rect(x - size.x / 2, y - size.y - 6, size.x, size.y), c, f));
@@ -534,7 +533,8 @@ namespace FoxLife
         static string BubbleText(string b)
         {
             b = b.Replace("...", "…");
-            foreach (var p in new[] { " …", " !", " ?", " —", " :)", " :(" }) b = b.Replace(p, " " + p.Substring(1));
+            foreach (var p in new[] { " …", " !", " ?", " ,", " ." }) b = b.Replace(p, p.Substring(1));
+            foreach (var p in new[] { " —", " :)", " :(" }) b = b.Replace(p, " " + p.Substring(1));
             int last = b.LastIndexOf(' ');
             if (last > 0 && b.Length - last <= 5) b = b.Substring(0, last) + " " + b.Substring(last + 1);
             return b;
@@ -576,7 +576,7 @@ namespace FoxLife
             GUILayout.FlexibleSpace();
             ColorLabel($"{Mathf.RoundToInt(G.money):N0} мон.".Replace(",", " ").Replace("\u00A0", " "), sBold, G.money < 0 ? new Color(0.75f, 0.2f, 0.15f) : new Color(0.25f, 0.45f, 0.2f), W(110), Hh(32));
             GUILayout.Label(G.ClockText, sBold, W(175), Hh(32));
-            GUILayout.Label(new GUIContent(G.weather.Label, "Погода: меняется сама несколько раз в день"), sBold, W(78), Hh(32));
+            GUILayout.Label(new GUIContent(G.weather.Label, "Погода меняется сама несколько раз в день"), sBold, W(78), Hh(32));
             string[] sp = { "||", ">", ">>", ">>>" };
             string[] spTip = { "Пауза (пробел)", "Обычная скорость (1)", "Быстро (2)", "Очень быстро (3)" };
             for (int i = 0; i < sp.Length; i++)
@@ -585,7 +585,7 @@ namespace FoxLife
                 if (Btn(new GUIContent(sp[i], spTip[i]), G.speedIndex == i, W(44))) Defer(() => G.SetSpeed(k));
             }
             GUILayout.Space(8);
-            if (Btn(new GUIContent("Свобода воли: " + (G.autonomy ? "вкл" : "выкл"), "Лисички сами решают, чем заняться, в зависимости от характера"), G.autonomy))
+            if (Btn(new GUIContent("Свобода воли — " + (G.autonomy ? "вкл" : "выкл"), "Лисички сами решают, чем заняться, в зависимости от характера"), G.autonomy))
                 Defer(() => G.autonomy = !G.autonomy);
             for (int lv = 0; lv < House.Levels; lv++)
             {
@@ -593,7 +593,7 @@ namespace FoxLife
                 if (Btn(new GUIContent((lv + 1) + " эт.", "Показать этаж (PageUp / PageDown)"), G.house.viewLevel == lv, W(52))) Defer(() => G.SetViewLevel(k));
             }
             if (Btn(new GUIContent("Крыша", "Показать или спрятать крыши"), G.house.showRoof)) Defer(() => { G.house.showRoof = !G.house.showRoof; G.house.ApplyVisibility(); });
-            if (Btn(new GUIContent("Стены: " + G.house.WallModeName, "Авто — стены со стороны камеры опускаются")))
+            if (Btn(new GUIContent("Стены — " + G.house.WallModeName, "Авто — стены со стороны камеры опускаются")))
                 Defer(() => G.house.CycleWallMode());
             if (Btn(new GUIContent("Меню", "Сохранить, загрузить, настройки (Esc)"))) Defer(() => screen = MenuScreen.Pause);
             GUILayout.EndHorizontal();
@@ -617,7 +617,7 @@ namespace FoxLife
             foreach (var f in family)
             {
                 var fox = f;
-                if (Btn(new GUIContent("   " + f.foxName, "Настроение: " + Fox.MoodLabel(f.Mood)), f == G.selected, W(120), Hh(34)))
+                if (Btn(new GUIContent("   " + f.foxName, "Настроение — " + Fox.MoodLabel(f.Mood).ToLower()), f == G.selected, W(120), Hh(34)))
                 {
                     Defer(() =>
                     {
@@ -666,12 +666,12 @@ namespace FoxLife
             GUILayout.Label(f.foxName, sTitle);
             GUILayout.FlexibleSpace();
             float mood = f.Mood;
-            ColorLabel("Настроение: " + Fox.MoodLabel(mood), sBold, Fox.MoodColor(mood) * 0.8f + Color.black * 0.2f);
+            ColorLabel("Настроение — " + Fox.MoodLabel(mood).ToLower(), sBold, Fox.MoodColor(mood) * 0.8f + Color.black * 0.2f);
             GUILayout.EndHorizontal();
             ColorLabel(f.Summary + "  ·  " + f.StageName + (f.Pregnant ? "  ·  ждёт лисят" : ""), sBold, Accent);
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Сейчас: " + f.ActivityText, sWrap, W(310));
+            GUILayout.Label(f.ActivityText, sWrap, W(310));
             if (f.current != null && f.current.kind != ActKind.BeTalkedTo && Btn(new GUIContent("×", "Отменить"), false, W(30)))
             {
                 var c = f.current;
@@ -682,7 +682,7 @@ namespace FoxLife
             {
                 var qq = q;
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("потом: " + q.DisplayText(), sWrap, W(310));
+                GUILayout.Label("Затем — " + q.DisplayText(), sWrap, W(310));
                 if (Btn("×", false, W(30))) Defer(() => f.Cancel(qq));
                 GUILayout.EndHorizontal();
             }
@@ -746,10 +746,10 @@ namespace FoxLife
                         GUILayout.Space(4);
                     }
                     GUILayout.Label("Вкусы", sBold);
-                    GUILayout.Label($"Стихия — {Elements.Names[(int)f.Element].ToLower()}: любит {Elements.Music[(int)f.Element]}, {Elements.Tv[(int)f.Element]}, {Elements.Books[(int)f.Element]}, рисует {Elements.Paint[(int)f.Element]}.", sWrap);
+                    GUILayout.Label($"Стихия — {Elements.Names[(int)f.Element].ToLower()}. Любит {Elements.Music[(int)f.Element]}, {Elements.Tv[(int)f.Element]}, {Elements.Books[(int)f.Element]}. Рисует {Elements.Paint[(int)f.Element]}.", sWrap);
                     GUILayout.Label($"Любимая погода — {Fox.WeatherName(f.LikedWeather)}, нелюбимая — {Fox.WeatherName(f.DislikedWeather)}.", sWrap);
                     float att = f.HomeAttachment(out var why);
-                    GUILayout.Label("Дом: " + (att >= 2.5f ? "очень родной" : att >= 1.2f ? "уютный" : "пока не совсем свой") + (why != null ? $" ({why})" : ""), sWrap);
+                    GUILayout.Label((att >= 2.5f ? "Дом стал родным" : att >= 1.2f ? "Дома уютно" : "Дом пока кажется чужим") + (why != null ? $" ({why})" : "") + ".", sWrap);
                     break;
                 case 3: SkillsTab(f); break;
                 case 4: WorkTab(f); break;
@@ -775,7 +775,7 @@ namespace FoxLife
                         {
                             var kl = G.house.LotById(key.lot);
                             bool trusted = key.kind == (int)KeyKind.Trusted;
-                            string verb = trusted ? "Дал" + (o.female ? "а" : "") + " постоянный ключ от дома" : "Впустил" + (o.female ? "а" : "") + " в гости: гостевой ключ";
+                            string verb = trusted ? (o.female ? "Дала" : "Дал") + " постоянный ключ" : (o.female ? "Впустила" : "Впустил") + " в гости и оставил" + (o.female ? "а" : "") + " ключ";
                             ColorLabel(verb + (kl != null ? " (" + kl.name + ")" : ""), sSmall, trusted ? new Color(0.62f, 0.45f, 0.1f) : new Color(0.35f, 0.45f, 0.55f));
                         }
                         // романтика — только если между ними уже что-то было
@@ -783,7 +783,7 @@ namespace FoxLife
                         {
                             float rm = Social.Rom(f, o);
                             Bar("Романтика", (rm + 100f) / 200f, new Color(0.9f, 0.45f, 0.6f), 80, 260);
-                            GUILayout.Label($"Чувства: {Social.RomLabel(rm)} · искра: {Family.ChemistryLabel(Family.Chemistry(f, o))}", sSmall);
+                            GUILayout.Label($"Чувства — {Social.RomLabel(rm)} · искра — {Family.ChemistryLabel(Family.Chemistry(f, o))}", sSmall);
                         }
                         GUILayout.Space(4);
                     }
@@ -825,8 +825,8 @@ namespace FoxLife
             GUILayout.Label($"{char.ToUpper(f.StageName[0])}{f.StageName.Substring(1)}, возраст {f.ageDays} дн.", sBold);
             int left = f.DaysToNextStage(G.lifespan);
             if (left >= 0)
-                GUILayout.Label(f.stage < LifeStage.Elder ? $"До следующего этапа: {left} дн." : "Почтенный возраст.", sSmall);
-            if (f.pension > 0) GUILayout.Label($"Пенсия: {f.pension} мон. в неделю", sSmall);
+                GUILayout.Label(f.stage < LifeStage.Elder ? $"До следующего этапа {left} дн." : "Почтенный возраст.", sSmall);
+            if (f.pension > 0) GUILayout.Label($"Пенсия — {f.pension} мон. в неделю", sSmall);
             var partner = f.Partner;
             GUILayout.Space(4);
             GUILayout.Label(partner != null ? (f.married ? "В браке с " : "В паре с ") + partner.NameIn(NameCase.Instrumental) : "Пары нет.", sLabel);
@@ -860,7 +860,7 @@ namespace FoxLife
                 var rec = gone ? G.archive.Find(r => r.id == id) : null;
                 names.Add(gone ? $"{n} ({rec?.reason ?? "нет в доме"})" : n);
             }
-            GUILayout.Label(title + ": " + string.Join(", ", names), sWrap);
+            GUILayout.Label(title + " — " + string.Join(", ", names), sWrap);
         }
 
         void WorkTab(Fox f)
@@ -869,7 +869,7 @@ namespace FoxLife
             {
                 GUILayout.Label("Школа", sBig);
                 GUILayout.Label($"{Careers.School.ScheduleText}", sLabel);
-                GUILayout.Label("Оценки: " + Careers.Grade(f.performance), sBold);
+                GUILayout.Label("Учится " + Careers.Grade(f.performance).ToLower(), sBold);
                 Bar("Учёба", (f.performance + 100f) / 200f, new Color(0.4f, 0.65f, 0.9f), 70, 250);
                 GUILayout.Label("В школе растут логика и творчество. Хорошие оценки — повод для гордости при выпуске.", sSmall);
                 return;
@@ -887,7 +887,7 @@ namespace FoxLife
                 {
                     int need = CareerDef.SkillNeeded(f.careerLevel + 1);
                     int have = f.SkillLevel(c.skill);
-                    GUILayout.Label($"Следующая ступень: {c.levels[f.careerLevel + 1]}. Нужен навык «{Skills.Names[(int)c.skill]}» {need} (сейчас {have}).", sWrap);
+                    GUILayout.Label($"Можно стать {c.instrumentalLevels[f.careerLevel + 1]}. Нужен навык «{Skills.Names[(int)c.skill]}» {need} (сейчас {have}).", sWrap);
                 }
                 else GUILayout.Label("Вершина карьеры!", sWrap);
                 GUILayout.Label("Успехи растут от хорошего настроения, навыка и добросовестности. Опоздания и прогулы их снижают.", sSmall);
@@ -902,7 +902,7 @@ namespace FoxLife
                 GUILayout.BeginHorizontal();
                 GUILayout.BeginVertical();
                 GUILayout.Label(c.name + (fit > 1.5f ? "  (по душе)" : fit < -1.5f ? "  (не по душе)" : ""), sBold);
-                GUILayout.Label($"{c.levels[0]} · {c.wage[0]:0} мон./ч · {c.ScheduleText}\nНавык: {Skills.Names[(int)c.skill]}", sSmall);
+                GUILayout.Label($"{c.levels[0]} · {c.wage[0]:0} мон./ч · {c.ScheduleText}\nНужный навык — {Skills.Names[(int)c.skill].ToLower()}", sSmall);
                 GUILayout.EndVertical();
                 GUILayout.FlexibleSpace();
                 if (Btn("Устроиться", false, W(100))) Defer(() => f.TakeJob(c));
@@ -913,7 +913,7 @@ namespace FoxLife
 
         void WantsTab(Fox f)
         {
-            ColorLabel($"Очки счастья: {f.happiness}", sBig, Accent);
+            ColorLabel($"Очки счастья — {f.happiness}", sBig, Accent);
             GUILayout.Label("Мечта всей жизни", sBold);
             var dd = f.Dream;
             if (dd == null) GUILayout.Label(f.stage < LifeStage.Teen ? "Лисята пока мечтают обо всём сразу." : "Мечта скоро появится…", sSmall);
@@ -926,9 +926,9 @@ namespace FoxLife
                     float p = Mathf.Clamp01(st.progress(f));
                     Bar(st.text + (p >= 0.999f ? " — готово" : ""), p, p >= 0.999f ? new Color(0.45f, 0.75f, 0.4f) : new Color(0.95f, 0.7f, 0.35f), 210, 140);
                 }
-                GUILayout.Label($"Когда сбудется: +{Dreams.Reward} очков счастья и долгая радость.", sSmall);
+                GUILayout.Label($"Исполнение мечты принесёт {Dreams.Reward} очков счастья и долгую радость.", sSmall);
             }
-            if (f.dreamsDone.Count > 0) GUILayout.Label("Уже сбылось: " + string.Join(", ", f.dreamsDone.ConvertAll(id => Dreams.Get(id)?.name ?? id)), sSmall);
+            if (f.dreamsDone.Count > 0) GUILayout.Label("Исполнившиеся мечты — " + string.Join(", ", f.dreamsDone.ConvertAll(id => Dreams.Get(id)?.name ?? id)), sSmall);
             if (f.stage >= LifeStage.Teen && Btn(new GUIContent("Выбрать другую мечту…", "Мечта по душе — любая из подходящих по возрасту"), false))
             {
                 var fx = f;
@@ -943,7 +943,7 @@ namespace FoxLife
             }
             GUILayout.Space(6);
             GUILayout.Label("Желания", sBold);
-            if (f.wants.Count == 0) GUILayout.Label("Скоро что-нибудь захочется...", sSmall);
+            if (f.wants.Count == 0) GUILayout.Label("Скоро что-нибудь захочется…", sSmall);
             foreach (var w0 in new List<Want>(f.wants))
             {
                 var w = w0;
@@ -983,7 +983,7 @@ namespace FoxLife
             for (int i = f.memories.Count - 1; i >= 0; i--)
             {
                 var m = f.memories[i];
-                ColorLabel($"День {m.day}: {m.text}", sWrap, m.good ? Ink : new Color(0.65f, 0.22f, 0.18f));
+                ColorLabel($"День {m.day} · {m.text}", sWrap, m.good ? Ink : new Color(0.65f, 0.22f, 0.18f));
             }
         }
 
@@ -1020,7 +1020,8 @@ namespace FoxLife
 
         void BuildPanel()
         {
-            Begin(new Rect(vw - 340, 130, 330, vh - 130 - 110));
+            float panelWidth = G.townBuilder && buildTab == 3 ? 460 : 330;
+            Begin(new Rect(vw - panelWidth - 10, 130, panelWidth, vh - 130 - 110));
             GUILayout.BeginHorizontal();
             GUILayout.Label(G.townBuilder ? "Город" : "Обустройство", sTitle);
             GUILayout.FlexibleSpace();
@@ -1062,7 +1063,7 @@ namespace FoxLife
             }
             if (G.ghost != null)
             {
-                GUILayout.Label((G.movingExisting ? "Переставляем: " : "Ставим: ") + G.ghost.def.name, sBig);
+                GUILayout.Label((G.movingExisting ? "Переставляем " : "Ставим ") + "«" + G.ghost.def.name + "»", sBig);
                 GUILayout.Label(G.placeValid ? "Сюда можно поставить." : "Здесь не помещается.", sWrap);
                 GUILayout.BeginHorizontal();
                 if (Btn("Повернуть (R)")) Defer(() => G.RotateGhost());
@@ -1099,7 +1100,7 @@ namespace FoxLife
             GUILayout.EndScrollView();
             GUILayout.Label("Клик по мебели в доме — взять и переставить.\nShift+клик при установке — поставить ещё.\nDel — продать предмет под курсором.\nКупленное за последние сутки сдаётся по полной цене, потом — за 75%. Стены, двери и окна — всегда по полной.", sSmall);
             if (G.ghost != null && G.movingExisting && !G.freeBuild)
-                if (!G.freeBuild) ColorLabel($"Продать (Del): {G.SellValue(G.ghost)} мон." + (G.FullRefund(G.ghost) ? " — полная цена, куплено недавно" : ""), sBold, new Color(0.2f, 0.5f, 0.25f));
+                if (!G.freeBuild) ColorLabel($"Продать за {G.SellValue(G.ghost)} мон. (Del)" + (G.FullRefund(G.ghost) ? " — полная цена, куплено недавно" : ""), sBold, new Color(0.2f, 0.5f, 0.25f));
             End();
         }
 
@@ -1145,7 +1146,7 @@ namespace FoxLife
                 LandTool("Подлесок", Game.LandTool.Undergrowth, "Хвоя, мох и папоротники, как в лесу");
                 LandTool("Газон", Game.LandTool.Lawn, "Стирает дороги, тропинки и подлесок — остаётся трава");
                 GUILayout.EndHorizontal();
-                if (Btn(new GUIContent(G.spray ? "Спрей: включён" : "Спрей: выключен", "Кисть брызгает редкими точками, гуще к середине — для мягкого перехода, например от газона к подлеску"), G.spray)) Defer(() => G.spray = !G.spray);
+                if (Btn(new GUIContent(G.spray ? "Спрей включён" : "Спрей выключен", "Кисть брызгает редкими точками, гуще к середине — для мягкого перехода, например от газона к подлеску"), G.spray)) Defer(() => G.spray = !G.spray);
             }
             GUILayout.Label("Вода (можно и на участке)", sBold);
             GUILayout.BeginHorizontal();
@@ -1167,7 +1168,7 @@ namespace FoxLife
             for (int i = 0; i < 3; i++) { float sz = sizes[i]; if (Btn(names[i], Mathf.Approximately(G.brushRadius, sz), W(80))) Defer(() => G.brushRadius = sz); }
             GUILayout.EndHorizontal();
             GUILayout.Space(6);
-            GUILayout.Label(G.townBuilder ? "Кисть работает и для цветов, и для деревьев: большая кисть — целая клумба или рощица." : "Участок остаётся ровным — на нём строят. Холмы и долины можно делать вокруг. Кисть работает и для цветов с деревьями.", sSmall);
+            GUILayout.Label(G.townBuilder ? "Кистью можно сажать цветы и деревья. Большой кистью легко разбить клумбу или посадить рощицу." : "Участок остаётся ровным — на нём строят. Холмы и долины можно делать вокруг. Кисть работает и для цветов с деревьями.", sSmall);
             GUILayout.FlexibleSpace();
             GUILayout.Label("Esc — выйти из инструмента", sSmall);
         }
@@ -1215,21 +1216,21 @@ namespace FoxLife
             if (r.roofType == (int)House.RoofType.Gable)
             {
                 GUILayout.BeginHorizontal();
-                string[] d = { "Конёк: авто", "вдоль X", "вдоль Z" };
+                string[] d = { "Конёк автоматически", "вдоль X", "вдоль Z" };
                 for (int i = 0; i < 3; i++) { int k = i; if (Btn(d[i], r.roofDir == i, W(96))) Apply(() => r.roofDir = k); }
                 GUILayout.EndHorizontal();
             }
             else if (r.roofType == (int)House.RoofType.Shed)
             {
                 GUILayout.BeginHorizontal();
-                string[] d = { "Выше: север", "восток", "юг", "запад" };
+                string[] d = { "Выше на севере", "восток", "юг", "запад" };
                 for (int i = 0; i < 4; i++) { int k = i; if (Btn(d[i], r.roofDir == i, W(i == 0 ? 96 : 62))) Apply(() => r.roofDir = k); }
                 GUILayout.EndHorizontal();
             }
             if (r.roofType != (int)House.RoofType.Flat)
             {
                 GUILayout.BeginHorizontal();
-                GUILayout.Label($"Наклон: {r.roofPitch:0.0}", sLabel, W(100));
+                GUILayout.Label($"Наклон — {r.roofPitch:0.0}°", sLabel, W(100));
                 if (Btn("ниже", false, W(80))) Apply(() => r.roofPitch = Mathf.Max(0.2f, r.roofPitch - 0.1f));
                 if (Btn("выше", false, W(80))) Apply(() => r.roofPitch = Mathf.Min(1.4f, r.roofPitch + 0.1f));
                 GUILayout.EndHorizontal();
@@ -1247,7 +1248,7 @@ namespace FoxLife
             WallTool("Забор" + (G.freeBuild ? "" : $"  — {Game.FencePrice} мон./м"), Game.WallTool.Fence, "Только во дворе, на первом этаже. Тяни по сетке");
             WallTool("Калитка" + Pr(Game.GatePrice), Game.WallTool.Gate, "Кликни по забору");
             WallTool("Перила с колоннами" + (G.freeBuild ? "" : $"  — {Game.RailingPrice} мон./м"), Game.WallTool.Railing, "Веранды и беседки, а на втором этаже — балконы. Огороженное перилами место — тоже комната, с полом и крышей");
-            WallTool("Вход в перилах" + Pr(Game.RailingGapPrice), Game.WallTool.RailingGap, "Кликни по перилам: здесь можно будет пройти, а веранда останется комнатой");
+            WallTool("Вход в перилах" + Pr(Game.RailingGapPrice), Game.WallTool.RailingGap, "Кликни по перилам, чтобы сделать проход. Веранда останется комнатой.");
             RoofSettings();
             GUILayout.Label($"Строим на этаже {G.house.viewLevel + 1}. Этаж переключается вверху или клавишами PageUp / PageDown. На второй этаж ведёт лестница (Мебель → Дом).", sSmall);
             GUILayout.Space(8);
@@ -1259,9 +1260,9 @@ namespace FoxLife
             GUILayout.Space(8);
             GUILayout.Label("Комнаты", sBig);
             foreach (var r in G.house.rooms)
-                if (r.lot == House.PlayerLotId) GUILayout.Label($"• {r.name}: {r.cells.Count} м²", sLabel);
+                if (r.lot == House.PlayerLotId) GUILayout.Label($"• {r.name} · {r.cells.Count} м²", sLabel);
             GUILayout.Space(4);
-            GUILayout.Label("Пол и обои комнаты красятся в «Создании стиля»: кликни по полу или стене. У стены каждая сторона красится отдельно.", sSmall);
+            GUILayout.Label("Чтобы перекрасить пол или обои, кликни по ним в режиме «Создание стиля». У стены каждая сторона красится отдельно.", sSmall);
             GUILayout.FlexibleSpace();
             GUILayout.Label("Esc — выйти из инструмента", sSmall);
         }
@@ -1281,7 +1282,7 @@ namespace FoxLife
             var f = t.GetComponent<Furniture>();
             if (f == null || f.lamp == null) return;
             GUILayout.Space(4);
-            GUILayout.Label("Свет: яркость " + Mathf.RoundToInt(f.lightLevel * 100) + "%", sBold);
+            GUILayout.Label("Яркость света — " + Mathf.RoundToInt(f.lightLevel * 100) + "%", sBold);
             float v = GUILayout.HorizontalSlider(f.lightLevel, 0f, 1f);
             if (Mathf.Abs(v - f.lightLevel) > 0.001f) { f.lightLevel = v; f.ApplyLight(); }
             if (f.def.id == "campfire") return;
@@ -1360,7 +1361,7 @@ namespace FoxLife
             if (t != syncTarget || part != syncPart || colorSlot != syncSlot) SyncColor(t, part);
 
             GUILayout.Space(4);
-            GUILayout.Label("Узор: " + Patterns.Get(s.pattern).name, sBold);
+            GUILayout.Label("Узор «" + Patterns.Get(s.pattern).name + "»", sBold);
             var pats = Patterns.All;
             const int perRow = 6;
             for (int row = 0; row < pats.Count; row += perRow)
@@ -1703,7 +1704,7 @@ namespace FoxLife
             for (int i = 0; i < 4; i++)
             {
                 int k = i;
-                if (Btn(new GUIContent(Elements.Names[i], $"Музыка: {Elements.Music[i]}; передачи: {Elements.Tv[i]}; книги: {Elements.Books[i]}; рисует {Elements.Paint[i]}"), f.Element == (Element)i, W(98)))
+                if (Btn(new GUIContent(Elements.Names[i], $"Любит {Elements.Music[i]}, {Elements.Tv[i]} и {Elements.Books[i]}. Рисует {Elements.Paint[i]}."), f.Element == (Element)i, W(98)))
                     Defer(() => f.elementId = k);
             }
             GUILayout.EndHorizontal();
@@ -1798,7 +1799,7 @@ namespace FoxLife
             (LotKind.School, "Школа"), (LotKind.Workshop, "Мастерская"), (LotKind.Observatory, "Обсерватория"), (LotKind.Camp, "Поляна"),
         };
 
-        int lotsEdit = -1;
+        internal int lotsEdit = -1;
         int lotMoneyFor = -1;
         string lotMoneyText = "";
 
@@ -1819,7 +1820,7 @@ namespace FoxLife
                 foreach (char ch in t) if (char.IsDigit(ch)) digits += ch;
                 if (digits.Length > 0 && int.TryParse(digits, out int v)) Defer(() => G.SetLotMoney(id, v));
             }
-            if (d.customMoney && Btn(new GUIContent("Само", $"Как обычно: {Game.EmptyLotMoney} на пустом участке, {Game.BuiltLotMoney} — если на нём что-то есть"), false, W(70)))
+            if (d.customMoney && Btn(new GUIContent("Само", $"По умолчанию семья получает {Game.EmptyLotMoney} на пустом участке и {Game.BuiltLotMoney} на обустроенном."), false, W(70)))
                 Defer(() => { G.SetLotMoney(id, null); lotMoneyFor = -1; });
             GUILayout.EndHorizontal();
             if (!d.customMoney) GUILayout.Label(G.LotIsEmpty(id) ? "Участок пустой — хватит на домик." : "На участке уже что-то есть.", sSmall);
@@ -1854,6 +1855,17 @@ namespace FoxLife
                 string nn = GUILayout.TextField(d.name, 40, sField, W(220));
                 if (nn != d.name) G.RenameLot(id, nn);
                 GUILayout.EndHorizontal();
+                GUILayout.Label("Падежи названия участка", sBold);
+                var forms = DrawCaseFields("lotcase" + id + "_", Town.Lots[id].nameOverrides,
+                    c => Town.LotNameIn(id, Town.Lots[id].name, c), LotCaseExamples);
+                Town.Lots[id].nameOverrides = forms;
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Предлог места", sSmall, W(110));
+                if (Btn("Авто", d.preposition == LotPreposition.Automatic, W(70))) Defer(() => Town.Lots[id].preposition = LotPreposition.Automatic);
+                if (Btn("В", d.preposition == LotPreposition.In, W(42))) Defer(() => Town.Lots[id].preposition = LotPreposition.In);
+                if (Btn("На", d.preposition == LotPreposition.On, W(42))) Defer(() => Town.Lots[id].preposition = LotPreposition.On);
+                GUILayout.EndHorizontal();
+                GUILayout.Label("У стандартных названий уже есть формы. Для своего названия можно вписать их вручную.", sWrap);
                 LotMoneyRow(id);
                 GUILayout.Label("Назначение", sSmall);
                 for (int row = 0; row < LotKinds.Length; row += 3)
@@ -1862,14 +1874,14 @@ namespace FoxLife
                     for (int k = row; k < Mathf.Min(row + 3, LotKinds.Length); k++)
                     {
                         var lk = LotKinds[k];
-                        if (Btn(lk.n, d.kind == lk.k, W(96))) Defer(() => G.SetLotKind(id, lk.k));
+                        if (Btn(lk.n, d.kind == lk.k, W(120))) Defer(() => G.SetLotKind(id, lk.k));
                     }
                     GUILayout.EndHorizontal();
                 }
                 // размер: по клеточке с каждой стороны, превью на земле, пересборка — по «Применить»
                 bool resizing = G.resizeLot == id;
                 var rr = resizing ? G.resizeRect : d.rect;
-                GUILayout.Label($"Размер: {rr.width}×{rr.height}", sSmall);
+                GUILayout.Label($"Размер — {rr.width} × {rr.height}", sSmall);
                 if (!resizing) { if (Btn(new GUIContent("Изменить размер…", "Расширить или сузить участок с любой стороны"))) Defer(() => G.BeginResize(id)); }
                 else
                 {
@@ -1892,7 +1904,7 @@ namespace FoxLife
                 }
                 string why = G.CanRemoveLot(id);
                 if (why == null) { if (Btn(new GUIContent("Снести участок", "Всё на участке исчезнет, жильцы переедут в архив"))) Defer(() => { G.RemoveLot(id); lotsEdit = -1; }); }
-                else GUILayout.Label("Снести нельзя: " + why.ToLower() + ".", sSmall);
+                else GUILayout.Label("Участок нельзя снести. " + why + ".", sSmall);
                 GUILayout.Space(6);
             }
             GUILayout.Space(6);
@@ -1907,40 +1919,49 @@ namespace FoxLife
         {
             "Рыжик", "нет Рыжика", "к Рыжику", "вижу Рыжика", "с Рыжиком", "о Рыжике"
         };
+        static readonly string[] LotCaseExamples =
+        {
+            "Лисий дом", "нет Лисьего дома", "к Лисьему дому", "в Лисий дом", "за Лисьим домом", "в Лисьем доме"
+        };
 
         void FoxNameFields(Fox f)
         {
-            for (int i = 0; i < NameCaseLabels.Length; i++)
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(NameCaseLabels[0], sBold, W(138));
+            GUI.SetNextControlName("foxname");
+            string next = GUILayout.TextField(f.foxName, 18, sField, W(130));
+            if (next != f.foxName && !string.IsNullOrWhiteSpace(next)) f.Rename(next);
+            GUILayout.Label(NameCaseExamples[0], sSmall);
+            GUILayout.EndHorizontal();
+            f.nameOverrides = DrawCaseFields("foxcase", f.nameOverrides, c => Names.DefaultForm(f.foxName, c), NameCaseExamples);
+            GUILayout.Label("Пустое поле — готовая форма.\nДля своего имени впиши падежи вручную.", sWrap);
+        }
+
+        string[] DrawCaseFields(string key, string[] forms, System.Func<NameCase, string> defaultForm, string[] examples)
+        {
+            for (int i = 1; i < NameCaseLabels.Length; i++)
             {
-                bool first = i == 0;
-                string control = "foxname" + i;
-                string current = first ? f.foxName : f.nameOverrides?[i - 1] ?? "";
+                string control = key + i;
+                string current = forms?[i - 1] ?? "";
                 GUILayout.BeginHorizontal();
                 GUILayout.Label(NameCaseLabels[i], sBold, W(138));
                 GUI.SetNextControlName(control);
-                string next = GUILayout.TextField(current, first ? 18 : Names.MaxFormLength, sField, W(130));
-                if (first)
+                string next = GUILayout.TextField(current, RussianCases.MaxFormLength, sField, W(130));
+                if (next != current)
                 {
-                    if (next != current && !string.IsNullOrWhiteSpace(next)) f.Rename(next);
+                    if (forms == null) forms = new string[RussianCases.CaseCount];
+                    forms[i - 1] = next;
                 }
-                else
+                if (Event.current.type == EventType.Repaint && next.Length == 0 && GUI.GetNameOfFocusedControl() != control)
                 {
-                    if (next != current)
-                    {
-                        if (f.nameOverrides == null) f.nameOverrides = new string[Names.CaseCount];
-                        f.nameOverrides[i - 1] = next;
-                    }
-                    if (Event.current.type == EventType.Repaint && next.Length == 0 && GUI.GetNameOfFocusedControl() != control)
-                    {
-                        Rect field = GUILayoutUtility.GetLastRect();
-                        field.xMin += 5;
-                        GUI.Label(field, Names.DefaultForm(f.foxName, (NameCase)i), sSmall);
-                    }
+                    Rect field = GUILayoutUtility.GetLastRect();
+                    field.xMin += 5;
+                    GUI.Label(field, defaultForm((NameCase)i), sSmall);
                 }
-                GUILayout.Label(NameCaseExamples[i], sSmall);
+                GUILayout.Label(examples[i], sSmall);
                 GUILayout.EndHorizontal();
             }
-            GUILayout.Label("Пустое поле — готовая форма.\nДля своего имени впиши падежи вручную.", sWrap);
+            return forms;
         }
 
         void ClothesSection(Fox f)
@@ -1979,7 +2000,7 @@ namespace FoxLife
                         GUILayout.EndHorizontal();
                     }
                 }
-            GUILayout.Label("Перекрасить вещь: «Создание стиля» → клик по вещи на лисичке.", sSmall);
+            GUILayout.Label("Чтобы перекрасить вещь, кликни по ней на лисичке в режиме «Создание стиля».", sSmall);
         }
 
         void ScaleCells(Fox f, int scaleIdx)

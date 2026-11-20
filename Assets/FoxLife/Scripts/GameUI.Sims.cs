@@ -314,7 +314,7 @@ namespace FoxLife
                 }
             }
             if (RoundBtn(new Rect(x0 + 3 * 62, y0, 54, 54), "walls", showViewTools, "Показать или спрятать кнопки этажей, крыши, стен и свободы воли (F4)")) Defer(() => showViewTools = !showViewTools);
-            if (RoundBtn(new Rect(x0 + 4 * 62 + 10, y0 + 6, 42, 42), "menu", false, "Меню: сохранить, загрузить, город, настройки (Esc)")) Defer(() => screen = MenuScreen.Pause);
+            if (RoundBtn(new Rect(x0 + 4 * 62 + 10, y0 + 6, 42, 42), "menu", false, "Открыть меню игры (Esc)")) Defer(() => screen = MenuScreen.Pause);
             if (!showViewTools) return;
             // вид: этажи, крыша, стены, свобода воли. Если кнопок режимов нет (в жизни) — в один ряд на их месте, иначе под ними
             bool side = !town && !plan;
@@ -334,8 +334,8 @@ namespace FoxLife
                 GUI.Label(new Rect(r.x, r.y, r.width - 4, r.height - 2), (lv + 1).ToString(), lbl);
             }
             if (RoundBtn(Slot(2), "roof", G.house.showRoof, "Показать или спрятать крыши")) Defer(() => { G.house.showRoof = !G.house.showRoof; G.house.ApplyVisibility(); });
-            if (RoundBtn(Slot(3), "walls", G.house.wallMode != House.WallMode.Up, "Стены: " + G.house.WallModeName + " (нажми, чтобы сменить)")) Defer(() => G.house.CycleWallMode());
-            if (RoundBtn(Slot(4), "auto", G.autonomy, "Свобода воли: " + (G.autonomy ? "лисички сами решают, чем заняться" : "выключена"))) Defer(() => G.autonomy = !G.autonomy);
+            if (RoundBtn(Slot(3), "walls", G.house.wallMode != House.WallMode.Up, "Стены — " + G.house.WallModeName + " (нажми, чтобы сменить)")) Defer(() => G.house.CycleWallMode());
+            if (RoundBtn(Slot(4), "auto", G.autonomy, "Свобода воли — " + (G.autonomy ? "лисички сами решают, чем заняться" : "выключена"))) Defer(() => G.autonomy = !G.autonomy);
             LabelBtn(Slot(5), "names", "Имена над лисичками", NameMode, m => NameMode = m);
             LabelBtn(Slot(6), "phrases", "Фразы лисичек", PhraseMode, m => PhraseMode = m);
         }
@@ -391,7 +391,7 @@ namespace FoxLife
                 GUI.DrawTexture(wr, Icon(WeatherIcons[(int)G.weather.kind]));
                 GUI.color = old;
             }
-            if (wr.Contains(Event.current.mousePosition)) tip = "Погода: " + G.weather.Label.ToLower() + ". Меняется сама несколько раз в день.";
+            if (wr.Contains(Event.current.mousePosition)) tip = G.weather.Label + ". Погода меняется несколько раз в день.";
             GUILayout.EndHorizontal();
             End();
         }
@@ -431,16 +431,16 @@ namespace FoxLife
                 string text = qq.DisplayText();
                 string preview = text;
                 if (f.queue.Count > 1 && preview.Length > 14) preview = preview.Substring(0, 13) + "…";
-                if (Btn(new GUIContent(preview, "В очереди: " + text + ". Нажми, чтобы отменить."), false, Hh(24))) Defer(() => f.Cancel(qq));
+                if (Btn(new GUIContent(preview, "В очереди — " + text + ". Нажми, чтобы отменить."), false, Hh(24))) Defer(() => f.Cancel(qq));
             }
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
             DrawPortrait(pr, f);
             Gem(new Rect(pr.xMax - 30, pr.y - 4, 28, 34), Fox.MoodColor(mood));
-            if (pr.Contains(Event.current.mousePosition)) tip = "Настроение: " + Fox.MoodLabel(mood) + ". Нажми — камера к лисичке.";
+            if (pr.Contains(Event.current.mousePosition)) tip = "Настроение — " + Fox.MoodLabel(mood).ToLower() + ". Нажми, чтобы подвести камеру к лисичке.";
             if (Event.current.type == EventType.MouseDown && Event.current.button == 1 && pr.Contains(Event.current.mousePosition)) { Event.current.Use(); Defer(() => G.Select(null)); }
-            if (pr.Contains(Event.current.mousePosition)) tip = $"{f.foxName}: {Fox.MoodLabel(mood).ToLower()}. Сейчас: {f.ActivityText}.\nНажми — камера следует за лисичкой. ПКМ — снять выбор.";
+            if (pr.Contains(Event.current.mousePosition)) tip = $"{f.foxName}. Настроение — {Fox.MoodLabel(mood).ToLower()}. {f.ActivityText}.\nНажми — камера следует за лисичкой. ПКМ — снять выбор.";
             if (GUI.Button(pr, GUIContent.none, GUIStyle.none)) Defer(() => { G.cam.Focus(f.transform.position, 9f); G.cam.Follow(f.transform); G.SetViewLevel(f.Level); });
             End();
         }
@@ -461,7 +461,7 @@ namespace FoxLife
                 var lbl = new GUIStyle(sSmall) { alignment = TextAnchor.UpperCenter, fontSize = 11, wordWrap = false, clipping = TextClipping.Clip };
                 lbl.normal.textColor = SimsInk;
                 GUI.Label(new Rect(pr.x - 4, pr.yMax + 1, s + 8, 16), fox.foxName, lbl);
-                if (pr.Contains(Event.current.mousePosition)) tip = $"{fox.foxName} — {Fox.MoodLabel(fox.Mood).ToLower()}. Сейчас: {fox.ActivityText}.";
+                if (pr.Contains(Event.current.mousePosition)) tip = $"{fox.foxName}. Настроение — {Fox.MoodLabel(fox.Mood).ToLower()}. {fox.ActivityText}.";
                 if (Event.current.type == EventType.MouseDown && Event.current.button == 1 && pr.Contains(Event.current.mousePosition)) { Event.current.Use(); Defer(() => G.Select(null)); }
                 if (GUI.Button(pr, GUIContent.none, GUIStyle.none))
                     Defer(() =>
@@ -489,11 +489,11 @@ namespace FoxLife
                 {
                     var confirm = new List<(string, System.Action)>
                     {
-                        ($"Переехать: свой дом продаётся за {sale}, новый стоит {price}", () => G.MoveTo(l.id)),
+                        ($"Переехать за {price} мон. Продажа своего дома принесёт {sale} мон.", () => G.MoveTo(l.id)),
                         ("Посмотреть на участок", () => G.cam.Focus(GridMap.Center(l.entry), 22f)),
                         ("Отмена", () => { }),
                     };
-                    OpenMenu(Input.mousePosition, "Переезд: " + l.name, confirm);
+                    OpenMenu(Input.mousePosition, "Переезд " + l.Into, confirm);
                 }));
             }
             if (items.Count == 0) items.Add(("Свободных домов пока нет", () => { }));
@@ -519,7 +519,7 @@ namespace FoxLife
             var homes = new HashSet<int>();
             foreach (var o in known) homes.Add(o.home);
             if (known.Count == 0) items.Add(("Пока не с кем — познакомься с соседями!", () => { }));
-            OpenMenu(Input.mousePosition, "Телефон: " + me.foxName, items);
+            OpenMenu(Input.mousePosition, "Телефон " + me.NameIn(NameCase.Genitive), items);
         }
 
         void FriendMenu(Fox me, Fox friend)
@@ -534,7 +534,7 @@ namespace FoxLife
                 if (lot.removed) continue;
                 if (!lot.Public || lot.kind == LotKind.School) continue;
                 var l = lot;
-                items.Add(("Позвать " + friend.NameIn(NameCase.Accusative) + " · " + l.name, () => me.Call(friend, Fox.PhoneMode.InviteOut, l.id)));
+                items.Add(("Позвать " + friend.NameIn(NameCase.Accusative) + " " + l.Into, () => me.Call(friend, Fox.PhoneMode.InviteOut, l.id)));
             }
             items.Add(("Сходить в гости к " + friend.NameIn(NameCase.Dative), () => me.VisitHome(friend)));
             OpenMenu(Input.mousePosition, "Звонок " + friend.NameIn(NameCase.Dative), items, 360);

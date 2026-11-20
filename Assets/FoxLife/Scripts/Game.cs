@@ -335,7 +335,7 @@ namespace FoxLife
             fox.ageDays = 10 + fox.stageDays;
             fox.RandomSkills();
             foreach (var o in foxes) if (o != fox && o.home == home) Social.AddRel(fox, o, Random.Range(25f, 45f));
-            LogFox(fox, $"В доме новая лисичка: {name}!");
+            LogFox(fox, $"В доме появилась новая лисичка — {name}!");
             fox.Remember("Переезд в лисий дом");
             return fox;
         }
@@ -723,13 +723,13 @@ namespace FoxLife
             int old = House.PlayerLotId;
             if (lot == null || lotId == old || HomeCount(lotId) > 0) return false;
             int price = BuyPrice(lotId), sale = SellPrice(old);
-            if (!freeBuild && money + sale < price) { Log($"Не хватает монет на переезд: нужно ещё {price - sale - Mathf.RoundToInt(money)}."); return false; }
+            if (!freeBuild && money + sale < price) { Log($"Для переезда не хватает {price - sale - Mathf.RoundToInt(money)} мон."); return false; }
             CancelPlacing();
             SetWallTool(WallTool.None);
             SetLandTool(LandTool.None);
             var oldLot = house.PlayerLot;
             int grant = MoveInGrant(lotId);
-            if (!freeBuild) { AddMoney(sale, "Продажа: " + oldLot.name); AddMoney(-price, "Покупка: " + lot.name); }
+            if (!freeBuild) { AddMoney(sale, "Продажа " + oldLot.NameIn(NameCase.Genitive)); AddMoney(-price, "Покупка " + lot.NameIn(NameCase.Genitive)); }
             House.PlayerLotId = lotId;
             if (!freeBuild && grant > 0) AddMoney(grant, "Подъёмные на обустройство");
             int i = 0;
@@ -737,7 +737,7 @@ namespace FoxLife
             {
                 if (f.home != old) continue;
                 f.home = lotId;
-                f.Remember("Переезд: " + lot.name);
+                f.Remember("Переезд " + lot.Into);
                 f.AddMoodlet("Новый дом!", 8, 1440);
                 if (f.atWork) continue;
                 f.CancelCurrentPublic();
@@ -749,13 +749,13 @@ namespace FoxLife
             }
             house.focusLot = -2;
             cam.Focus(GridMap.Center(lot.entry), 18f);
-            Log($"Семья переехала: {lot.name}!");
+            Log($"Семья переехала {lot.Into}!");
             return true;
         }
 
         public void PassAway(Fox f)
         {
-            if (KnownToPlayer(f)) Log($"{f.foxName} {(f.female ? "ушла" : "ушёл")} в звёздный лес... Светлая память.");
+            if (KnownToPlayer(f)) Log($"{f.foxName} {(f.female ? "ушла" : "ушёл")} в звёздный лес… Светлая память.");
             foreach (var o in foxes)
             {
                 if (o == f) continue;
@@ -861,9 +861,10 @@ namespace FoxLife
                     string role = Family.Role(kit, o);
                     if (role != null) Social.AddRel(kit, o, 40f);
                 }
-                if (KnownToPlayer(mother)) Log($"У {mother.NameIn(NameCase.Genitive)} родился лисёнок: {kit.foxName}!");
-                mother.Remember("Родился лисёнок: " + kit.foxName);
-                if (father != null) father.Remember("Родился лисёнок: " + kit.foxName);
+                string birth = $"{(kit.female ? "Родилась" : "Родился")} {kit.foxName}";
+                if (KnownToPlayer(mother)) Log($"У {mother.NameIn(NameCase.Genitive)} {RussianCases.LowerFirst(birth)}!");
+                mother.Remember(birth, about: kit);
+                if (father != null) father.Remember(birth, about: kit);
                 kit.Remember(mother.foxName + (father != null ? " и " + father.foxName : "") + " — мои родители");
                 mother.OnEvent(new GameEvent { kind = "baby" });
                 if (father != null) father.OnEvent(new GameEvent { kind = "baby" });
@@ -872,8 +873,8 @@ namespace FoxLife
 
         public void AdoptKit(Fox parent)
         {
-            if (HomeCount(parent.home) >= MaxFoxes) { parent.Say("Дом уже полон..."); return; }
-            if (money < 300 && !freeBuild) { parent.Say("Не хватает денег..."); Log("Для приюта нужно 300 мон."); return; }
+            if (HomeCount(parent.home) >= MaxFoxes) { parent.Say("Дом уже полон…"); return; }
+            if (money < 300 && !freeBuild) { parent.Say("Не хватает денег…"); Log("Для приюта нужно 300 мон."); return; }
             if (!freeBuild) AddMoney(-300, "Взнос в лисий приют");
             var cell = GridMap.CellOf(parent.transform.position);
             var kit = NewKit(null, null, GridMap.Center(cell) + new Vector3(0.3f, 0, 0.3f), parent.home);
@@ -1000,7 +1001,7 @@ namespace FoxLife
             {
                 if (!ok) { Log(want == EdgeKind.RailingOpen ? "Вход делается в перилах." : want == EdgeKind.Gate ? "Калитка ставится в забор." : kind == EdgeKind.None ? "Сначала поставь здесь стену." : "Здесь уже это стоит."); return; }
                 int price = want == EdgeKind.Door ? DoorPrice : want == EdgeKind.Window ? WindowPrice : want == EdgeKind.Gate ? GatePrice : want == EdgeKind.RailingOpen ? RailingGapPrice : ArchPrice;
-                if (!freeBuild && money < price) { Log($"Не хватает монет: нужно {price}."); return; }
+                if (!freeBuild && money < price) { Log($"Для покупки нужно {price} мон."); return; }
                 var doorBefore = Snap();
                 if (!freeBuild) AddMoney(-price, want == EdgeKind.Door ? "Дверь" : want == EdgeKind.Window ? "Окно" : want == EdgeKind.Gate ? "Калитка" : want == EdgeKind.RailingOpen ? "Вход в перилах" : "Проём");
                 house.SetEdge(lvl, ex, ez, vert, want);
@@ -1186,7 +1187,7 @@ namespace FoxLife
                 }
                 case LandTool.Remove:
                     int n = t.RemoveFlowers(p, brushRadius) + house.RemoveTrees(p, brushRadius * 0.6f);
-                    if (n > 0) Log($"Убрано растений: {n}");
+                    if (n > 0) Log($"Убрано {n} раст.");
                     break;
             }
         }
@@ -1214,7 +1215,7 @@ namespace FoxLife
             if (amount == 0) return;
             money += amount;
             if (amount > 0 && started && sound != null) sound.Coin();
-            Log($"{reason}: {(amount > 0 ? "+" : "")}{amount} мон.");
+            Log($"{reason} · {(amount > 0 ? "+" : "")}{amount} мон.");
         }
 
         /// <summary>Сутки после покупки вещь сдаётся по полной цене, потом — за 75%.</summary>
@@ -1227,8 +1228,8 @@ namespace FoxLife
             var before = (mode == Mode.Build || mode == Mode.Style) ? Snap() : null;
             int refund = freeBuild ? 0 : SellValue(f);
             RemoveFurniture(f);
-            if (refund > 0) AddMoney(refund, "Продано: " + f.def.name);
-            if (before != null) PushBuild("продажа: " + f.def.name, before, Snap());
+            if (refund > 0) AddMoney(refund, "Продажа предмета «" + f.def.name + "»");
+            if (before != null) PushBuild("продажа предмета «" + f.def.name + "»", before, Snap());
         }
 
         public void NotifyStyle()
@@ -1240,7 +1241,7 @@ namespace FoxLife
 
         public void StartPlacing(FurnitureDef def)
         {
-            if (!CanAfford(def)) { Log($"Не хватает монет: {def.name} стоит {def.price}."); return; }
+            if (!CanAfford(def)) { Log($"На «{def.name}» нужно {def.price} мон."); return; }
             CancelPlacing();
             movingExisting = false;
             placeRot = 0;
@@ -1318,7 +1319,7 @@ namespace FoxLife
         public void DeleteGhost()
         {
             if (ghost == null) return;
-            if (movingExisting && !freeBuild && ghost.def.price > 0) AddMoney(SellValue(ghost), "Продано: " + ghost.def.name);
+            if (movingExisting && !freeBuild && ghost.def.price > 0) AddMoney(SellValue(ghost), "Продажа предмета «" + ghost.def.name + "»");
             bool wasMoving = movingExisting;
             Destroy(ghost.gameObject);
             ghost = null;
@@ -1358,14 +1359,14 @@ namespace FoxLife
                 pendingBefore = null;
                 if (wasNew)
                 {
-                    if (!freeBuild && def.price > 0) AddMoney(-def.price, "Покупка: " + def.name);
+                    if (!freeBuild && def.price > 0) AddMoney(-def.price, "Покупка предмета «" + def.name + "»");
                     foreach (var fx in foxes) fx.OnEvent(new GameEvent { kind = "buy", arg = def.id });
                 }
                 if (wasNew) ghost.boughtAt = minutes;
                 FinishGhost();
                 ghost = null;
                 movingExisting = false;
-                PushBuild(wasNew ? "покупка: " + def.name : "перенос: " + def.name, undoBefore, Snap());
+                PushBuild((wasNew ? "покупка" : "перенос") + " предмета «" + def.name + "»", undoBefore, Snap());
                 if (wasNew && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))) StartPlacing(def);
             }
         }
@@ -1423,8 +1424,9 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                     if (hourNow % 24 == 8)
                         foreach (var ev in TownEvents.Today(Day))
                         {
-                            var lot = house.lots.Find(l => l.kind == ev.place);
-                            string today = $"Сегодня {TownEvents.Hours(ev)}: {ev.name} ({(lot != null ? lot.name : "")}). {ev.text}";
+                            var lot = house.lots.Find(l => l.kind == ev.place && !l.removed);
+                            if (lot == null) continue;
+                            string today = $"Сегодня {lot.At} пройдёт {RussianCases.LowerFirst(ev.name)}. {ev.text} ({TownEvents.Hours(ev)})";
                             Log(today);
                             if (Net.IsHost) Net.I.LogAll(today);
                         }
@@ -1651,11 +1653,11 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                     if (furn == null && IsRemovableProp(st, out var propRoot) && (townBuilder || MayEditLot(Town.LotIdAt(propRoot.position.x, propRoot.position.z))))
                     {
                         string pn = propRoot.name;
-                        ui.OpenMenu(Input.mousePosition, pn, new List<(string, System.Action)> { ("Убрать: " + pn.ToLower(), () => RemoveProp(propRoot)), ("Оставить", () => { }) });
+                        ui.OpenMenu(Input.mousePosition, pn, new List<(string, System.Action)> { ("Убрать", () => RemoveProp(propRoot)), ("Оставить", () => { }) });
                         break;
                     }
                     if (furn != null && MayEditLot(furn.lot)) StartMoving(furn);
-                    else if (furn != null) Log("Это чужой участок: строить и переставлять можно только у себя (весь город — в «Строительстве города» на экране города).");
+                    else if (furn != null) Log("Здесь чужой участок. Чтобы строить по всему городу, открой «Строительство города».");
                     else if (sr.owner != null && house.RoofRoomOf(hit.collider.gameObject) is House.Room rr && MayEditLot(rr.lot)) ui.SelectRoof(rr);
                     break;
                 case Mode.Style: StyleClick(st, sr.part); break;
@@ -1669,7 +1671,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
         {
             if (fox != null)
             {
-                if (!IsPlayer(fox)) { if (selected != null) OpenSocialMenu(fox); else Log("Это соседка или сосед: " + fox.foxName + ". Выбери свою лисичку, чтобы познакомиться."); return; }
+                if (!IsPlayer(fox)) { if (selected != null) OpenSocialMenu(fox); else Log($"Это {fox.foxName}. Выбери свою лисичку, чтобы познакомиться."); return; }
                 if (selected == null) Select(fox);
                 else if (fox == selected) OpenSelfMenu(fox);
                 else OpenSocialMenu(fox);
@@ -1700,13 +1702,13 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             var outside = house.DoorOutside(door);
             var inside = house.DoorInside(door);
             if (key != KeyKind.None)
-                items.Add(new PieItem("Войти" + (key == KeyKind.Trusted ? " (свой ключ)" : ""), () => me.Command(new FoxAction { kind = ActKind.Move, moveTarget = GridMap.Center(inside) + Vector3.up * house.FloorY(0, inside), label = "Заходит: " + lot.name })));
+                items.Add(new PieItem("Войти" + (key == KeyKind.Trusted ? " (свой ключ)" : ""), () => me.Command(new FoxAction { kind = ActKind.Move, moveTarget = GridMap.Center(inside) + Vector3.up * house.FloorY(0, inside), label = "Заходит " + lot.Into })));
             else
             {
                 var d = door;
                 items.Add(new PieItem("Постучаться", () => me.CommandKnock(lot.id, d)));
             }
-            ui.OpenPie(Input.mousePosition, "Дверь: " + lot.name, items);
+            ui.OpenPie(Input.mousePosition, "Дверь " + lot.NameIn(NameCase.Genitive), items);
             return true;
         }
 
@@ -1731,9 +1733,9 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
         static readonly string[] Mischief = { "Подразнить", "Поспорить" };
         static readonly string[] Romance = { "Флиртовать", "Поцеловать", "Признаться в любви", "Сделать предложение", "Завести лисят" };
 
-        PieItem SocialItem(Fox me, Fox target, SocialDef def)
+        internal PieItem SocialItem(Fox me, Fox target, SocialDef def)
         {
-            var pi = new PieItem(def.CommandText(target), () => me.Command(FoxAction.ForSocial(def, target)));
+            var pi = new PieItem(def.name == "Поболтать" ? "Поговорить" : def.name, () => me.Command(FoxAction.ForSocial(def, target)));
             if (target.sleeping)
             {
                 pi.enabled = false;
@@ -1749,16 +1751,16 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
         }
 
         /// <summary>Клик по другой лисичке: подумать о ней, общение по разделам, позвать.</summary>
-        void OpenSocialMenu(Fox target)
+        internal void OpenSocialMenu(Fox target)
         {
             var me = selected;
             var items = new List<PieItem>
             {
                 new PieItem("Подумать") { sub = new List<PieItem>
                 {
-                    new PieItem(Phrases.Fill("…{name:about}", me, target), () => ui.ThinkAbout(target, 0)),
+                    new PieItem(target.female ? "…о ней" : "…о нём", () => ui.ThinkAbout(target, 0)),
                     new PieItem("…о нас", () => ui.ThinkAbout(target, 1)),
-                    new PieItem("…о друзьях " + target.NameIn(NameCase.Genitive), () => ui.ThinkAbout(target, 2)),
+                    new PieItem(target.female ? "…о её друзьях" : "…о его друзьях", () => ui.ThinkAbout(target, 2)),
                 } },
             };
             var friendly = new List<PieItem>(); var mischief = new List<PieItem>(); var romance = new List<PieItem>(); var kids = new List<PieItem>();
@@ -1774,10 +1776,10 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             if (target.home != me.home)
             {
                 if (target.KeyTo(me.home) == KeyKind.Trusted)
-                    friendly.Add(new PieItem(Social.TakeKey.CommandText(target), () => me.Command(FoxAction.ForSocial(Social.TakeKey, target))));
+                    friendly.Add(new PieItem(Social.TakeKey.name, () => me.Command(FoxAction.ForSocial(Social.TakeKey, target))));
                 else
                 {
-                    var gk = new PieItem(Social.GiveKey.CommandText(target), () => me.Command(FoxAction.ForSocial(Social.GiveKey, target)));
+                    var gk = new PieItem(Social.GiveKey.name, () => me.Command(FoxAction.ForSocial(Social.GiveKey, target)));
                     var whyKey = me.GiveKeyReason(target);
                     if (whyKey != null) { gk.enabled = false; gk.reason = whyKey; }
                     friendly.Add(gk);
@@ -1789,21 +1791,21 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             if (!romance.Exists(x => x.enabled)) { rItem.enabled = false; rItem.reason = Family.CanRomance(me, target) ? "Пока не те чувства" : "С этой лисичкой — никакой романтики"; }
             items.Add(rItem);
             if (kids.Exists(x => x.enabled)) items.Add(new PieItem("Игры") { sub = kids });
-            if (IsPlayer(target)) items.Add(new PieItem("Выбрать " + target.NameIn(NameCase.Accusative), () => Select(target)));
+            if (IsPlayer(target)) items.Add(new PieItem("Выбрать", () => Select(target)));
             else
             {
                 var invite = new List<PieItem>
                 {
-                    new PieItem(Fox.PhoneText(Fox.PhoneMode.InviteOver, target), () => { if (target.Accepts(me, 0.15f)) me.InviteOver(target); else { target.Say("Сейчас не могу..."); Log($"{target.foxName} сейчас не может прийти."); } }),
+                    new PieItem("В гости к нам", () => { if (target.Accepts(me, 0.15f)) me.InviteOver(target); else { target.Say("Сейчас не могу…"); Log($"{target.foxName} сейчас не может прийти."); } }),
                 };
                 foreach (var lot in house.lots)
                 {
                     if (lot.removed) continue;
                     if (!lot.Public || lot.kind == LotKind.School) continue;
                     var l = lot;
-                    invite.Add(new PieItem(l.name, () => { if (target.Accepts(me, 0.2f)) me.GoOutTogether(target, l); else target.Say("Как-нибудь в другой раз..."); }));
+                    invite.Add(new PieItem(l.name, () => { if (target.Accepts(me, 0.2f)) me.GoOutTogether(target, l); else target.Say("Как-нибудь в другой раз…"); }));
                 }
-                items.Add(new PieItem("Позвать " + target.NameIn(NameCase.Accusative)) { sub = invite });
+                items.Add(new PieItem("Позвать") { sub = invite });
             }
             var why = target.BusyReason(me);
             ui.OpenPie(Input.mousePosition, target.foxName + (why != null ? "\n(" + why + ")" : ""), items);
@@ -1858,7 +1860,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
         public void CopyStyle(Styleable st, int part)
         {
             clipboard = st.Get(part).Clone();
-            clipboardName = st.displayName + ": " + st.parts[part].name;
+            clipboardName = st.displayName + " · " + st.parts[part].name;
         }
 
         public void Log(string text)

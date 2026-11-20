@@ -16,12 +16,12 @@ namespace FoxLife
 
         public static readonly Ev[] All =
         {
-            new Ev { name = "Ярмарка", place = LotKind.Square, days = new[] { 5 }, from = 10, to = 19, mood = "Весёлая ярмарка", text = "На площади Часов шумная ярмарка: фрукты, мёд, пряники, музыка и танцы!" },
-            new Ev { name = "Концерт на эстраде", place = LotKind.Park, days = new[] { 4, 6 }, from = 18, to = 21, mood = "Чудесный концерт", text = "Вечером в парке играют музыканты." },
-            new Ev { name = "Пикник в парке", place = LotKind.Park, days = new[] { 6 }, from = 11, to = 16, mood = "Пикник с друзьями", text = "Все зовут друг друга на пикник в парк «Лисья поляна»." },
-            new Ev { name = "Вечер у костра", place = LotKind.Camp, days = new[] { 5 }, from = 19, to = 23.5f, mood = "Песни у костра", text = "На лесной поляне разводят костёр: истории, песни и зефир." },
-            new Ev { name = "Звёздная ночь", place = LotKind.Observatory, days = new[] { 2 }, from = 20.5f, to = 24, mood = "Звёздная ночь", text = "В обсерватории всем показывают звёзды и планеты." },
-            new Ev { name = "Читательский клуб", place = LotKind.Library, days = new[] { 3 }, from = 16, to = 19, mood = "Книжный клуб", text = "В библиотеке читают вслух и спорят о книгах." },
+            new Ev { name = "Ярмарка", place = LotKind.Square, days = new[] { 5 }, from = 10, to = 19, mood = "Весёлая ярмарка", text = "Будут фрукты, мёд, пряники, музыка и танцы!" },
+            new Ev { name = "Концерт на эстраде", place = LotKind.Park, days = new[] { 4, 6 }, from = 18, to = 21, mood = "Чудесный концерт", text = "Приходи послушать музыкантов." },
+            new Ev { name = "Пикник", place = LotKind.Park, days = new[] { 6 }, from = 11, to = 16, mood = "Пикник с друзьями", text = "Зови друзей, захвати что-нибудь вкусное." },
+            new Ev { name = "Вечер у костра", place = LotKind.Camp, days = new[] { 5 }, from = 19, to = 23.5f, mood = "Песни у костра", text = "Расскажем истории, споём песни и пожарим зефир." },
+            new Ev { name = "Звёздная ночь", place = LotKind.Observatory, days = new[] { 2 }, from = 20.5f, to = 24, mood = "Звёздная ночь", text = "Гостям покажут звёзды и планеты." },
+            new Ev { name = "Читательский клуб", place = LotKind.Library, days = new[] { 3 }, from = 16, to = 19, mood = "Книжный клуб", text = "Почитаем вслух и поспорим о книгах." },
         };
 
         public static int DayOfWeek(int day) => (day - 1) % 7;

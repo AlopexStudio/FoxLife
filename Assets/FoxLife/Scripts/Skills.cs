@@ -33,6 +33,7 @@ namespace FoxLife
     {
         public string id, name;
         public string[] levels;
+        public string[] instrumentalLevels;
         public float[] wage;          // монет в час на каждой ступени
         public int startHour, endHour;
         public bool[] days;           // Пн..Вс
@@ -115,12 +116,9 @@ namespace FoxLife
             }
         }
 
-        public static string PlaceName(CareerDef c)
+        public static House.Lot Lot(CareerDef c)
         {
-            var g = Game.I;
-            if (g == null) return "";
-            var lot = g.house.lots.Find(l => l.kind == Place(c));
-            return lot != null ? lot.name : "";
+            return Game.I?.house?.lots.Find(l => l.kind == Place(c) && !l.removed);
         }
     }
 
@@ -133,18 +131,21 @@ namespace FoxLife
             new CareerDef
             {
                 id = "cook", name = "Кулинария", skill = Skill.Cooking, startHour = 10, endHour = 16, days = Weekdays,
+                instrumentalLevels = "посудомойщиком|помощником повара|поваром|шеф-поваром|ресторатором".Split('|'),
                 levels = new[] { "Посудомойщик", "Помощник повара", "Повар", "Шеф-повар", "Ресторатор" },
                 wage = new[] { 14f, 20f, 28f, 40f, 58f }, likes = new[] { Trait.Conscientiousness },
             },
             new CareerDef
             {
                 id = "art", name = "Искусство", skill = Skill.Creativity, startHour = 11, endHour = 16, days = Weekdays,
+                instrumentalLevels = "уличным художником|иллюстратором|художником|известным художником|мастером кисти".Split('|'),
                 levels = new[] { "Уличный художник", "Иллюстратор", "Художник", "Известный художник", "Мастер кисти" },
                 wage = new[] { 12f, 19f, 29f, 44f, 66f }, likes = new[] { Trait.Openness },
             },
             new CareerDef
             {
                 id = "science", name = "Наука", skill = Skill.Logic, startHour = 9, endHour = 17, days = Weekdays,
+                instrumentalLevels = "лаборантом|младшим научным сотрудником|исследователем|профессором|академиком".Split('|'),
                 levels = new[] { "Лаборант", "Младший научный сотрудник", "Исследователь", "Профессор", "Академик" },
                 wage = new[] { 13f, 19f, 27f, 38f, 52f }, likes = new[] { Trait.Openness, Trait.Conscientiousness },
             },
@@ -152,18 +153,21 @@ namespace FoxLife
             {
                 id = "music", name = "Музыка", skill = Skill.Music, startHour = 15, endHour = 21,
                 days = new[] { false, false, true, true, true, true, true },
+                instrumentalLevels = "уличным музыкантом|музыкантом в кафе|солистом группы|звездой сцены|легендой".Split('|'),
                 levels = new[] { "Уличный музыкант", "Музыкант в кафе", "Солист группы", "Звезда сцены", "Легенда" },
                 wage = new[] { 12f, 19f, 30f, 46f, 70f }, likes = new[] { Trait.Extraversion, Trait.Openness },
             },
             new CareerDef
             {
                 id = "sales", name = "Торговля", skill = Skill.Charisma, startHour = 9, endHour = 15, days = Weekdays,
+                instrumentalLevels = "стажёром|продавцом|менеджером|директором магазина|владельцем сети".Split('|'),
                 levels = new[] { "Стажёр", "Продавец", "Менеджер", "Директор магазина", "Владелец сети" },
                 wage = new[] { 15f, 21f, 29f, 40f, 55f }, likes = new[] { Trait.Extraversion, Trait.Agreeableness },
             },
             new CareerDef
             {
                 id = "teacher", name = "Школа", skill = Skill.Charisma, startHour = 8, endHour = 14, days = Weekdays,
+                instrumentalLevels = "помощником учителя|учителем|классным руководителем|завучем|директором школы".Split('|'),
                 levels = new[] { "Помощник учителя", "Учитель", "Классный руководитель", "Завуч", "Директор школы" },
                 wage = new[] { 14f, 20f, 28f, 38f, 52f }, likes = new[] { Trait.Agreeableness, Trait.Conscientiousness },
             },
@@ -171,6 +175,7 @@ namespace FoxLife
             new CareerDef
             {
                 id = "librarian", name = "Библиотека", skill = Skill.Logic, startHour = 10, endHour = 17, days = Weekdays,
+                instrumentalLevels = "помощником библиотекаря|библиотекарем|хранителем фонда|знатоком редких книг|главным библиотекарем".Split('|'),
                 levels = new[] { "Помощник библиотекаря", "Библиотекарь", "Хранитель фонда", "Знаток редких книг", "Главный библиотекарь" },
                 wage = new[] { 12f, 18f, 26f, 36f, 50f }, likes = new[] { Trait.Openness, Trait.Conscientiousness },
             },
@@ -181,6 +186,7 @@ namespace FoxLife
         public static readonly CareerDef School = new CareerDef
         {
             id = "school", name = "Школа", skill = Skill.Logic, startHour = 8, endHour = 14, days = Weekdays,
+            instrumentalLevels = "учеником".Split('|'),
             levels = new[] { "Ученик" }, wage = new[] { 0f }, likes = new[] { Trait.Conscientiousness },
         };
 

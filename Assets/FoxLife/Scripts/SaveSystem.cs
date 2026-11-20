@@ -96,11 +96,23 @@ namespace FoxLife
     public class SaveLot
     {
         public string name;
+        public string[] nameOverrides;
+        public int preposition;
         public int x, z, w, h, kind, template;
         public bool south, removed;
         public float pathX;
         public bool customMoney;
         public int startMoney;
+    }
+
+    [Serializable]
+    public class SaveCamera
+    {
+        public bool captured;
+        public Vector3 target;
+        public float yaw, pitch, distance;
+        public int floor, wallMode;
+        public string followId;
     }
 
     [Serializable]
@@ -134,6 +146,8 @@ namespace FoxLife
         public float minutes;
         public bool autonomy = true;
         public string selected;
+        public string selectedId;
+        public SaveCamera camera;
         public List<SaveFox> foxes = new List<SaveFox>();
         public List<SaveFurniture> furniture = new List<SaveFurniture>();
         public List<SaveSurface> surfaces = new List<SaveSurface>();
@@ -210,7 +224,7 @@ namespace FoxLife
                 var p = new Personality();
                 if (sf.pers != null && sf.pers.Length == 5) p.v = (int[])sf.pers.Clone();
                 var fox = g.CreateFox(sf.name, p, 0, pos, sf.ears, sf.tail, sf.size, sf.female);
-                fox.nameOverrides = Names.CopyOverrides(sf.nameOverrides);
+                fox.nameOverrides = RussianCases.CopyOverrides(sf.nameOverrides);
                 fox.home = -77;
                 if (sf.outfits != null && sf.outfits.Count == 3) { fox.outfits = sf.outfits.ToArray(); fox.wornOutfit = -1; }
                 fox.stage = (LifeStage)Mathf.Clamp(sf.stage, 0, 3);
@@ -266,7 +280,7 @@ namespace FoxLife
         {
             try
             {
-                File.WriteAllText(path ?? PathToSave, ToJson(g, true));
+                File.WriteAllText(path ?? PathToSave, ToJson(g, true, path == null && g.started && !g.TitleSceneActive));
                 Touch();
                 return true;
             }
@@ -278,7 +292,7 @@ namespace FoxLife
         }
 
         /// <summary>Весь мир одной строкой JSON: для файла сохранения и для друга по сети.</summary>
-        public static string ToJson(Game g, bool pretty)
+        public static string ToJson(Game g, bool pretty, bool saveCamera = false)
         {
             {
                 var s = new SaveGame
@@ -295,13 +309,15 @@ namespace FoxLife
                     archive = new List<FoxRecord>(g.archive),
                     autonomy = g.autonomy,
                     selected = g.selected != null ? g.selected.foxName : null,
+                    selectedId = g.selected != null ? g.selected.id : null,
+                    camera = saveCamera ? g.cam.Capture(g.house, g.foxes) : null,
                     weather = (int)g.weather.kind, weatherHours = g.weather.hoursLeft,
                     playerLot = House.PlayerLotId,
                     townName = g.townName,
                     removedProps = new List<string>(g.removedProps),
                 };
                 foreach (var l in Town.Lots)
-                    s.lots.Add(new SaveLot { name = l.name, x = l.rect.x, z = l.rect.y, w = l.rect.width, h = l.rect.height, kind = (int)l.kind, template = l.template, south = l.frontSouth, removed = l.removed, pathX = l.pathX, customMoney = l.customMoney, startMoney = l.startMoney });
+                    s.lots.Add(new SaveLot { name = l.name, nameOverrides = RussianCases.CopyOverrides(l.nameOverrides), preposition = (int)l.preposition, x = l.rect.x, z = l.rect.y, w = l.rect.width, h = l.rect.height, kind = (int)l.kind, template = l.template, south = l.frontSouth, removed = l.removed, pathX = l.pathX, customMoney = l.customMoney, startMoney = l.startMoney });
                 foreach (var kv in g.lotMoney) { s.moneyLots.Add(kv.Key); s.moneyValues.Add(kv.Value); }
                 foreach (var kv in g.storedMoney) { s.moneyGroups.Add(kv.Key); s.moneyGroupValues.Add(kv.Value); }
                 var everyone = new List<Fox>(g.foxes);
@@ -331,7 +347,7 @@ namespace FoxLife
             var sf = new SaveFox
             {
                 name = f.foxName,
-                nameOverrides = Names.CopyOverrides(f.nameOverrides),
+                nameOverrides = RussianCases.CopyOverrides(f.nameOverrides),
                 pers = (int[])f.pers.v.Clone(),
                 ears = f.earSize, tail = f.tailFluff, size = f.size,
                 needs = (float[])f.needs.Clone(),
@@ -371,7 +387,7 @@ namespace FoxLife
             return sf;
         }
 
-        public static System.Collections.IEnumerator LoadAsync(Game g, Action<bool> done, string path = null, string json = null)
+        public static System.Collections.IEnumerator LoadAsync(Game g, Action<bool> done, string path = null, string json = null, bool restoreCamera = false)
         {
             SaveGame s = null;
             try { s = JsonUtility.FromJson<SaveGame>(json ?? File.ReadAllText(path ?? PathToSave)); }
@@ -386,6 +402,8 @@ namespace FoxLife
                 {
                     var l = s.lots[i];
                     defs[i] = new Town.LotDef { name = l.name, rect = l.removed ? Town.Nowhere : new RectInt(l.x, l.z, l.w, l.h), kind = (LotKind)l.kind, template = l.template, frontSouth = l.south, removed = l.removed, pathX = l.pathX, customMoney = l.customMoney, startMoney = l.startMoney };
+                    defs[i].nameOverrides = RussianCases.CopyOverrides(l.nameOverrides);
+                    defs[i].preposition = (LotPreposition)Mathf.Clamp(l.preposition, 0, 2);
                 }
                 Town.SetLots(defs);
             }
@@ -403,6 +421,7 @@ namespace FoxLife
                 yield return it.Current;
             }
             Styleable.notify = true;
+            if (ok && restoreCamera) g.cam.Restore(g, s.camera);
             done(ok);
         }
 
@@ -504,7 +523,7 @@ namespace FoxLife
                 var p = new Personality();
                 if (sf.pers != null && sf.pers.Length == 5) p.v = (int[])sf.pers.Clone();
                 var fox = g.CreateFox(sf.name, p, 0, new Vector3(sf.x, sf.y, sf.z), sf.ears, sf.tail, sf.size, sf.female);
-                fox.nameOverrides = Names.CopyOverrides(sf.nameOverrides);
+                fox.nameOverrides = RussianCases.CopyOverrides(sf.nameOverrides);
                 if (!string.IsNullOrEmpty(sf.id)) fox.id = sf.id;
                 fox.home = oldWorld ? 0 : sf.home;
                 if (sf.outfits != null && sf.outfits.Count == 3) { fox.outfits = sf.outfits.ToArray(); fox.wornOutfit = -1; }
@@ -576,7 +595,8 @@ namespace FoxLife
             while (fm.MoveNext()) yield return null; // старое сохранение: вокруг лисьего дома вырастает городок
 
             Fox sel = null;
-            if (s.selected != null) byName.TryGetValue(s.selected, out sel);
+            if (!string.IsNullOrEmpty(s.selectedId)) byId.TryGetValue(s.selectedId, out sel);
+            if (sel == null && s.selected != null) byName.TryGetValue(s.selected, out sel);
             if (sel == null || !Game.IsPlayer(sel)) sel = g.Household.Count > 0 ? g.Household[0] : null;
             g.Select(sel);
             g.Log("Сохранение загружено.");
@@ -603,7 +623,7 @@ namespace FoxLife
         public static void ApplyNetFox(Fox fox, SaveFox sf, bool styles)
         {
             fox.Rename(sf.name);
-            fox.nameOverrides = Names.CopyOverrides(sf.nameOverrides);
+            fox.nameOverrides = RussianCases.CopyOverrides(sf.nameOverrides);
             if (sf.pers != null && sf.pers.Length == 5) fox.pers.v = (int[])sf.pers.Clone();
             fox.earSize = sf.ears; fox.tailFluff = sf.tail; fox.size = sf.size;
             fox.home = sf.home;

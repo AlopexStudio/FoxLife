@@ -392,7 +392,7 @@ namespace FoxLife
             var nap = new Interaction
             {
                 name = "Вздремнуть", verb = "Дремлет", duration = 60, pose = Pose.Lie, onObject = true, sleep = true,
-                energy = 0.26f, tags = ActTag.Comfort, bubble = "Пять минуточек...",
+                energy = 0.26f, tags = ActTag.Comfort, bubble = "Пять минуточек…",
             };
 
             all.Add(new FurnitureDef
@@ -712,7 +712,7 @@ namespace FoxLife
                     new Interaction
                     {
                         name = "Почитать", verb = "Читает", duration = 60, pose = Pose.SitFloor, fun = 0.7f,
-                        tags = ActTag.Creative | ActTag.Solitary, bubble = "Интересно...", hold = "book",
+                        tags = ActTag.Creative | ActTag.Solitary, bubble = "Интересно…", hold = "book",
                         onFinish = f =>
                         {
                             Mood(f, f.pers.O >= 7, "Интересная книга", 8);
@@ -743,7 +743,7 @@ namespace FoxLife
                 {
                     new Interaction
                     {
-                        name = "Придумать дизайн", verb = "Придумывает дизайн", duration = 9999, playerOnly = true, openBuild = true, bubble = "А что если здесь…",
+                        name = "Придумать дизайн", verb = "Придумывает дизайн", duration = 9999, playerOnly = true, openBuild = true, bubble = "А что, если здесь…",
                     },
                     new Interaction
                     {
@@ -834,18 +834,18 @@ namespace FoxLife
                     new Interaction
                     {
                         name = "Сидеть в интернете", verb = "Сидит в интернете", duration = 60, pose = Pose.SitFloor, fun = 0.8f,
-                        social = 0.15f, tags = ActTag.Routine, bubble = "Котики...",
+                        social = 0.15f, tags = ActTag.Routine, bubble = "Котики…",
                     },
                     new Interaction
                     {
                         name = "Взять лисёнка из приюта", verb = "Оформляет документы", duration = 30, pose = Pose.SitFloor,
-                        minStage = LifeStage.Adult, playerOnly = true, bubble = "Анкета для приюта...",
+                        minStage = LifeStage.Adult, playerOnly = true, bubble = "Анкета для приюта…",
                         onFinish = f => Game.I.AdoptKit(f),
                     },
                     new Interaction
                     {
                         name = "Писать роман", verb = "Пишет роман", duration = 90, pose = Pose.SitFloor, fun = 0.55f,
-                        tags = ActTag.Creative | ActTag.Solitary, bubble = "Глава первая...", minStage = LifeStage.Teen,
+                        tags = ActTag.Creative | ActTag.Solitary, bubble = "Глава первая…", minStage = LifeStage.Teen,
                         onFinish = f =>
                         {
                             Mood(f, f.pers.O >= 7, "Глава готова", 8, 240);
@@ -896,7 +896,7 @@ namespace FoxLife
             all.Add(new FurnitureDef
             {
                 id = "bath", name = "Ванна", category = "Ванная", w = 1, d = 2,
-                description = "Тёплая ванна: чистота и отдых.",
+                description = "В тёплой ванне можно вымыться и отдохнуть.",
                 slots = { Slot(V(0, 0.22f, 0), 0, C(1, 0), C(-1, 0), C(1, 1), C(-1, 1), C(0, -1)) },
                 actions =
                 {
@@ -1037,7 +1037,7 @@ namespace FoxLife
             all.Add(new FurnitureDef
             {
                 id = "painting", name = "Картина", category = "Декор", walkable = true,
-                description = "Ставится у стены: висит на ней.",
+                description = "Для этого предмета нужна стена.",
                 build = (f, st, m) =>
                 {
                     st.AddPart("Рама", StyleData.Make("Дерево", "#B98A4E", null, 1, 0.4f));
@@ -1049,7 +1049,7 @@ namespace FoxLife
             all.Add(new FurnitureDef
             {
                 id = "clock", name = "Настенные часы", category = "Декор", walkable = true,
-                description = "Ставится у стены: висит на ней.",
+                description = "Для этого предмета нужна стена.",
                 build = (f, st, m) =>
                 {
                     st.AddPart("Корпус", StyleData.Make("Гладкий", "#8B5A2B"));
@@ -1208,7 +1208,7 @@ namespace FoxLife
                 {
                     new Interaction { name = "Полюбоваться фонтаном", verb = "Любуется фонтаном", duration = 25, fun = 0.7f, energy = 0.02f, tags = ActTag.Comfort,
                         onFinish = fx => Mood(fx, fx.pers.O >= 5, "Красивый фонтан", 4, 180) },
-                    new Interaction { name = "Бросить монетку", verb = "Загадывает желание", duration = 6, fun = 1.2f, cooldown = 600, bubble = "Хочу, чтобы...",
+                    new Interaction { name = "Бросить монетку", verb = "Загадывает желание", duration = 6, fun = 1.2f, cooldown = 600, bubble = "Хочу, чтобы…",
                         onFinish = fx => { Game.I.Charge(fx, 1, "Монетка в фонтан"); Mood(fx, UnityEngine.Random.value < 0.5f, "Загадано желание", 6, 720); } },
                 },
                 build = (f, st, m) =>

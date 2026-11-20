@@ -125,7 +125,7 @@ namespace FoxLife
                 AddMoodlet("День рождения", 10, 720);
                 Say(female ? "Я стала старше!" : "Я стал старше!");
                 G.LogFox(this, $"{foxName}: теперь {StageName}!");
-                Remember($"Новый этап жизни: {StageName}");
+                Remember($"Начался новый этап жизни — {StageName.ToLower()}");
             }
         }
 

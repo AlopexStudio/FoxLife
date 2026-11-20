@@ -69,7 +69,7 @@ namespace FoxLife
                 G.LogFox(this, $"{foxName}: навык «{Skills.Names[i]}» — уровень {lvl}");
                 AddMoodlet("Новый уровень навыка", 6, 180);
                 if (lvl == 5) Remember($"Навык «{Skills.Names[i]}» достиг 5-го уровня");
-                if (lvl == Skills.MaxLevel) Remember($"Мастерство: навык «{Skills.Names[i]}» на максимуме!");
+                if (lvl == Skills.MaxLevel) Remember($"Освоен навык «{Skills.Names[i]}»!");
                 OnEvent(new GameEvent { kind = "skill", arg = Skills.Names[i], level = lvl });
             }
             if (skillLvl[i] >= Skills.MaxLevel) skillXp[i] = 0;
@@ -81,6 +81,17 @@ namespace FoxLife
         // ---------- работа ----------
 
         public string JobTitle => career != null ? career.levels[careerLevel] : "";
+        public string JobTitleInstrumental => career != null ? career.instrumentalLevels[careerLevel] : "";
+        public string WorkDescription
+        {
+            get
+            {
+                if (career == null) return "Не работает.";
+                var lot = Workplaces.Lot(career);
+                if (career.id == "school") return $"Учится {(lot != null ? lot.At : "в школе")}.";
+                return $"Работает {JobTitleInstrumental}{(lot != null ? " " + lot.At : "")}.";
+            }
+        }
         public float Wage => career != null ? career.wage[careerLevel] : 0;
 
         bool IsWorkday(int day) => career != null && career.days[(day - 1) % 7];
@@ -96,8 +107,8 @@ namespace FoxLife
             lastWorkDay = h >= c.startHour - 0.75f ? G.Day : -1; // сегодняшняя смена уже началась — выходим с завтра
             AddMoodlet("Новая работа", 6, 300);
             Say("Ура, меня взяли!");
-            G.LogFox(this, $"{foxName} устраивается: {c.name}, {JobTitle}");
-            Remember($"Новая работа: {c.name}, {JobTitle}");
+            G.LogFox(this, $"{foxName} устраивается {JobTitleInstrumental}.");
+            Remember($"Начало работы {JobTitleInstrumental}");
             OnEvent(new GameEvent { kind = "job", arg = c.id });
         }
 
@@ -108,8 +119,8 @@ namespace FoxLife
             if (atWork && current != null && current.kind == ActKind.Work) EndShift(current, true);
             if (log)
             {
-                G.LogFox(this, $"{foxName} увольняется: {career.name}");
-                Remember($"Уход с работы: {career.name}");
+                G.LogFox(this, $"{foxName} увольняется с работы.");
+                Remember($"Уход с работы");
             }
             career = null;
             careerLevel = 0;
@@ -194,7 +205,9 @@ namespace FoxLife
                 a.label = $"{Workplaces.Verb(career)} до {career.endHour}:00";
                 if (a.furn != null) { Face(a.furn.transform.position); a.furn.inUse++; }
                 a.stage = 2;
-                G.LogFox(this, career.id == "school" ? $"{foxName} пришёл(ла) в школу" : $"{foxName} на работе: {Workplaces.PlaceName(career)}");
+                var workplace = Workplaces.Lot(career);
+                string destination = workplace != null ? workplace.Into : career.id == "school" ? "в школу" : "на работу";
+                G.LogFox(this, $"{foxName} {(female ? "пришла" : "пришёл")} {destination}.");
                 return;
             }
             pose = career.id == "school" ? Pose.Sit : Pose.Use;
@@ -287,11 +300,11 @@ namespace FoxLife
                 var c = career;
                 AddMoodlet("Уволили", -15, 600);
                 G.LogFox(this, $"{foxName}: уволили с работы ({c.name})");
-                Remember($"Увольнение: {c.name}", false);
+                Remember($"Увольнение с работы", false);
                 career = null; careerLevel = 0; performance = 0;
                 OnEvent(new GameEvent { kind = "fired" });
             }
-            Say(early ? "Сегодня домой пораньше..." : career != null && career.id == "school" ? "Уроки кончились!" : "Я дома!");
+            Say(early ? "Сегодня домой пораньше…" : career != null && career.id == "school" ? "Уроки кончились!" : "Я дома!");
             Finish(a);
         }
 
@@ -303,8 +316,8 @@ namespace FoxLife
             G.AddMoneyFor(this, bonus, $"{foxName}: премия за повышение");
             AddMoodlet("Повышение!", 12, 480);
             Say("Меня повысили!");
-            G.LogFox(this, $"{foxName}: повышение — {JobTitle}");
-            Remember($"Повышение: {JobTitle}");
+            G.LogFox(this, $"{foxName} {(female ? "получила" : "получил")} повышение. Теперь работает {JobTitleInstrumental}.");
+            Remember($"Повышение до должности «{JobTitle}»");
             OnEvent(new GameEvent { kind = "promo", level = careerLevel });
         }
 
@@ -325,7 +338,7 @@ namespace FoxLife
             if (Dreams.Get(id) == null) return;
             dream = id;
             AddMoodlet("Новая мечта", 4, 240);
-            Remember("Мечта всей жизни: " + Dreams.Get(id).name);
+            Remember("Мечта всей жизни — «" + Dreams.Get(id).name + "»");
         }
 
         void UpdateDream(float dm)
@@ -343,7 +356,7 @@ namespace FoxLife
             if (d == null || stage < d.minStage)
             {
                 var p = Dreams.Pick(this);
-                if (p != null && p.id != dream) { dream = p.id; if (G.started) Remember("Мечта всей жизни: " + p.name); }
+                if (p != null && p.id != dream) { dream = p.id; if (G.started) Remember("Мечта всей жизни — «" + p.name + "»"); }
                 return;
             }
             if (Dreams.Progress(this, d) < 0.999f) return;
@@ -352,7 +365,7 @@ namespace FoxLife
             happiness += Dreams.Reward;
             AddMoodlet("Мечта сбылась!", 25, 4320);
             Say("Неужели… моя мечта сбылась!");
-            Remember("Сбылась мечта всей жизни: " + d.name);
+            Remember("Сбылась мечта всей жизни «" + d.name + "»");
             G.LogFox(this, $"{foxName}: сбылась мечта всей жизни «{d.name}»! (+{Dreams.Reward} очков счастья)");
             foreach (var o in G.foxes)
                 if (o != this && o.home == home && Social.Rel(o, this) >= 30) o.AddMoodlet($"Мечта {NameIn(NameCase.Genitive)} сбылась", 8, 720);
@@ -442,10 +455,10 @@ namespace FoxLife
 
         void RealizeFear(FearDef fd)
         {
-            AddMoodlet("Сбылся страх: " + fd.text.ToLower(), -12, 300);
+            AddMoodlet("Сбылся страх «" + fd.text + "»", -12, 300);
             Say("Только не это!");
             G.LogFox(this, $"{foxName}: сбылся страх — {fd.text.ToLower()}");
-            Remember($"Сбылся страх: {fd.text.ToLower()}", false);
+            Remember($"Сбылся страх «{fd.text}»", false);
             fearId = null;
             fearCooldown = 720f;
         }
@@ -489,7 +502,7 @@ namespace FoxLife
             perks.Add(p.id);
             AddMoodlet("Новая награда", 8, 240);
             G.LogFox(this, $"{foxName} получает награду «{p.name}»");
-            Remember($"Награда: {p.name}");
+            Remember($"Получена награда «{p.name}»");
             return true;
         }
 

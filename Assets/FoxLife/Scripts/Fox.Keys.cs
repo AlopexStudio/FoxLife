@@ -146,7 +146,7 @@ namespace FoxLife
             var me = this;
             queue.Add(new FoxAction
             {
-                kind = ActKind.Move, byPlayer = byPlayer, other = host, label = "Идёт к двери: " + lot.name,
+                kind = ActKind.Move, byPlayer = byPlayer, other = host, label = "Идёт к двери " + lot.NameIn(NameCase.Genitive),
                 moveTarget = GridMap.Center(outside) + Vector3.up * G.house.FloorY(0, outside),
                 onArrive = () => me.StartKnock(lotId, door, then),
             });
@@ -172,7 +172,9 @@ namespace FoxLife
             if (G.sound != null) { if (bell) G.sound.Doorbell(transform.position); else G.sound.Knock(transform.position); }
             Say(bell ? "Динь-дон!" : Random.value < 0.5f ? "Тук-тук!" : "Тук-тук! Есть кто дома?");
             knock.pushy = refusedAt.TryGetValue(lotId, out var t) && G.minutes - t < 120f;
-            if (!FindOpener()) G.LogFox(this, $"{foxName} стучится: {lot?.name}.");
+            if (!FindOpener()) G.LogFox(this, lot != null
+                ? $"{foxName} стучится в дверь {lot.NameIn(NameCase.Genitive)}."
+                : $"{foxName} стучится в дверь.");
         }
 
         /// <summary>Открыть может тот, у кого есть ключ и кто недалеко от двери (через весь город на стук не бегут).</summary>
@@ -294,7 +296,7 @@ namespace FoxLife
             {
                 BeGuest(lotId, 3f);
                 var lot = G.house.LotById(lotId);
-                if (lot != null) AddMoodlet("В гостях: " + lot.name, 4, 180);
+                if (lot != null) AddMoodlet("В гостях " + lot.At, 4, 180);
             }
             if (then != null) { then.stage = 0; queue.Insert(0, then); return; }
             if (door == null) return;

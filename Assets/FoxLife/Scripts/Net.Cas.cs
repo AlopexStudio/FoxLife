@@ -26,7 +26,7 @@ namespace FoxLife
         public static NetCas Of(Fox f) => new NetCas
         {
             name = f.foxName, female = f.female, stage = (int)f.stage, pers = (int[])f.pers.v.Clone(),
-            nameOverrides = Names.CopyOverrides(f.nameOverrides),
+            nameOverrides = RussianCases.CopyOverrides(f.nameOverrides),
             ears = f.earSize, tail = f.tailFluff, size = f.size,
             element = f.elementId, liked = f.likedWeather, disliked = f.dislikedWeather,
             skillXp = (float[])f.skillXp.Clone(), skillLvl = (int[])f.skillLvl.Clone(),
@@ -42,7 +42,7 @@ namespace FoxLife
                 string n = name.Trim();
                 if (n.Length > 18) n = n.Substring(0, 18);
                 f.Rename(n);
-                f.nameOverrides = Names.CopyOverrides(nameOverrides);
+                f.nameOverrides = RussianCases.CopyOverrides(nameOverrides);
             }
             f.female = female;
             var st = (LifeStage)Mathf.Clamp(stage, 0, 3);

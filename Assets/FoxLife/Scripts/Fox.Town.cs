@@ -75,7 +75,7 @@ namespace FoxLife
             else if (a.phoneMode == PhoneMode.InviteOver)
             {
                 if (o.Accepts(this, 0.1f)) InviteOver(o);
-                else { Say("Не может прийти..."); G.LogFox(this, $"{o.foxName} сейчас не может прийти."); }
+                else { Say("Не может прийти…"); G.LogFox(this, $"{o.foxName} сейчас не может прийти."); }
             }
             else
             {
@@ -84,7 +84,7 @@ namespace FoxLife
                 {
                     GoOutTogether(o, lot);
                 }
-                else { Say("Не получилось договориться..."); G.LogFox(this, $"{o.foxName} не может пойти гулять."); }
+                else { Say("Не получилось договориться…"); G.LogFox(this, $"{o.foxName} не может пойти гулять."); }
             }
             Finish(a);
         }
@@ -125,10 +125,10 @@ namespace FoxLife
             var pos = GridMap.Center(target) + Vector3.up * G.house.FloorY(0, target);
             friend.CancelCurrentPublic();
             friend.queue.Clear();
-            friend.queue.Add(new FoxAction { kind = ActKind.Move, other = this, placeLot = lot.id, moveTarget = pos, label = "Идёт: " + lot.name });
-            queue.Add(new FoxAction { kind = ActKind.Move, other = friend, placeLot = lot.id, moveTarget = pos + new Vector3(0.6f, 0, 0), label = "Идёт: " + lot.name, byPlayer = true });
+            friend.queue.Add(new FoxAction { kind = ActKind.Move, other = this, placeLot = lot.id, moveTarget = pos, label = "Идёт " + lot.Into });
+            queue.Add(new FoxAction { kind = ActKind.Move, other = friend, placeLot = lot.id, moveTarget = pos + new Vector3(0.6f, 0, 0), label = "Идёт " + lot.Into, byPlayer = true });
             Say("Встретимся там!");
-            G.LogPair(this, friend, $"{foxName} и {friend.foxName} идут вместе: {lot.name}.");
+            G.LogPair(this, friend, $"{foxName} и {friend.foxName} идут вместе {lot.Into}.");
         }
 
         /// <summary>Сходить в гости: с ключом — просто войти, без ключа — постучать в дверь, а там уж как встретят.</summary>
@@ -155,7 +155,11 @@ namespace FoxLife
             if (ev == null) return;
             bool first = !moodlets.Exists(m => m.name == ev.mood);
             AddMoodlet(ev.mood, 6 + (pers.E - 5) * 0.6f, 180);
-            if (first) { Remember(ev.name + ": " + lot.name); G.LogFox(this, $"{foxName}: {ev.name.ToLower()} — {lot.name}."); }
+            if (first)
+            {
+                Remember(ev.name + " " + lot.At);
+                G.LogFox(this, $"{foxName} проводит время {lot.At}. Там сегодня {RussianCases.LowerFirst(ev.name)}.");
+            }
         }
 
         public void CancelCurrentPublic()

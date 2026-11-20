@@ -63,8 +63,8 @@ namespace FoxLife
                 case ActKind.Move when placeLot < 0:
                     return "Идёт в гости к " + other.NameIn(NameCase.Dative);
                 case ActKind.Move:
-                    string place = Game.I?.house.LotById(placeLot)?.name;
-                    return "Идёт гулять с " + other.NameIn(NameCase.Instrumental) + (place != null ? " · " + place : "");
+                    var place = Game.I?.house?.LotById(placeLot);
+                    return "Идёт гулять с " + other.NameIn(NameCase.Instrumental) + (place != null ? " " + place.Into : "");
                 default:
                     return label;
             }
@@ -80,12 +80,7 @@ namespace FoxLife
         public string foxName = "Лисичка";
         public string[] nameOverrides;
 
-        public string NameIn(NameCase nameCase)
-        {
-            if (nameCase == NameCase.Nominative) return foxName;
-            string manual = nameOverrides?[(int)nameCase - 1];
-            return string.IsNullOrWhiteSpace(manual) ? Names.DefaultForm(foxName, nameCase) : manual.Trim();
-        }
+        public string NameIn(NameCase nameCase) => RussianCases.Override(nameOverrides, nameCase) ?? Names.DefaultForm(foxName, nameCase);
 
         public void Rename(string name)
         {
@@ -157,20 +152,20 @@ namespace FoxLife
             string fid = b.current != null && b.current.kind == ActKind.UseObject && b.current.stage == 2 && b.current.furn != null ? b.current.furn.def.id : null;
             bool soft = pers.A >= 6;
             string say = null;
-            if (b.sleeping) say = pers.C >= 6 || soft ? "Тсс... " + n + " спит." : null;
+            if (b.sleeping) say = pers.C >= 6 || soft ? "Тсс… " + n + " спит." : null;
             else if (fid == "guitar" || fid == "piano")
             {
                 bool likes = b.Element == Element || pers.O >= 6;
-                say = likes ? (Random.value < 0.5f ? "Красиво играет!" : "Ещё, ещё!") : pers.N >= 7 ? "Можно потише?.." : soft ? "Хм, интересная мелодия." : "Ну и шум...";
+                say = likes ? (Random.value < 0.5f ? "Красиво играет!" : "Ещё, ещё!") : pers.N >= 7 ? "Можно потише?.." : soft ? "Хм, интересная мелодия." : "Ну и шум…";
                 AddMoodlet(likes ? "Слушаю музыку" : "Шумно", likes ? 3 : -2, 60);
             }
             else if (fid == "easel") say = b.Element == Element ? "Ой, как красиво! Прямо как я люблю." : pers.O >= 6 ? "Что рисуешь, " + n + "?" : null;
-            else if (fid == "tv") say = b.Element == Element ? "О, моя любимая передача!" : Random.value < 0.5f ? "Опять это смотрят..." : null;
-            else if (b.current != null && b.current.inter == Catalog.EatAtTable) say = soft ? "Приятного аппетита!" : needs[0] < 40 ? "Пахнет вкусно... а мне?" : null;
+            else if (fid == "tv") say = b.Element == Element ? "О, моя любимая передача!" : Random.value < 0.5f ? "Опять это смотрят…" : null;
+            else if (b.current != null && b.current.inter == Catalog.EatAtTable) say = soft ? "Приятного аппетита!" : needs[0] < 40 ? "Пахнет вкусно… а мне?" : null;
             else if (b.Mood < -30) say = soft ? "Эй, " + n + ", что случилось?" : pers.E >= 6 ? "Не грусти!" : null;
             else if (b.needs[2] < 18)
             {
-                say = pers.A <= 3 ? "Фу! " + n + ", от тебя пахнет!" : pers.A <= 6 ? "Кто-то давно не мылся..." : null;
+                say = pers.A <= 3 ? "Фу! " + n + ", от тебя пахнет!" : pers.A <= 6 ? "Кто-то давно не мылся…" : null;
                 if (say != null) Social.AddRel(b, this, -1);
             }
             else if (b.walking && b.IsChild && stage >= LifeStage.Adult) say = pers.N >= 6 ? "Осторожно, не упади!" : "Беги-беги!";
@@ -498,7 +493,7 @@ namespace FoxLife
                 neuroTimer = 60f;
                 if (pers.N >= 6 && Random.value < (pers.N - 5) * 0.07f)
                 {
-                    if (Random.value < 0.5f) { AddMoodlet("Беспричинная тревога", -12, Random.Range(60, 150)); Say("Что-то мне неспокойно..."); }
+                    if (Random.value < 0.5f) { AddMoodlet("Беспричинная тревога", -12, Random.Range(60, 150)); Say("Что-то мне неспокойно…"); }
                     else { AddMoodlet("Внезапная радость", 10, Random.Range(60, 120)); Say("Как же хорошо!"); }
                 }
                 else if (pers.N <= 2 && Random.value < 0.2f) AddMoodlet("Душевное равновесие", 4, 120);
@@ -523,7 +518,7 @@ namespace FoxLife
             CancelCurrent(false);
             queue.Clear();
             current = new FoxAction { kind = ActKind.Idle, label = "Уснуть прямо на полу", floorSleep = true, duration = 240, stage = 0 };
-            Say("Не могу больше...");
+            Say("Не могу больше…");
             G.LogFox(this, $"{foxName} засыпает прямо на полу.");
             AddMoodlet("Сон на полу", -8, 300);
         }
@@ -1682,7 +1677,8 @@ namespace FoxLife
             {
                 if (atWork && career != null) return $"На работе ({JobTitle}) до {career.endHour}:00";
                 if (current == null) return "Ничего не делает";
-                if (current.kind == ActKind.UseObject && current.stage < 2) return "Идёт: " + current.inter.name.ToLower();
+                if (current.kind == ActKind.UseObject && current.stage < 2)
+                    return "Идёт " + RussianCases.LowerFirst(current.inter.name);
                 if (current.kind == ActKind.Social && current.stage < 2 && current.other != null) return "Идёт к " + current.other.NameIn(NameCase.Dative);
                 string activity = current.DisplayText(true);
                 if (side != null && side.other != null) return activity + " · говорит с " + side.other.NameIn(NameCase.Instrumental);

@@ -42,6 +42,9 @@ namespace FoxLife
             public Styleable facade, openings, fence, roof, railing, ground;
             public Vector2Int entry;
             public bool Public => kind != LotKind.Home;
+            public string NameIn(NameCase nameCase) => Town.LotNameIn(id, name, nameCase);
+            public string At => Town.LotLocation(id, name, kind, false);
+            public string Into => Town.LotLocation(id, name, kind, true);
             public bool windowDecor = true;
             public bool removed;
         }

@@ -65,7 +65,7 @@ namespace FoxLife
                 var st = go.AddComponent<Styleable>();
                 st.kind = SurfaceKind.Object;
                 st.depthLayer = def.slot == ClothSlot.Body ? 1f : def.slot == ClothSlot.Neck ? 2.2f : def.slot == ClothSlot.Head ? 2f : 3f;
-                st.displayName = foxName + ": " + def.name.ToLower();
+                st.displayName = def.name + " · " + foxName;
                 for (int k = 0; k < def.parts.Length; k++)
                 {
                     var s = k < item.styles.Count && item.styles[k] != null ? item.styles[k] : def.parts[k].style.Clone();

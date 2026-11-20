@@ -160,7 +160,7 @@ namespace FoxLife
                 if (Btn("Сохранить", false, Hh(40))) Defer(() => Note(G.SaveGame() ? "Сохранено!" : "Не получилось сохранить."));
                 if (G.mode != Mode.Town && Btn(new GUIContent(Net.IsHost ? "Играть вместе (игра открыта)" : "Играть вместе", "Открыть этот город для друга по сети"), Net.IsHost, Hh(40))) Defer(() => netPanel = true);
                 if (hasSave && Btn(new GUIContent("Загрузить сохранение  (" + SaveSystem.SaveInfo + ")"), false, Hh(40))) Defer(() => G.ContinueGame());
-                if (!Net.Active && Btn(new GUIContent("Редактирование города", "Весь городок: семьи (играть за другую, создавать, переселять), участки и ландшафт, стили"), false, Hh(40))) Defer(() => G.EnterTown());
+                if (!Net.Active && Btn(new GUIContent("Редактирование города", "Выбирай, создавай и переселяй семьи. Меняй участки, ландшафт и оформление города."), false, Hh(40))) Defer(() => G.EnterTown());
                 if (Btn("Настройки", false, Hh(40))) Defer(() => { settingsFrom = MenuScreen.Pause; screen = MenuScreen.Settings; });
                 if (Btn("Новая игра", false, Hh(40))) Defer(() => confirmNew = true);
                 if (G.mode == Mode.Town && !Net.Active && Btn(new GUIContent("Строить город", "Перестроить весь город"), false, Hh(40))) Defer(() => G.EnterTownBuilder());
@@ -223,9 +223,9 @@ namespace FoxLife
                     if (full) Screen.SetResolution(1600, 900, FullScreenMode.Windowed);
                     else Screen.SetResolution(Display.main.systemWidth, Display.main.systemHeight, FullScreenMode.FullScreenWindow);
                 });
-            if (Btn("Прокрутка у края экрана: " + (G.cam.edgeScroll ? "вкл" : "выкл"), false, Hh(36))) Defer(() => G.cam.edgeScroll = !G.cam.edgeScroll);
-            if (Btn(new GUIContent("Красивая картинка: " + (PostFX.enabledFx ? "вкл" : "выкл"), "Свечение фонарей, мягкие цвета, виньетка"), false, Hh(36))) Defer(() => { PostFX.enabledFx = !PostFX.enabledFx; PostFX.SaveSettings(); });
-            if (Btn(new GUIContent("Эффект миниатюры: " + (PostFX.tiltShift ? "вкл" : "выкл"), "Края кадра чуть размыты, будто смотришь на игрушечный городок"), false, Hh(36))) Defer(() => { PostFX.tiltShift = !PostFX.tiltShift; PostFX.SaveSettings(); });
+            if (Btn("Прокрутка у края экрана — " + (G.cam.edgeScroll ? "вкл" : "выкл"), false, Hh(36))) Defer(() => G.cam.edgeScroll = !G.cam.edgeScroll);
+            if (Btn(new GUIContent("Красивая картинка — " + (PostFX.enabledFx ? "вкл" : "выкл"), "Свечение фонарей, мягкие цвета, виньетка"), false, Hh(36))) Defer(() => { PostFX.enabledFx = !PostFX.enabledFx; PostFX.SaveSettings(); });
+            if (Btn(new GUIContent("Эффект миниатюры — " + (PostFX.tiltShift ? "вкл" : "выкл"), "Края кадра чуть размыты, будто смотришь на игрушечный городок"), false, Hh(36))) Defer(() => { PostFX.tiltShift = !PostFX.tiltShift; PostFX.SaveSettings(); });
             if (G.sound != null)
             {
                 GUILayout.BeginHorizontal();
@@ -244,10 +244,10 @@ namespace FoxLife
                 GUILayout.Space(8);
                 GUILayout.Label("Игра", sBig);
                 if (Net.IsClient) GUILayout.Label("По сети погоду, время суток и правила города меняет хозяин игры.", sWrap);
-                else if (Btn(new GUIContent("Жизнь лисичек: " + Family.LifespanName(G.lifespan), "Как быстро лисички растут и стареют"), false, Hh(36)))
+                else if (Btn(new GUIContent("Жизнь лисичек — " + Family.LifespanName(G.lifespan), "Как быстро лисички растут и стареют"), false, Hh(36)))
                     Defer(() => G.lifespan = (Lifespan)(((int)G.lifespan + 1) % 4));
-                if (Btn("Свобода воли: " + (G.autonomy ? "вкл" : "выкл"), false, Hh(36))) Defer(() => G.autonomy = !G.autonomy);
-                if (Btn(new GUIContent("Наши лисички сами переодеваются: " + (G.autoOutfits ? "да" : "нет"), "Ко сну — в пижаму, под дождём — в дождевик"), false, Hh(36))) Defer(() => G.autoOutfits = !G.autoOutfits);
+                if (Btn("Свобода воли — " + (G.autonomy ? "вкл" : "выкл"), false, Hh(36))) Defer(() => G.autonomy = !G.autonomy);
+                if (Btn(new GUIContent("Наши лисички сами переодеваются — " + (G.autoOutfits ? "да" : "нет"), "Ко сну — в пижаму, под дождём — в дождевик"), false, Hh(36))) Defer(() => G.autoOutfits = !G.autoOutfits);
 
                 GUILayout.Space(8);
                 GUILayout.Label("Погода", sBig);
@@ -258,7 +258,7 @@ namespace FoxLife
                     if (Btn(Weather.Names[i], G.weather.kind == k, W(98))) Defer(() => { G.weather.Set(k, 6f); });
                 }
                 GUILayout.EndHorizontal();
-                if (Btn(new GUIContent("Погода меняется сама: " + (G.weather.locked ? "нет" : "да"), "Если выключить — выбранная погода останется, пока её не сменить"), false, Hh(34)))
+                if (Btn(new GUIContent("Погода меняется сама — " + (G.weather.locked ? "нет" : "да"), "Если выключить — выбранная погода останется, пока её не сменить"), false, Hh(34)))
                     Defer(() => G.weather.locked = !G.weather.locked);
 
                 GUILayout.Space(8);
@@ -274,14 +274,14 @@ namespace FoxLife
 
                 GUILayout.Space(8);
                 GUILayout.Label("Хитрости", sBig);
-                if (Btn(new GUIContent("Бесплатное строительство: " + (G.freeBuild ? "вкл" : "выкл"), "Мебель и стены ничего не стоят"), false, Hh(34)))
+                if (Btn(new GUIContent("Бесплатное строительство — " + (G.freeBuild ? "вкл" : "выкл"), "Мебель и стены ничего не стоят"), false, Hh(34)))
                     Defer(() => G.freeBuild = !G.freeBuild);
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Деньги семьи", sBold, W(120));
                 GUI.SetNextControlName("money");
                 if (string.IsNullOrEmpty(moneyText)) moneyText = Mathf.RoundToInt(G.money).ToString();
                 moneyText = GUILayout.TextField(moneyText, 9, sField, W(140));
-                if (Btn("Установить", false, W(120))) Defer(() => { if (int.TryParse(moneyText, out int v)) { G.money = Mathf.Max(0, v); Note("Деньги: " + v); } });
+                if (Btn("Установить", false, W(120))) Defer(() => { if (int.TryParse(moneyText, out int v)) { G.money = Mathf.Max(0, v); Note($"У семьи теперь {G.money:0} мон."); } });
                 GUILayout.EndHorizontal();
                 GUILayout.BeginHorizontal();
                 foreach (var add in new[] { 1000, 10000, 50000 })
@@ -330,7 +330,7 @@ namespace FoxLife
             float w = 520, h = 250;
             Begin(new Rect((vw - w) / 2, (vh - h) / 2, w, h));
             GUILayout.Label("Сохранить город", sTitle);
-            GUILayout.Label("Город сохранится в файл. Его можно выбрать при новой игре или отправить друзьям: пусть положат файл в папку городов.", sWrap);
+            GUILayout.Label("Город сохранится в файл. Выбери его при новой игре или отправь друзьям, чтобы они добавили его в свою папку городов.", sWrap);
             GUILayout.BeginHorizontal();
             GUILayout.Label("Название", sBold, W(90));
             GUI.SetNextControlName("townname");
@@ -338,7 +338,7 @@ namespace FoxLife
             GUILayout.EndHorizontal();
             GUILayout.Space(8);
             GUILayout.BeginHorizontal();
-            if (Btn("Сохранить", true, W(150))) Defer(() => { townSaveOpen = false; Note(G.SaveTown(townSaveName) ? "Город сохранён: " + townSaveName : "Не получилось сохранить город."); });
+            if (Btn("Сохранить", true, W(150))) Defer(() => { townSaveOpen = false; Note(G.SaveTown(townSaveName) ? "Город «" + townSaveName + "» сохранён." : "Не получилось сохранить город."); });
             if (Btn("Открыть папку городов", false, W(210))) Defer(() => Application.OpenURL("file:///" + SaveSystem.TownsDir.Replace("\\", "/")));
             if (Btn("Отмена", false, W(100))) Defer(() => townSaveOpen = false);
             GUILayout.EndHorizontal();
@@ -406,7 +406,7 @@ namespace FoxLife
                 GUILayout.Label(lot.name, sTitle);
                 if (lot.kind != LotKind.Home)
                 {
-                    GUILayout.Label("Общественное место: сюда ходят все жители городка.", sWrap);
+                    GUILayout.Label("Сюда могут приходить все жители городка.", sWrap);
                 }
                 else
                 {
@@ -414,7 +414,7 @@ namespace FoxLife
                     if (fam.Count > 0)
                     {
                         ColorLabel(lot.id == House.PlayerLotId ? "Сейчас вы играете за эту семью" : "Здесь живёт семья", sBold, SimsBlue);
-                        GUILayout.Label($"Деньги семьи: {Mathf.RoundToInt(G.MoneyOf(lot.id))} мон.", sSmall);
+                        GUILayout.Label($"У семьи {Mathf.RoundToInt(G.MoneyOf(lot.id))} мон.", sSmall);
                         var row = GUILayoutUtility.GetRect(w - 30, 92);
                         for (int i = 0; i < fam.Count; i++)
                         {
@@ -444,7 +444,7 @@ namespace FoxLife
                         foreach (var g in groups)
                         {
                             var gg = g;
-                            if (Btn("Заселить из архива: " + Game.FamilyTitle(G.StoredFamily(g)), false, Hh(36))) Defer(() => G.SettleStored(gg, id));
+                            if (Btn("Заселить семью из архива («" + Game.FamilyTitle(G.StoredFamily(g)) + "»)", false, Hh(36))) Defer(() => G.SettleStored(gg, id));
                         }
                     }
                 }
@@ -477,7 +477,7 @@ namespace FoxLife
             var groups = G.StoredGroups();
             if (groups.Count == 0) return;
             Begin(new Rect(10, 80, 360, 70 + groups.Count * 30));
-            GUILayout.Label("Архив: семьи без дома", sBold);
+            GUILayout.Label("Семьи без дома", sBold);
             foreach (var g in groups) GUILayout.Label("• " + Game.FamilyTitle(G.StoredFamily(g)), sSmall);
             GUILayout.Label("Выбери свободный участок, чтобы заселить.", sSmall);
             End();

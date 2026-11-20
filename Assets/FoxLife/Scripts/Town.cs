@@ -3,6 +3,8 @@ using UnityEngine;
 
 namespace FoxLife
 {
+    public enum LotPreposition { Automatic, In, On }
+
     /// <summary>
     /// Лисья Долина — сказочный городок в долине между холмами. На севере горы с обсерваторией, на западе лес
     /// с поляной для пикников, по долине течёт ручей. Извилистые улочки идут по рельефу и уходят за край карты.
@@ -15,6 +17,8 @@ namespace FoxLife
         public struct LotDef
         {
             public string name;
+            public string[] nameOverrides;
+            public LotPreposition preposition;
             public RectInt rect;
             public LotKind kind;
             public bool frontSouth;
@@ -67,6 +71,54 @@ namespace FoxLife
             L("Участок у серпантина", 42, 20, 16, 12, LotKind.Home, false, 44.5f, -1),
             L("Восточный участок", 114, 0, 18, 14, LotKind.Home, true, 120.5f, -1),
         };
+
+        static readonly Dictionary<string, string[]> LotForms = new Dictionary<string, string[]>(System.StringComparer.OrdinalIgnoreCase)
+        {
+            ["Лисий дом"] = "Лисьего дома|Лисьему дому|Лисий дом|Лисьим домом|Лисьем доме".Split('|'),
+            ["Дом у ручья"] = "дома у ручья|дому у ручья|дом у ручья|домом у ручья|доме у ручья".Split('|'),
+            ["Дом с башенкой"] = "дома с башенкой|дому с башенкой|дом с башенкой|домом с башенкой|доме с башенкой".Split('|'),
+            ["Дом на пригорке"] = "дома на пригорке|дому на пригорке|дом на пригорке|домом на пригорке|доме на пригорке".Split('|'),
+            ["Парк «Лисья поляна»"] = "парка «Лисья поляна»|парку «Лисья поляна»|парк «Лисья поляна»|парком «Лисья поляна»|парке «Лисья поляна»".Split('|'),
+            ["Кафе «Тёплая норка»"] = "кафе «Тёплая норка»|кафе «Тёплая норка»|кафе «Тёплая норка»|кафе «Тёплая норка»|кафе «Тёплая норка»".Split('|'),
+            ["Библиотека"] = "библиотеки|библиотеке|библиотеку|библиотекой|библиотеке".Split('|'),
+            ["Дом у мельничной тропы"] = "дома у мельничной тропы|дому у мельничной тропы|дом у мельничной тропы|домом у мельничной тропы|доме у мельничной тропы".Split('|'),
+            ["Площадь Часов"] = "площади Часов|площади Часов|площадь Часов|площадью Часов|площади Часов".Split('|'),
+            ["Школа «Лисёнок»"] = "школы «Лисёнок»|школе «Лисёнок»|школу «Лисёнок»|школой «Лисёнок»|школе «Лисёнок»".Split('|'),
+            ["Яблоневый участок"] = "Яблоневого участка|Яблоневому участку|Яблоневый участок|Яблоневым участком|Яблоневом участке".Split('|'),
+            ["Мастерская «Кисточка»"] = "мастерской «Кисточка»|мастерской «Кисточка»|мастерскую «Кисточка»|мастерской «Кисточка»|мастерской «Кисточка»".Split('|'),
+            ["Обсерватория"] = "обсерватории|обсерватории|обсерваторию|обсерваторией|обсерватории".Split('|'),
+            ["Лесная поляна"] = "Лесной поляны|Лесной поляне|Лесную поляну|Лесной поляной|Лесной поляне".Split('|'),
+            ["Домик лесника"] = "домика лесника|домику лесника|домик лесника|домиком лесника|домике лесника".Split('|'),
+            ["Участок у серпантина"] = "участка у серпантина|участку у серпантина|участок у серпантина|участком у серпантина|участке у серпантина".Split('|'),
+            ["Восточный участок"] = "Восточного участка|Восточному участку|Восточный участок|Восточным участком|Восточном участке".Split('|'),
+        };
+
+        static readonly string[] SiteForms = { "участка", "участку", "участок", "участком", "участке" };
+
+        static string LotForm(string name, string[] overrides, NameCase nameCase)
+        {
+            return RussianCases.Override(overrides, nameCase) ??
+                (name != null && LotForms.TryGetValue(name, out var forms) ? RussianCases.Override(forms, nameCase) : null);
+        }
+
+        public static string LotNameIn(int id, string name, NameCase nameCase)
+        {
+            if (nameCase == NameCase.Nominative) return name;
+            var overrides = id >= 0 && id < Lots.Length ? Lots[id].nameOverrides : null;
+            return LotForm(name, overrides, nameCase) ?? $"{RussianCases.Override(SiteForms, nameCase)} «{name}»";
+        }
+
+        public static string LotLocation(int id, string name, LotKind kind, bool destination)
+        {
+            var def = id >= 0 && id < Lots.Length ? Lots[id] : default;
+            var nameCase = destination ? NameCase.Accusative : NameCase.Prepositional;
+            string form = LotForm(name, def.nameOverrides, nameCase);
+            if (form == null) return $"на {RussianCases.Override(SiteForms, nameCase)} «{name}»";
+            bool on = def.preposition == LotPreposition.On || def.preposition == LotPreposition.Automatic &&
+                (kind == LotKind.Square || kind == LotKind.Market || kind == LotKind.Camp ||
+                 (name != null && name.IndexOf("участок", System.StringComparison.OrdinalIgnoreCase) >= 0));
+            return (on ? "на " : "в ") + form;
+        }
 
         // ================= улицы, ручей, пруд =================
 
@@ -946,7 +998,7 @@ namespace FoxLife
                     f.careerLevel = rnd.Next(0, 3);
                     f.lastWorkDay = -1;
                 }
-                f.Remember("Жизнь в доме: " + lot.name);
+                f.Remember("Жизнь " + lot.At);
                 return f;
             }
             void Couple(Fox a, Fox b, bool married)
