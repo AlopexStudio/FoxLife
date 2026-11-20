@@ -8,7 +8,8 @@ namespace FoxLife
     /// <summary>
     /// Фразочки лисичек. У каждой ситуации много вариантов; часть зависит от характера, навыков, нужд,
     /// погоды и настроения. Недавние фразы лисичка не повторяет.
-    /// Шаблоны: {а|б} — по полу говорящего (лис|лисица), {o:а|б} — по полу собеседника, {name} — имя собеседника.
+    /// Шаблоны: {а|б} — по полу говорящего, {o:а|б} — по полу собеседника, {name} и {me} — имена.
+    /// Суффиксы :gen, :dat, :acc, :ins, :prep задают падеж имени; :about добавляет «о» или «об».
     /// </summary>
     public static class Phrases
     {
@@ -23,19 +24,33 @@ namespace FoxLife
 
         static void Many(string key, params string[] texts) { foreach (var t in texts) A(key, t); }
 
-        static readonly Regex Tok = new Regex(@"\{(o:)?([^{}|]*)\|([^{}|]*)\}");
+        static readonly Regex Tok = new Regex(@"\{(?:(name|me)(?::(gen|dat|acc|ins|prep|about))?|(o:)?([^{}|]*)\|([^{}|]*))\}");
 
-        static string Fill(string t, Fox me, Fox other)
-        {
-            t = t.Replace("{name}", other != null ? other.foxName : "");
-            t = t.Replace("{me}", me != null ? me.foxName : "");
-            return Tok.Replace(t, m =>
+        internal static string Fill(string t, Fox me, Fox other) =>
+            Tok.Replace(t, m =>
             {
-                var who = m.Groups[1].Success ? other : me;
-                bool f = who != null && who.female;
-                return f ? m.Groups[3].Value : m.Groups[2].Value;
+                if (m.Groups[1].Success)
+                {
+                    var fox = m.Groups[1].Value == "name" ? other : me;
+                    if (fox == null) return "";
+                    string suffix = m.Groups[2].Value;
+                    NameCase nameCase = suffix switch
+                    {
+                        "gen" => NameCase.Genitive,
+                        "dat" => NameCase.Dative,
+                        "acc" => NameCase.Accusative,
+                        "ins" => NameCase.Instrumental,
+                        "prep" or "about" => NameCase.Prepositional,
+                        _ => NameCase.Nominative
+                    };
+                    string form = fox.NameIn(nameCase);
+                    return suffix == "about" && !string.IsNullOrEmpty(form)
+                        ? ("аоиуэы".Contains(char.ToLowerInvariant(form[0])) ? "об " : "о ") + form
+                        : form;
+                }
+                var speaker = m.Groups[3].Success ? other : me;
+                return m.Groups[speaker != null && speaker.female ? 5 : 4].Value;
             });
-        }
 
         public static string Pick(string key, Fox me, Fox other, string fallback = null)
         {
@@ -183,7 +198,7 @@ namespace FoxLife
             Many("no:Поспорить", "Ни за что!", "Ты не прав{o:|а}!", "Чушь!");
 
             // ===== Желания (вслух о мечтах) =====
-            Many("want:talk", "Интересно, что сейчас делает {name}?", "Как там {name}? Давно не болтали.", "Вот бы поболтать… {name} наверняка расскажет что-нибудь интересное.", "{name} обещал{o:|а} рассказать новость. Надо бы спросить!");
+            Many("want:talk", "Интересно, что сейчас делает {name}?", "Давно не болтал{|а} с {name:ins}. Как там дела?", "Вот бы поболтать… {name} наверняка расскажет что-нибудь интересное.", "{name} обещал{o:|а} рассказать новость. Надо бы спросить!");
             Many("want:hug", "{name} так здорово обнимается…", "Хочется кого-нибудь крепко-крепко обнять.", "Кажется, {name} сегодня грустит. Обнять бы…");
             Many("want:joke", "Придумал{|а} шутку! Кому бы рассказать…", "Ха! Вот это я пошучу сегодня.", "Знаю одну смешную историю…");
             Many("want:tease", "Хи-хи, так и хочется кого-нибудь подразнить.", "У меня есть план, как всех рассмешить. Ну почти рассмешить.");
@@ -205,7 +220,7 @@ namespace FoxLife
             Many("want:buy", "Хочется чего-нибудь новенького для дома.", "Нашему дому не хватает чего-то… особенного.");
             Many("want:style", "Пора обновить стиль!", "Может, перекрасить что-нибудь?");
             Many("want:love", "Вот бы встретить кого-то особенного…", "Говорят, любовь приходит, когда её не ждёшь…");
-            Many("want:kiss", "Мечтаю о поцелуе…", "{name}… ах, о чём это я.");
+            Many("want:kiss", "Мечтаю о поцелуе…", "Опять думаю {name:about}…");
             Many("want:wed", "Интересно, каково это — свадьба…", "Белые цветы, торт, все друзья вместе…");
             Many("want:baby", "Лисёнок в доме — это было бы чудесно.", "Представляю маленькие лапки…");
             Many("want:playkit", "Поиграть бы с малышами!", "Лисята сегодня такие весёлые.");

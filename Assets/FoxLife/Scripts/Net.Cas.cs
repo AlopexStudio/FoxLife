@@ -10,6 +10,7 @@ namespace FoxLife
     public class NetCas
     {
         public string name;
+        public string[] nameOverrides;
         public bool female;
         public int stage;
         public int[] pers;
@@ -25,6 +26,7 @@ namespace FoxLife
         public static NetCas Of(Fox f) => new NetCas
         {
             name = f.foxName, female = f.female, stage = (int)f.stage, pers = (int[])f.pers.v.Clone(),
+            nameOverrides = Names.CopyOverrides(f.nameOverrides),
             ears = f.earSize, tail = f.tailFluff, size = f.size,
             element = f.elementId, liked = f.likedWeather, disliked = f.dislikedWeather,
             skillXp = (float[])f.skillXp.Clone(), skillLvl = (int[])f.skillLvl.Clone(),
@@ -39,7 +41,8 @@ namespace FoxLife
             {
                 string n = name.Trim();
                 if (n.Length > 18) n = n.Substring(0, 18);
-                f.foxName = n; f.gameObject.name = n; f.style.displayName = n;
+                f.Rename(n);
+                f.nameOverrides = Names.CopyOverrides(nameOverrides);
             }
             f.female = female;
             var st = (LifeStage)Mathf.Clamp(stage, 0, 3);
@@ -84,9 +87,13 @@ namespace FoxLife
         /// <summary>У друга: раз в 0,3 с отправить хосту изменённых в «Лисичках» лисичек.</summary>
         void CasUpdate()
         {
-            if (G.mode != Mode.Create) { casSent.Clear(); return; }
-            casTimer -= Time.unscaledDeltaTime;
-            if (casTimer > 0) return;
+            bool editing = G.mode == Mode.Create;
+            if (!editing && casSent.Count == 0) return;
+            if (editing)
+            {
+                casTimer -= Time.unscaledDeltaTime;
+                if (casTimer > 0) return;
+            }
             casTimer = 0.3f;
             foreach (var f in G.Household)
             {
@@ -99,6 +106,7 @@ namespace FoxLife
                 var gz = Gzip(json);
                 server.Send(Pack(Msg.FoxEdit, w => { WStr(w, f.id); w.Write(gz.Length); w.Write(gz); }));
             }
+            if (!editing) casSent.Clear();
         }
 
         /// <summary>У хоста: друг поменял свою лисичку в «Лисичках».</summary>

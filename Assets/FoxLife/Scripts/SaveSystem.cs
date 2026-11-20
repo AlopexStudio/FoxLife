@@ -12,6 +12,7 @@ namespace FoxLife
     public class SaveFox
     {
         public string name;
+        public string[] nameOverrides;
         public int[] pers;
         public float ears, tail, size;
         public float[] needs;
@@ -209,6 +210,7 @@ namespace FoxLife
                 var p = new Personality();
                 if (sf.pers != null && sf.pers.Length == 5) p.v = (int[])sf.pers.Clone();
                 var fox = g.CreateFox(sf.name, p, 0, pos, sf.ears, sf.tail, sf.size, sf.female);
+                fox.nameOverrides = Names.CopyOverrides(sf.nameOverrides);
                 fox.home = -77;
                 if (sf.outfits != null && sf.outfits.Count == 3) { fox.outfits = sf.outfits.ToArray(); fox.wornOutfit = -1; }
                 fox.stage = (LifeStage)Mathf.Clamp(sf.stage, 0, 3);
@@ -329,6 +331,7 @@ namespace FoxLife
             var sf = new SaveFox
             {
                 name = f.foxName,
+                nameOverrides = Names.CopyOverrides(f.nameOverrides),
                 pers = (int[])f.pers.v.Clone(),
                 ears = f.earSize, tail = f.tailFluff, size = f.size,
                 needs = (float[])f.needs.Clone(),
@@ -501,6 +504,7 @@ namespace FoxLife
                 var p = new Personality();
                 if (sf.pers != null && sf.pers.Length == 5) p.v = (int[])sf.pers.Clone();
                 var fox = g.CreateFox(sf.name, p, 0, new Vector3(sf.x, sf.y, sf.z), sf.ears, sf.tail, sf.size, sf.female);
+                fox.nameOverrides = Names.CopyOverrides(sf.nameOverrides);
                 if (!string.IsNullOrEmpty(sf.id)) fox.id = sf.id;
                 fox.home = oldWorld ? 0 : sf.home;
                 if (sf.outfits != null && sf.outfits.Count == 3) { fox.outfits = sf.outfits.ToArray(); fox.wornOutfit = -1; }
@@ -597,7 +601,8 @@ namespace FoxLife
         /// <summary>Обновить лисичку по описанию от хоста (всё, кроме положения и нужд — они идут отдельно).</summary>
         public static void ApplyNetFox(Fox fox, SaveFox sf, bool styles)
         {
-            fox.foxName = sf.name;
+            fox.Rename(sf.name);
+            fox.nameOverrides = Names.CopyOverrides(sf.nameOverrides);
             if (sf.pers != null && sf.pers.Length == 5) fox.pers.v = (int[])sf.pers.Clone();
             fox.earSize = sf.ears; fox.tailFluff = sf.tail; fox.size = sf.size;
             fox.home = sf.home;

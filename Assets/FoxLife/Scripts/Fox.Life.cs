@@ -355,7 +355,7 @@ namespace FoxLife
             Remember("Сбылась мечта всей жизни: " + d.name);
             G.LogFox(this, $"{foxName}: сбылась мечта всей жизни «{d.name}»! (+{Dreams.Reward} очков счастья)");
             foreach (var o in G.foxes)
-                if (o != this && o.home == home && Social.Rel(o, this) >= 30) o.AddMoodlet($"Мечта {foxName} сбылась", 8, 720);
+                if (o != this && o.home == home && Social.Rel(o, this) >= 30) o.AddMoodlet($"Мечта {NameIn(NameCase.Genitive)} сбылась", 8, 720);
             dream = null; // новая мечта — по характеру, или игрок выберет сам
         }
 
@@ -487,9 +487,9 @@ namespace FoxLife
             return true;
         }
 
-        public void Remember(string text, bool good = true)
+        public void Remember(string text, bool good = true, Fox about = null)
         {
-            memories.Add(new Memory { day = G.Day, text = text, good = good });
+            memories.Add(new Memory { day = G.Day, text = text, good = good, aboutId = about?.id });
             if (memories.Count > 50) memories.RemoveAt(0);
         }
     }

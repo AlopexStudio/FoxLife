@@ -28,6 +28,7 @@ namespace FoxLife
     {
         public int day;
         public string text;
+        public string aboutId;
         public bool good = true;
     }
 

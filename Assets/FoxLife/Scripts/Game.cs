@@ -773,8 +773,8 @@ namespace FoxLife
         {
             a.partnerId = b.id;
             b.partnerId = a.id;
-            a.Remember("Вместе с " + b.foxName + "!");
-            b.Remember("Вместе с " + a.foxName + "!");
+            a.Remember("Вместе с " + b.NameIn(NameCase.Instrumental) + "!", about: b);
+            b.Remember("Вместе с " + a.NameIn(NameCase.Instrumental) + "!", about: a);
             LogPair(a, b, $"{a.foxName} и {b.foxName} теперь пара!");
             a.OnEvent(new GameEvent { kind = "partner", other = b });
             b.OnEvent(new GameEvent { kind = "partner", other = a });
@@ -785,8 +785,8 @@ namespace FoxLife
             a.married = b.married = true;
             a.AddMoodlet("Свадьба!", 20, 1440);
             b.AddMoodlet("Свадьба!", 20, 1440);
-            a.Remember("Свадьба с " + b.foxName);
-            b.Remember("Свадьба с " + a.foxName);
+            a.Remember("Свадьба с " + b.NameIn(NameCase.Instrumental), about: b);
+            b.Remember("Свадьба с " + a.NameIn(NameCase.Instrumental), about: a);
             LogPair(a, b, $"{a.foxName} и {b.foxName} поженились!");
             foreach (var o in foxes) if (o != a && o != b && (o.home == a.home || o.home == b.home)) o.AddMoodlet("Свадьба в семье", 6, 720);
             MoveIn(a, b);
@@ -802,7 +802,7 @@ namespace FoxLife
             Fox stay = mover == a ? b : a;
             if (HomeCount(stay.home) >= MaxFoxes) return;
             mover.home = stay.home;
-            mover.Remember("Переезд к " + stay.foxName);
+            mover.Remember("Переезд к " + stay.NameIn(NameCase.Dative), about: stay);
             if (IsPlayer(mover)) Log($"{mover.foxName} {(mover.female ? "переехала" : "переехал")} в лисий дом!");
             if (IsPlayer(stay) && selected == null) Select(stay);
         }
@@ -861,7 +861,7 @@ namespace FoxLife
                     string role = Family.Role(kit, o);
                     if (role != null) Social.AddRel(kit, o, 40f);
                 }
-                if (KnownToPlayer(mother)) Log($"У {mother.foxName} родился лисёнок: {kit.foxName}!");
+                if (KnownToPlayer(mother)) Log($"У {mother.NameIn(NameCase.Genitive)} родился лисёнок: {kit.foxName}!");
                 mother.Remember("Родился лисёнок: " + kit.foxName);
                 if (father != null) father.Remember("Родился лисёнок: " + kit.foxName);
                 kit.Remember(mother.foxName + (father != null ? " и " + father.foxName : "") + " — мои родители");
@@ -1790,7 +1790,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             if (!romance.Exists(x => x.enabled)) { rItem.enabled = false; rItem.reason = Family.CanRomance(me, target) ? "Пока не те чувства" : "С этой лисичкой — никакой романтики"; }
             items.Add(rItem);
             if (kids.Exists(x => x.enabled)) items.Add(new PieItem("Игры") { sub = kids });
-            if (IsPlayer(target)) items.Add(new PieItem("Выбрать: " + target.foxName, () => Select(target)));
+            if (IsPlayer(target)) items.Add(new PieItem("Выбрать " + target.NameIn(NameCase.Accusative), () => Select(target)));
             else
             {
                 var invite = new List<PieItem>

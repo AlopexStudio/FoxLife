@@ -71,6 +71,10 @@ namespace FoxLife
             }
             log.WriteLine($"СЕТЬ хост: друг ушёл, игроков {net.peers.Count}");
             log.WriteLine($"СЕТЬ хост: семья друга: {Game.FamilyTitle(g.FamilyOf(lot))}");
+            var renamed = g.FamilyOf(lot).Find(f => f.foxName == "Тестик");
+            if (renamed?.NameIn(NameCase.Genitive) != "Тестика")
+                Debug.LogError("СЕТЬ хост: ручная форма имени не пришла из «Лисичек».");
+            else log.WriteLine("СЕТЬ хост: ручная форма имени — Тестика.");
             foreach (var f in g.FamilyOf(lot)) log.WriteLine($"СЕТЬ хост: {f.foxName}: характер {string.Join(",", f.pers.v)}, рост {f.size:0.00}, навык0 {f.skillLvl[0]}");
             log.WriteLine($"СЕТЬ хост: чат {net.chat.Count}: {string.Join(" / ", net.chat.ConvertAll(c => c.who + ": " + c.text))}");
             foreach (var e in g.log) log.WriteLine("ЖУРНАЛ " + e.time + " " + e.text);
@@ -213,7 +217,7 @@ namespace FoxLife
             g.SetMode(Mode.Create);
             yield return new WaitForSecondsRealtime(1f);
             int fam0 = g.Household.Count;
-            me.foxName = "Тестик"; me.pers.v[0] = 10; me.size = 1.1f;
+            me.Rename("Тестик"); me.pers.v[0] = 10; me.size = 1.1f;
             me.skillLvl[0] = 3;
             yield return new WaitForSecondsRealtime(1f);
             if (fam0 < Game.MaxFoxes) net.CasAddFox(me);
@@ -221,6 +225,7 @@ namespace FoxLife
             log.WriteLine($"СЕТЬ гость: в «Лисичках» скорость {g.speedIndex}, семья {fam0}→{g.Household.Count}: {Game.FamilyTitle(g.Household)}");
             g.cam.Focus(me.transform.position, 6f);
             yield return Shot("net_join_2b_create");
+            me.nameOverrides = new[] { "Тестика", null, null, null, null };
             g.SetMode(Mode.Live);
             yield return new WaitForSecondsRealtime(5f);
             log.WriteLine($"СЕТЬ гость: после «Лисичек» {me.foxName}, общительность {me.pers.v[0]}, рост {me.size:0.00}, скорость {g.speedIndex}");

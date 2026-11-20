@@ -31,7 +31,8 @@ namespace FoxLife
         public int foxTab;
         public int outfitTab;
         int buildCat;
-        Vector2 foxScroll, buildScroll, styleScroll, createScroll;
+        internal Vector2 foxScroll;
+        Vector2 buildScroll, styleScroll, createScroll;
 
         // редактор цвета
         int colorSlot;
@@ -1592,7 +1593,14 @@ namespace FoxLife
             GUILayout.BeginHorizontal();
             GUILayout.Label("Семья", sTitle);
             GUILayout.FlexibleSpace();
-            if (Btn("Готово", true, W(110))) Defer(() => { townEditing = false; G.cam.Focus(G.cam.target, 999f); G.cam.dist = 60f; G.cam.pitch = 55f; });
+            if (Btn("Готово", true, W(110))) Defer(() =>
+            {
+                if (G.mode == Mode.Create) { G.SetMode(Mode.Live); return; }
+                townEditing = false;
+                G.cam.Focus(G.cam.target, 999f);
+                G.cam.dist = 60f;
+                G.cam.pitch = 55f;
+            });
             GUILayout.EndHorizontal();
             var family = CasFamily;
             for (int row = 0; row < family.Count; row += 3)
@@ -1608,17 +1616,7 @@ namespace FoxLife
             if (f == null) { GUILayout.EndScrollView(); End(); return; }
 
             GUILayout.Space(6);
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Имя", sBold, W(50));
-            GUI.SetNextControlName("foxname");
-            string nn = GUILayout.TextField(f.foxName, 18, sField, W(220));
-            if (nn != f.foxName && nn.Trim().Length > 0)
-            {
-                f.foxName = nn;
-                f.gameObject.name = nn;
-                f.style.displayName = nn;
-            }
-            GUILayout.EndHorizontal();
+            FoxNameFields(f);
             ColorLabel(f.Summary, sBig, Accent);
             GUILayout.BeginHorizontal();
             if (Btn("Лис", !f.female, W(80))) Defer(() => f.female = false);
@@ -1899,6 +1897,50 @@ namespace FoxLife
             }
             GUILayout.Space(6);
             GUILayout.Label("Клик по изгороди, арке, кусту, камню, фонарю или дереву — убрать его.", sSmall);
+        }
+
+        static readonly string[] NameCaseLabels =
+        {
+            "Именительный", "Родительный", "Дательный", "Винительный", "Творительный", "Предложный"
+        };
+        static readonly string[] NameCaseExamples =
+        {
+            "Рыжик", "нет Рыжика", "к Рыжику", "вижу Рыжика", "с Рыжиком", "о Рыжике"
+        };
+
+        void FoxNameFields(Fox f)
+        {
+            for (int i = 0; i < NameCaseLabels.Length; i++)
+            {
+                bool first = i == 0;
+                string control = "foxname" + i;
+                string current = first ? f.foxName : f.nameOverrides?[i - 1] ?? "";
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(NameCaseLabels[i], sBold, W(138));
+                GUI.SetNextControlName(control);
+                string next = GUILayout.TextField(current, first ? 18 : Names.MaxFormLength, sField, W(130));
+                if (first)
+                {
+                    if (next != current && !string.IsNullOrWhiteSpace(next)) f.Rename(next);
+                }
+                else
+                {
+                    if (next != current)
+                    {
+                        if (f.nameOverrides == null) f.nameOverrides = new string[Names.CaseCount];
+                        f.nameOverrides[i - 1] = next;
+                    }
+                    if (Event.current.type == EventType.Repaint && next.Length == 0 && GUI.GetNameOfFocusedControl() != control)
+                    {
+                        Rect field = GUILayoutUtility.GetLastRect();
+                        field.xMin += 5;
+                        GUI.Label(field, Names.DefaultForm(f.foxName, (NameCase)i), sSmall);
+                    }
+                }
+                GUILayout.Label(NameCaseExamples[i], sSmall);
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.Label("Пустое поле — готовая форма.\nДля своего имени впиши падежи вручную.", sWrap);
         }
 
         void ClothesSection(Fox f)

@@ -179,7 +179,7 @@ namespace FoxLife
                     if (shown < 5) GUILayout.Label($"Ещё {5 - shown} черт характера — пока загадка.", sSmall);
                     if (k01 >= 0.45f) GUILayout.Label($"Стихия: {Elements.Names[(int)o.Element].ToLower()} — любит {Elements.Music[(int)o.Element]} и {Elements.Tv[(int)o.Element]}", sWrap);
                     else GUILayout.Label("Любимая стихия — пока загадка.", sSmall);
-                    if (k01 >= 0.55f) GUILayout.Label($"Любит {Fox.WeatherName(o.LikedWeather)}, не любит {Fox.WeatherName(o.DislikedWeather)}", sSmall);
+                    if (k01 >= 0.55f) GUILayout.Label($"Любит {Fox.WeatherName(o.LikedWeather, accusative: true)}, не любит {Fox.WeatherName(o.DislikedWeather, accusative: true)}", sSmall);
                     if (k01 >= 0.7f && o.wants.Count > 0) GUILayout.Label("Мечтает: " + string.Join("; ", o.wants.ConvertAll(w => w.text.ToLower())), sWrap);
                     if (k01 >= 0.6f && o.Dream != null) GUILayout.Label($"Мечта всей жизни: {o.Dream.name.ToLower()} ({Mathf.RoundToInt(Dreams.Progress(o, o.Dream) * 100)}%)", sWrap);
                     float rel = Social.Rel(me, o);
@@ -205,7 +205,14 @@ namespace FoxLife
                     GUILayout.Label("Что помнится:", sBold);
                     int m = 0;
                     for (int i = me.memories.Count - 1; i >= 0 && m < 6; i--)
-                        if (me.memories[i].text.Contains(o.foxName)) { GUILayout.Label("• " + me.memories[i].text, sSmall); m++; }
+                    {
+                        var memory = me.memories[i];
+                        if (string.IsNullOrEmpty(memory.aboutId) ? memory.text.Contains(o.foxName) : memory.aboutId == o.id)
+                        {
+                            GUILayout.Label("• " + memory.text, sSmall);
+                            m++;
+                        }
+                    }
                     if (m == 0) GUILayout.Label("Пока ничего особенного.", sSmall);
                     break;
                 }

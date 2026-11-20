@@ -107,7 +107,7 @@ namespace FoxLife
             moodYesA = "Доверили ключ другу", valYesA = 3, moodYesB = "Мне доверили ключ", valYesB = 8,
             want = (a, b) => 0f, accept = (a, b) => 1f,
             available = (a, b) => a.GiveKeyReason(b) == null,
-            onSuccess = (a, b) => { b.GiveKey(a.home, KeyKind.Trusted, a); Game.I.LogPair(a, b, $"{a.foxName} даёт {b.foxName} постоянный ключ от дома."); },
+            onSuccess = (a, b) => { b.GiveKey(a.home, KeyKind.Trusted, a); Game.I.LogPair(a, b, $"{a.foxName} даёт {b.NameIn(NameCase.Dative)} постоянный ключ от дома."); },
         };
 
         static void Build()

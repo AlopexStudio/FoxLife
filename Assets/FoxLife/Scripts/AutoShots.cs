@@ -285,14 +285,39 @@ namespace FoxLife
             yield return new WaitForSeconds(1f);
             g.ui.townEditing = true;
             g.ui.townEditFox = g.FamilyOf(0)[0];
+            var nameFox = g.ui.townEditFox;
+            string nameFoxId = nameFox.id;
+            string cases = Phrases.Fill("{me}, {me:gen}, {me:dat}, {me:acc}, {me:ins}, {me:prep}", nameFox, null);
+            if (cases != "Рыжик, Рыжика, Рыжику, Рыжика, Рыжиком, Рыжике")
+                Debug.LogError("ПАДЕЖИ: неверные формы Рыжика: " + cases);
+            log.WriteLine("ПАДЕЖИ: " + cases);
+            if (Names.DefaultForm("Огонёк", NameCase.Genitive) != "Огонька" ||
+                Names.DefaultForm("Корица", NameCase.Instrumental) != "Корицей" ||
+                Names.DefaultForm("Лисичка 12", NameCase.Dative) != "Лисичке 12" ||
+                Names.DefaultForm("Чэнь", NameCase.Dative) != "Чэнь")
+                Debug.LogError("ПАДЕЖИ: ошибка в готовых формах или подстановке для своего имени.");
             g.cam.Focus(g.ui.townEditFox.transform.position, 5f); g.cam.pitch = 25f;
             yield return new WaitForSeconds(1.5f);
             yield return Shot("0e_family_edit");
+            nameFox.nameOverrides = new[] { "Рыжи", null, null, null, null };
             g.ui.townEditing = false;
             g.PlayFamily(0);
             log.WriteLine($"ИГРАЕМ: режим {g.mode}, семья {Game.FamilyTitle(g.Household)}, started {g.started}");
             yield return new WaitForSeconds(2f);
             yield return Shot("1_live");
+            int oldDisliked = nameFox.dislikedWeather;
+            nameFox.dislikedWeather = (int)WeatherKind.Storm;
+            if (Fox.WeatherName(WeatherKind.Storm) != "гроза" || Fox.WeatherName(WeatherKind.Storm, accusative: true) != "грозу")
+                Debug.LogError("ПОГОДА: неверные формы слова «гроза».");
+            yield return null;
+            g.Select(nameFox);
+            yield return null;
+            g.ui.ThinkAboutSelf(2);
+            yield return new WaitForSeconds(0.5f);
+            g.ui.foxScroll = new Vector2(0, 10000);
+            yield return Shot("1b_weather_thought");
+            g.ui.infoOpen = false;
+            nameFox.dislikedWeather = oldDisliked;
 
             // город: общий вид, кафе, парк, библиотека, соседи; поход в кафе по команде
             log.WriteLine($"ГОРОД: лисичек {g.foxes.Count}, наших {g.Household.Count}, мебели {g.furniture.Count}, участков {g.house.lots.Count}, комнат {g.house.rooms.Count}");
@@ -675,6 +700,10 @@ namespace FoxLife
             bool loaded = g.started;
             string after = $"{g.money:0} мон, {g.foxes[0].JobTitle}, навыки {string.Join(",", g.foxes[0].skillLvl)}, желаний {g.foxes[0].wants.Count}, {g.foxes.Count} лис, {g.furniture.Count} предметов, стены {ColorUtility.ToHtmlStringRGB(g.house.RoomAt(new Vector2Int(1, 1)).st.Get(1).c1) + " комнат " + g.house.rooms.Count}, {g.ClockText}";
             log.WriteLine($"SAVE {saved} LOAD {loaded}\n  до:    {before}\n  после: {after}");
+            var loadedFox = g.foxes.Find(f => f.id == nameFoxId);
+            if (loadedFox?.NameIn(NameCase.Genitive) != "Рыжи")
+                Debug.LogError("ПАДЕЖИ: ручная форма не восстановилась из сохранения.");
+            else log.WriteLine("ПАДЕЖИ: ручная форма сохранена и загружена — Рыжи.");
             yield return new WaitForSeconds(1f);
             yield return Shot("6_loaded");
             g.ui.screen = GameUI.MenuScreen.Pause;
@@ -686,6 +715,12 @@ namespace FoxLife
                 g.freeBuild = true;
                 var vac = g.VacantHomes();
                 var target = vac.Find(l => !g.house.rooms.Exists(r => r.lot == l.id)) ?? (vac.Count > 0 ? vac[0] : null);
+                if (target != null && g.LotIsEmpty(target.id))
+                {
+                    int grant = g.MoveInGrant(target.id);
+                    if (grant != 6000) Debug.LogError("ПОДЪЁМНЫЕ: за пустой участок начисляется " + grant);
+                    else log.WriteLine("ПОДЪЁМНЫЕ: за пустой участок — 6000.");
+                }
                 bool moved = target != null && g.MoveTo(target.id);
                 log.WriteLine($"ПЕРЕЕЗД: {moved}, теперь дом: {g.house.PlayerLot.name}, семья: {string.Join(", ", g.Household.ConvertAll(f => f.foxName + " " + g.house.LotAt(f.Cell)?.name))}");
                 yield return new WaitForSeconds(2f);
@@ -697,6 +732,9 @@ namespace FoxLife
                 g.house.SetEdge(pl.xMin + 5, pl.yMin + 8, false, EdgeKind.Door);
                 g.house.Rebuild();
                 log.WriteLine($"НОВЫЙ ДОМ: комнат на участке {g.house.rooms.FindAll(r => r.lot == House.PlayerLotId).Count}, высота пола {(g.house.rooms.Find(r => r.lot == House.PlayerLotId)?.elev ?? -99):0.00}");
+                int houseGrant = g.MoveInGrant(House.PlayerLotId);
+                if (moved && houseGrant != 4000) Debug.LogError("ПОДЪЁМНЫЕ: за пустой дом начисляется " + houseGrant);
+                else if (moved) log.WriteLine("ПОДЪЁМНЫЕ: за пустой дом — 4000.");
                 g.cam.Focus(new Vector3(pl.xMin + 6, 0, pl.yMin + 5), 16f);
                 yield return new WaitForSeconds(2f);
                 yield return Shot("9_newhouse");

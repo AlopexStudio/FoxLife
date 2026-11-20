@@ -159,7 +159,7 @@ namespace FoxLife
         public int MoveInGrant(int lot)
         {
             bool hasHouse = house.rooms.Exists(r => r.lot == lot);
-            if (!hasHouse) return 12000;
+            if (!hasHouse) return 6000;
             return LotFurnitureValue(lot) < 3000 ? 4000 : 0;
         }
 

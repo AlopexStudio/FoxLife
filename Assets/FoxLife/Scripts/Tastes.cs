@@ -72,8 +72,8 @@ namespace FoxLife
             dislikedWeather = (int)dis[rnd.Next(dis.Count)];
         }
 
-        public static string WeatherName(WeatherKind k) =>
-            k == WeatherKind.Clear ? "солнце" : k == WeatherKind.Cloudy ? "облака" : k == WeatherKind.Fog ? "туман" : k == WeatherKind.Rain ? "дождь" : "грозу";
+        public static string WeatherName(WeatherKind k, bool accusative = false) =>
+            k == WeatherKind.Clear ? "солнце" : k == WeatherKind.Cloudy ? "облака" : k == WeatherKind.Fog ? "туман" : k == WeatherKind.Rain ? "дождь" : accusative ? "грозу" : "гроза";
 
         /// <summary>Погода по вкусу и привязанность к дому — раз в какое-то время.</summary>
         void TasteEffects(float dm)
@@ -85,7 +85,7 @@ namespace FoxLife
                 tasteTimer = 90f;
                 var k = G.weather.kind;
                 if (k == LikedWeather) AddMoodlet("Любимая погода: " + WeatherName(k), 4, 150);
-                else if (k == DislikedWeather) AddMoodlet("Не люблю " + WeatherName(k), pers.N >= 7 ? -5 : -3, 150);
+                else if (k == DislikedWeather) AddMoodlet("Не люблю " + WeatherName(k, accusative: true), pers.N >= 7 ? -5 : -3, 150);
             }
             homeTimer -= dm;
             if (homeTimer <= 0)

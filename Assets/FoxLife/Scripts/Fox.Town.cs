@@ -96,14 +96,14 @@ namespace FoxLife
                     guest.BeGuest(myHome, 3f);
                     guest.GiveKey(myHome, KeyKind.Guest, host); // пригласили — дверь открыта
                     guest.Say(Phrases.Pick("guest:arrive", guest, host));
-                    guest.AddMoodlet("В гостях у " + host.foxName, 5, 240);
+                    guest.AddMoodlet("В гостях у " + host.NameIn(NameCase.Genitive), 5, 240);
                     host.AddMoodlet("Пришли гости", 4, 240);
                     Social.AddRel(guest, host, 3f);
-                    G.LogPair(guest, host, $"{guest.foxName} пришёл(ла) в гости к {host.foxName}.");
+                    G.LogPair(guest, host, $"{guest.foxName} {(guest.female ? "пришла" : "пришёл")} в гости к {host.NameIn(NameCase.Dative)}.");
                 },
             });
             Say("Приходи, буду ждать!");
-            G.LogPair(this, guest, $"{guest.foxName} идёт в гости к {foxName}.");
+            G.LogPair(this, guest, $"{guest.foxName} идёт в гости к {NameIn(NameCase.Dative)}.");
         }
 
         /// <summary>Пойти вместе в кафе, парк или куда-то ещё.</summary>

@@ -265,7 +265,7 @@ namespace FoxLife
                     : Social.Rel(opener, this) < -20f ? "Тебе здесь не рады." : "Извини, сейчас не до гостей.";
                 opener.Say(line.Replace("{|а}", opener.female ? "а" : ""));
                 AddMoodlet("Не впустили", -4, 120);
-                G.LogPair(this, opener, $"{opener.foxName} не впускает {foxName}" + (objector != null ? $" ({objector.foxName} против)." : "."));
+                G.LogPair(this, opener, $"{opener.foxName} не впускает {NameIn(NameCase.Accusative)}" + (objector != null ? $" ({objector.foxName} против)." : "."));
                 return;
             }
             bool trust = opener.KeyTo(lotId) == KeyKind.Family && KeyTo(lotId) < KeyKind.Trusted && TrustObjector(lotId) == null;
@@ -275,12 +275,12 @@ namespace FoxLife
                 opener.Say("Заходи! И держи ключ — приходи, когда захочешь.");
                 AddMoodlet("Мне доверили ключ", 8, 600);
                 Remember("Ключ от дома: " + (lot != null ? lot.name : opener.foxName));
-                G.LogPair(this, opener, $"{opener.foxName} даёт {foxName} постоянный ключ от дома.");
+                G.LogPair(this, opener, $"{opener.foxName} даёт {NameIn(NameCase.Dative)} постоянный ключ от дома.");
             }
             else
             {
                 opener.Say(Phrases.Pick("host:welcome", opener, this));
-                G.LogPair(this, opener, $"{opener.foxName} впускает {foxName} в гости.");
+                G.LogPair(this, opener, $"{opener.foxName} впускает {NameIn(NameCase.Accusative)} в гости.");
             }
             Social.AddRel(this, opener, 2f);
             opener.AddMoodlet("Пришли гости", 3, 180);
@@ -362,7 +362,7 @@ namespace FoxLife
             keys.RemoveAll(k => k.lot == lotId && k.kind == (int)KeyKind.Trusted);
             if (G.house.LotAt(Cell)?.id == lotId) GiveKey(lotId, KeyKind.Guest, by);
             AddMoodlet("Забрали ключ", -6, 300);
-            G.LogPair(this, by, $"{by.foxName} забирает у {foxName} ключ от дома.");
+            G.LogPair(this, by, $"{by.foxName} забирает у {NameIn(NameCase.Genitive)} ключ от дома.");
         }
 
         /// <summary>Почему нельзя дать ключ от нашего дома (null — можно).</summary>

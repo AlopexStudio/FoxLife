@@ -51,6 +51,22 @@ namespace FoxLife
         const float WalkSpeed = 1.7f;
 
         public string foxName = "Лисичка";
+        public string[] nameOverrides;
+
+        public string NameIn(NameCase nameCase)
+        {
+            if (nameCase == NameCase.Nominative) return foxName;
+            string manual = nameOverrides?[(int)nameCase - 1];
+            return string.IsNullOrWhiteSpace(manual) ? Names.DefaultForm(foxName, nameCase) : manual.Trim();
+        }
+
+        public void Rename(string name)
+        {
+            if (foxName != name) nameOverrides = null;
+            foxName = name;
+            gameObject.name = name;
+            if (style != null) style.displayName = name;
+        }
         public Personality pers = new Personality();
         public float earSize = 1f, tailFluff = 1f, size = 1f;
         public float[] needs = { 80, 80, 80, 80, 80 };
@@ -929,7 +945,7 @@ namespace FoxLife
             if (atWork) return career != null && career.id == "school" ? "сейчас на уроке" : "сейчас на работе";
             if (carried) return "сейчас на руках";
             if (sleeping) return "спит";
-            if (side != null) return "болтает с " + (side.other != null ? side.other.foxName : "кем-то");
+            if (side != null) return "болтает с " + (side.other != null ? side.other.NameIn(NameCase.Instrumental) : "кем-то");
             if (knock != null) return "стучится в дверь";
             if (current == null) return null;
             switch (current.kind)
@@ -1640,8 +1656,8 @@ namespace FoxLife
                 if (atWork && career != null) return $"На работе ({JobTitle}) до {career.endHour}:00";
                 if (current == null) return "Ничего не делает";
                 if (current.kind == ActKind.UseObject && current.stage < 2) return "Идёт: " + current.inter.name.ToLower();
-                if (current.kind == ActKind.Social && current.stage < 2) return "Идёт к собеседнику: " + current.other.foxName;
-                if (side != null && side.other != null) return current.label + " · болтает с " + side.other.foxName;
+                if (current.kind == ActKind.Social && current.stage < 2) return "Идёт к " + current.other.NameIn(NameCase.Dative);
+                if (side != null && side.other != null) return current.label + " · болтает с " + side.other.NameIn(NameCase.Instrumental);
                 return current.label;
             }
         }
