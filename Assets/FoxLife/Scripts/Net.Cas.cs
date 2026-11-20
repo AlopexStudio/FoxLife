@@ -25,6 +25,7 @@ namespace FoxLife
         public float health = -1, mental = -1;
         public List<string> interests = new List<string>();
         public int likedSeason = -1;
+        public string[] forms;   // свои падежные формы имени (или пусто)
 
         public static NetCas Of(Fox f) => new NetCas
         {
@@ -38,6 +39,7 @@ namespace FoxLife
             needs = new[] { Mathf.Round(f.needs[0]), Mathf.Round(f.needs[1]), Mathf.Round(f.needs[2]), Mathf.Round(f.needs[3]), Mathf.Round(f.needs[4]) },
             health = Mathf.Round(f.health), mental = Mathf.Round(f.mental),
             interests = new List<string>(f.interests), likedSeason = f.likedSeason,
+            forms = f.nameOverrides != null ? (string[])f.nameOverrides.Clone() : new string[0],
         };
 
         public void ApplyTo(Fox f)
@@ -75,6 +77,7 @@ namespace FoxLife
             if (health >= 0) f.health = Mathf.Clamp(health, 0, 100);
             if (interests != null) { f.interests.Clear(); foreach (var x in interests) if (Interests.Get(x) != null && f.interests.Count < Interests.Max && !f.interests.Contains(x)) f.interests.Add(x); f.interestsSet = true; }
             if (likedSeason >= 0) f.likedSeason = Mathf.Clamp(likedSeason, 0, 3);
+            f.nameOverrides = forms != null && forms.Length == RussianCases.CaseCount ? RussianCases.CopyOverrides(forms) : null;
             if (mental >= 0) f.mental = Mathf.Clamp(mental, 0, 100);
         }
     }

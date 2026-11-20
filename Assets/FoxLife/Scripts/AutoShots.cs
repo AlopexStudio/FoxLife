@@ -520,7 +520,30 @@ namespace FoxLife
             yield return new WaitForSeconds(1f);
             yield return Shot("3b_create_pajama");
             g.ui.outfitTab = 0;
+            g.ui.casTab = 3;
+            yield return Shot("3b_create_pajama_tab");
+            g.ui.casTab = 0;
             yield return Shot("3_create");
+            for (int tab = 1; tab <= 6; tab++) { g.ui.casTab = tab; yield return new WaitForSeconds(0.4f); yield return Shot("3t" + tab + "_create_tab"); }
+            g.ui.casTab = 0;
+            // отмена правки в редакторе: переименовали и сменили характер — Ctrl+Z возвращает
+            if (g.selected != null)
+            {
+                var cf = g.selected;
+                string n0 = cf.foxName; int o0 = cf.pers.v[0];
+                yield return new WaitForSeconds(0.5f);
+                cf.Rename("Проверка"); cf.pers.v[0] = o0 >= 9 ? 1 : 10;
+                yield return new WaitForSeconds(0.8f);
+                bool can = g.CanUndo;
+                g.Undo();
+                yield return new WaitForSeconds(0.3f);
+                log.WriteLine($"ОТМЕНА ЛИСИЧКИ: можно {can}, имя {cf.foxName} (было {n0}), открытость {cf.pers.v[0]} (было {o0})");
+            }
+            // каталог стройки карточками с картинками
+            g.SetMode(Mode.Build);
+            g.ui.buildTab = 0;
+            yield return new WaitForSeconds(2.5f);
+            yield return Shot("4b_catalog");
 
             // дом снаружи с поднятыми стенами — проверка окон и двери
             g.SetMode(Mode.Live);

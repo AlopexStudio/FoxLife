@@ -16,7 +16,7 @@ namespace FoxLife
         // ---------- кого редактируем в «создании лисички» ----------
 
         Fox CasFox => G.mode == Mode.Town ? townEditFox : G.selected;
-        int CasLot => G.mode == Mode.Town ? townLot : House.PlayerLotId;
+        int CasLot => G.mode == Mode.Town ? (townEditFox != null && townEditFox.home >= 0 ? townEditFox.home : townLot) : House.PlayerLotId;
         List<Fox> CasFamily => G.FamilyOf(CasLot);
 
         void CasSelect(Fox f)
@@ -309,6 +309,7 @@ namespace FoxLife
         {
             TownLabels();
             // плашка в левом нижнем углу: название города и «Сохранить город»
+            if (townEditing && !townSaveOpen) { CreatePanel(); return; } // редактор семьи — на весь край, без нижней плашки
             var titleSt = new GUIStyle(sTitle) { wordWrap = false };
             float tw = Mathf.Clamp(titleSt.CalcSize(new GUIContent(G.townName + " — семьи")).x + 200, 380, 620);
             Begin(new Rect(10, vh - 68, tw, 58));

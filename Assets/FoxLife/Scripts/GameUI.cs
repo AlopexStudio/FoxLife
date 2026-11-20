@@ -309,7 +309,7 @@ namespace FoxLife
                 bool live = G.mode == Mode.Live;
                 TimePanel(live && G.selected != null ? new Rect(10, vh - 256, 420, 66) : live ? new Rect(10, vh - 78, 420, 66) : new Rect((vw - 420) / 2, vh - 78, 420, 66));
                 ModeBar();
-                HouseholdStrip();
+                if (G.mode != Mode.Create) HouseholdStrip();
                 switch (G.mode)
                 {
                     case Mode.Live: PortraitCard(); InfoPanel(); Notifications(); KnockNotice(); break;
@@ -1078,7 +1078,7 @@ namespace FoxLife
 
         void BuildPanel()
         {
-            float panelWidth = G.townBuilder && buildTab == 3 ? 460 : 330;
+            float panelWidth = G.townBuilder && buildTab == 3 ? 460 : buildTab == 0 ? 376 : 330;
             Begin(new Rect(vw - panelWidth - 10, 130, panelWidth, vh - 130 - 110));
             GUILayout.BeginHorizontal();
             GUILayout.Label(G.townBuilder ? "Город" : "Обустройство", sTitle);
@@ -1133,30 +1133,29 @@ namespace FoxLife
 
             var cats = G.townBuilder ? Catalog.TownCategories : Catalog.Categories;
             if (buildCat >= cats.Length) buildCat = 0;
+            // поиск по названию — сразу по всем разделам
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Найти", sBold, W(54));
+            GUI.SetNextControlName("buildsearch");
+            buildSearch = GUILayout.TextField(buildSearch ?? "", 30, sField, W(230));
+            if (!string.IsNullOrEmpty(buildSearch) && Btn(new GUIContent("×", "Очистить поиск"), false, W(30))) Defer(() => { buildSearch = ""; GUI.FocusControl(null); });
+            GUILayout.EndHorizontal();
+            GUILayout.Space(4);
             for (int row = 0; row < cats.Length; row += 3)
             {
                 GUILayout.BeginHorizontal();
                 for (int i = row; i < Mathf.Min(row + 3, cats.Length); i++)
                 {
                     int k = i;
-                    if (Btn(cats[i], buildCat == i, W(96))) Defer(() => buildCat = k);
+                    if (Btn(cats[i], buildCat == i && string.IsNullOrEmpty(buildSearch), W(110))) Defer(() => { buildCat = k; buildSearch = ""; buildScroll = Vector2.zero; });
                 }
                 GUILayout.EndHorizontal();
             }
             GUILayout.Space(6);
-            buildScroll = GUILayout.BeginScrollView(buildScroll);
-            foreach (var d in Catalog.All)
-            {
-                if (!d.buildable || d.category != cats[buildCat]) continue;
-                var def = d;
-                string price = G.freeBuild ? "" : $"  — {d.price} мон.";
-                bool afford = G.CanAfford(d);
-                GUI.enabled = afford;
-                if (Btn(new GUIContent(d.name + price, (d.description ?? "") + (afford ? "" : "\nНе хватает монет.")))) Defer(() => G.StartPlacing(def));
-                GUI.enabled = true;
-            }
+            buildScroll = GUILayout.BeginScrollView(buildScroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
+            CatalogGrid(cats, panelWidth - 40);
             GUILayout.EndScrollView();
-            GUILayout.Label("Клик по мебели в доме — взять и переставить.\nShift+клик при установке — поставить ещё.\nDel — продать предмет под курсором.\nКупленное за последние сутки сдаётся по полной цене, потом — за 75%. Стены, двери и окна — всегда по полной.", sSmall);
+            GUILayout.Label("Клик по вещи в доме — переставить · Shift+клик — поставить ещё · Del — продать. Купленное сегодня сдаётся по полной цене, потом — за 75%.", sSmall);
             if (G.ghost != null && G.movingExisting && !G.freeBuild)
                 if (!G.freeBuild) ColorLabel($"Продать за {G.SellValue(G.ghost)} мон. (Del)" + (G.FullRefund(G.ghost) ? " — полная цена, куплено недавно" : ""), sBold, new Color(0.2f, 0.5f, 0.25f));
             End();
@@ -1363,7 +1362,9 @@ namespace FoxLife
 
         void StylePanel()
         {
-            Begin(new Rect(vw - 420, 74, 410, vh - 74 - 110));
+            var spr = new Rect(vw - 420, 74, 410, vh - 74 - 110);
+            Begin(spr);
+            if (Event.current.type == EventType.Repaint) Fill(new Rect(6, 6, spr.width - 12, 44), new Color(0.55f, 0.4f, 0.85f, 0.14f));
             styleScroll = GUILayout.BeginScrollView(styleScroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
             GUILayout.BeginHorizontal();
             GUILayout.Label("Создание стиля", sTitle);
@@ -1478,6 +1479,7 @@ namespace FoxLife
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
 
+            RecentColors(t, part);
             GUILayout.Label("Стандартная палитра — эти цвета сочетаются между собой", sSmall);
             for (int row = 0; row < stdColors.Length; row += 12)
             {
@@ -1605,8 +1607,43 @@ namespace FoxLife
 
         void ApplyHsv(Styleable t, int part) => SetSlotColor(t, part, Color.HSVToRGB(hue, sat, val), true);
 
+        // недавние цвета: последние 12 выбранных (без повторов) — чтобы быстро красить в «тот же оттенок»
+        readonly List<Color> recentColors = new List<Color>();
+        float recentTimer;
+        Color recentPending; bool recentHas;
+
+        void RememberColor(Color c)
+        {
+            recentColors.RemoveAll(x => Mathf.Abs(x.r - c.r) + Mathf.Abs(x.g - c.g) + Mathf.Abs(x.b - c.b) < 0.03f);
+            recentColors.Insert(0, c);
+            if (recentColors.Count > 12) recentColors.RemoveAt(recentColors.Count - 1);
+        }
+
+        void RecentColors(Styleable t, int part)
+        {
+            // цвет запоминается, когда его перестали крутить на круге
+            if (recentHas && Time.unscaledTime - recentTimer > 0.8f) { recentHas = false; RememberColor(recentPending); }
+            if (recentColors.Count == 0) return;
+            GUILayout.Label("Недавние цвета", sSmall);
+            GUILayout.BeginHorizontal();
+            foreach (var c0 in recentColors)
+            {
+                var c = c0;
+                var r = GUILayoutUtility.GetRect(26, 26, W(26), Hh(26));
+                if (Event.current.type == EventType.Repaint)
+                {
+                    Fill(r, new Color(0.3f, 0.2f, 0.1f, 0.5f));
+                    Fill(new Rect(r.x + 1, r.y + 1, r.width - 2, r.height - 2), c);
+                }
+                if (GUI.Button(r, new GUIContent("", "#" + ColorUtility.ToHtmlStringRGB(c)), GUIStyle.none))
+                    Defer(() => { Color.RGBToHSV(c, out hue, out sat, out val); SetSlotColor(t, part, c, true); });
+            }
+            GUILayout.EndHorizontal();
+        }
+
         void SetSlotColor(Styleable t, int part, Color c, bool updateHex)
         {
+            recentPending = c; recentHas = true; recentTimer = Time.unscaledTime;
             var ns = t.Get(part).Clone();
             if (colorSlot == 0) ns.c1 = c; else ns.c2 = c;
             G.StyleEdit(t, part, ns);
@@ -1644,59 +1681,155 @@ namespace FoxLife
 
         // ---------- лисички: характер и внешность ----------
 
+        // ================= создание и редактирование лисичек =================
+
+        public int casTab;
+        static readonly (string name, string icon, string tip)[] CasTabs =
+        {
+            ("Кто", "fox", "Имя, пол, возраст"),
+            ("Характер", "mood", "Пять черт характера"),
+            ("Вид", "style", "Уши, хвост, рост, окрас"),
+            ("Одежда", "create", "Наряды и транспорт"),
+            ("Вкусы", "wants", "Стихия, погода, время года, увлечения"),
+            ("Умения", "skills", "Навыки и работа"),
+            ("Мечты", "needs", "Желания и состояния"),
+        };
+
+        static readonly Color CasHeader = new Color(0.98f, 0.62f, 0.32f);
+
+        /// <summary>
+        /// Редактор лисичек: слева — семья портретами, ниже — вкладки (кто, характер, вид, одежда, вкусы, умения, мечты).
+        /// Внизу — отмена/повтор (Ctrl+Z), «Случайная лисичка», «Готово». Лисичка видна справа крупно.
+        /// </summary>
         void CreatePanel()
         {
             var f = CasFox;
-            Begin(new Rect(10, 80, 450, vh - 80 - 30));
-            createScroll = GUILayout.BeginScrollView(createScroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Семья", sTitle);
-            GUILayout.FlexibleSpace();
-            if (Btn("Готово", true, W(110))) Defer(() =>
+            CasUndoTrack(f);
+            float w = 470, x = 10, y = 80, h = vh - 80 - 20;
+            var outer = new Rect(x, y, w, h);
+            GUI.Box(outer, GUIContent.none, sPanel);
+            // шапка
+            if (Event.current.type == EventType.Repaint) Fill(new Rect(outer.x + 6, outer.y + 6, outer.width - 12, 46), new Color(CasHeader.r, CasHeader.g, CasHeader.b, 0.18f));
+            var title = new GUIStyle(sTitle) { fontSize = 22 };
+            GUI.Label(new Rect(x + 18, y + 12, 200, 34), G.mode == Mode.Town ? "Семья" : "Лисички", title);
+            GUI.enabled = G.CanUndo;
+            if (Btn(new Rect(x + w - 236, y + 14, 34, 30), new GUIContent("←", "Отменить (Ctrl+Z)"), false)) Defer(() => G.Undo());
+            GUI.enabled = G.CanRedo;
+            if (Btn(new Rect(x + w - 198, y + 14, 34, 30), new GUIContent("→", "Повторить (Ctrl+Y)"), false)) Defer(() => G.Redo());
+            GUI.enabled = true;
+            if (Btn(new Rect(x + w - 158, y + 14, 140, 30), new GUIContent("Готово", "Вернуться"), true)) Defer(() =>
             {
+                G.ClearUndo();
                 if (G.mode == Mode.Create) { G.SetMode(Mode.Live); return; }
                 townEditing = false;
                 G.cam.Focus(G.cam.target, 999f);
                 G.cam.dist = 60f;
                 G.cam.pitch = 55f;
             });
-            GUILayout.EndHorizontal();
-            var family = CasFamily;
-            for (int row = 0; row < family.Count; row += 3)
-            {
-                GUILayout.BeginHorizontal();
-                for (int i = row; i < Mathf.Min(row + 3, family.Count); i++)
-                {
-                    var fox = family[i];
-                    if (Btn(fox.foxName, fox == f, W(130))) Defer(() => CasSelect(fox));
-                }
-                GUILayout.EndHorizontal();
-            }
-            if (f == null) { GUILayout.EndScrollView(); End(); return; }
 
-            GUILayout.Space(6);
+            // семья — портретами
+            var family = CasFamily;
+            float py = y + 60, px = x + 14;
+            int lotNow = CasLot;
+            for (int i = 0; i < family.Count; i++)
+            {
+                var fox = family[i];
+                var r = new Rect(px + i * 54, py, 48, 48);
+                if (fox == f && Event.current.type == EventType.Repaint) Fill(new Rect(r.x - 3, r.y - 3, r.width + 6, r.height + 6), CasHeader);
+                DrawPortrait(r, fox);
+                if (r.Contains(Event.current.mousePosition)) tip = fox.foxName + " — " + fox.Summary.ToLower() + ", " + fox.StageName;
+                var nm = new GUIStyle(sSmall) { alignment = TextAnchor.UpperCenter, fontSize = 11, clipping = TextClipping.Clip };
+                GUI.Label(new Rect(r.x - 4, r.yMax + 1, r.width + 8, 16), fox.foxName, nm);
+                if (GUI.Button(r, GUIContent.none, GUIStyle.none)) { var fx = fox; Defer(() => CasSelect(fx)); }
+            }
+            if (G.HomeCount(lotNow) < Game.MaxFoxes)
+            {
+                var r = new Rect(px + family.Count * 54, py, 48, 48);
+                if (Btn(r, new GUIContent("+", "Новая лисичка в семью"), false))
+                    Defer(() => { if (Net.IsClient) { if (f != null) Net.I.CasAddFox(f); return; } var nf = G.AddRandomFox(lotNow); if (nf != null) CasSelect(nf); });
+            }
+            if (f == null) return;
+
+            // вкладки
+            float ty = py + 70;
+            float tw = (w - 28) / CasTabs.Length;
+            for (int i = 0; i < CasTabs.Length; i++)
+            {
+                var r = new Rect(x + 14 + i * tw, ty, tw - 4, 52);
+                bool on = casTab == i;
+                if (Event.current.type == EventType.Repaint)
+                {
+                    Fill(r, on ? CasHeader : new Color(0.93f, 0.9f, 0.86f));
+                    var old = GUI.color;
+                    GUI.color = on ? Color.white : SimsInk;
+                    GUI.DrawTexture(new Rect(r.center.x - 11, r.y + 6, 22, 22), Icon(CasTabs[i].icon));
+                    GUI.color = old;
+                }
+                var ts = new GUIStyle(sSmall) { alignment = TextAnchor.LowerCenter, fontSize = 11, fontStyle = on ? FontStyle.Bold : FontStyle.Normal };
+                ts.normal.textColor = on ? Color.white : SimsInk;
+                GUI.Label(new Rect(r.x, r.y, r.width, r.height - 4), CasTabs[i].name, ts);
+                if (r.Contains(Event.current.mousePosition)) tip = CasTabs[i].tip;
+                int k = i;
+                if (GUI.Button(r, GUIContent.none, GUIStyle.none)) Defer(() => { casTab = k; createScroll = Vector2.zero; });
+            }
+
+            // содержимое вкладки
+            var body = new Rect(x + 14, ty + 60, w - 22, y + h - (ty + 60) - 52);
+            GUILayout.BeginArea(body);
+            createScroll = GUILayout.BeginScrollView(createScroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
+            switch (casTab)
+            {
+                case 0: CasWho(f); break;
+                case 1: CasCharacter(f); break;
+                case 2: CasLook(f); break;
+                case 3: ClothesSection(f); break;
+                case 4: CasMore(f); break;
+                case 5: CasSkills(f); break;
+                default: CasWantsStates(f); break;
+            }
+            GUILayout.EndScrollView();
+            GUILayout.EndArea();
+
+            // низ: случайная, отпустить
+            float by = y + h - 44;
+            if (Btn(new Rect(x + 14, by, 200, 32), new GUIContent("Случайная лисичка", "Новые имя, характер, вид и вкусы — можно отменить"), false))
+                Defer(() => CasRandomize(f));
+            if (G.HomeCount(lotNow) > 1 && Btn(new Rect(x + w - 200, by, 186, 32), new GUIContent("Отпустить в лес", "Убрать эту лисичку из семьи"), false))
+                Defer(() => { if (Net.IsClient) { Net.I.CasRemoveFox(f); return; } G.RemoveFox(f); CasSelect(G.FamilyOf(lotNow).Count > 0 ? G.FamilyOf(lotNow)[0] : null); });
+        }
+
+        void CasWho(Fox f)
+        {
             FoxNameFields(f);
+            GUILayout.Space(6);
             ColorLabel(f.Summary, sBig, Accent);
+            GUILayout.Space(4);
+            GUILayout.Label("Пол", sBold);
             GUILayout.BeginHorizontal();
-            if (Btn("Лис", !f.female, W(80))) Defer(() => f.female = false);
-            if (Btn("Лисица", f.female, W(80))) Defer(() => f.female = true);
+            if (Btn("Лис", !f.female, W(140))) Defer(() => f.female = false);
+            if (Btn("Лисица", f.female, W(140))) Defer(() => f.female = true);
             GUILayout.EndHorizontal();
+            GUILayout.Space(4);
+            GUILayout.Label("Возраст", sBold);
             GUILayout.BeginHorizontal();
             string[] stages = { "Лисёнок", "Подросток", "Взрослый", "Пожилой" };
             for (int i = 0; i < 4; i++)
             {
                 var st = (LifeStage)i;
-                if (Btn(stages[i], f.stage == st, W(95))) Defer(() => { if (f.stage != st) f.SetStage(st, false); });
+                if (Btn(stages[i], f.stage == st, W(101))) Defer(() => { if (f.stage != st) f.SetStage(st, false); });
             }
             GUILayout.EndHorizontal();
+            GUILayout.Space(10);
+            GUILayout.Label("Подсказка: Ctrl+Z отменяет любую правку лисички, Ctrl+Y — возвращает.", sSmall);
+        }
 
-            GUILayout.Space(8);
+        void CasCharacter(Fox f)
+        {
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Характер", sBig);
+            ColorLabel(f.Summary, sBig, Accent);
             GUILayout.FlexibleSpace();
-            if (Btn("Случайный")) Defer(() => f.pers = Personality.Random());
+            if (Btn("Случайный", false, W(120))) Defer(() => f.pers = Personality.Random());
             GUILayout.EndHorizontal();
-
             for (int i = 0; i < 5; i++)
             {
                 int v = f.pers.v[i];
@@ -1713,21 +1846,38 @@ namespace FoxLife
                 GUILayout.EndHorizontal();
                 GUILayout.Label(PersonalityInfo.TierDescription(i, v), sWrap);
             }
+        }
 
-            GUILayout.Space(10);
-            GUILayout.Label("Внешность", sBig);
+        void CasLook(Fox f)
+        {
+            GUILayout.Label("Фигура", sBig);
             ShapeSlider("Уши", ref f.earSize, 0.7f, 1.6f, f);
             ShapeSlider("Хвост", ref f.tailFluff, 0.7f, 1.5f, f);
             ShapeSlider("Рост", ref f.size, 0.8f, 1.15f, f);
-
-            GUILayout.Label("Окрас", sBold);
-            for (int row = 0; row < Game.FurPresets.Length; row += 3)
+            GUILayout.Space(8);
+            GUILayout.Label("Окрас", sBig);
+            // образцы окраса: три полоски цвета (основной, светлый, тёмный) и название
+            const int cols = 3;
+            for (int row = 0; row < Game.FurPresets.Length; row += cols)
             {
                 GUILayout.BeginHorizontal();
-                for (int i = row; i < Mathf.Min(row + 3, Game.FurPresets.Length); i++)
+                for (int i = row; i < Mathf.Min(row + cols, Game.FurPresets.Length); i++)
                 {
                     var p = Game.FurPresets[i];
-                    if (Btn(p.name, false, W(130)))
+                    var r = GUILayoutUtility.GetRect(140, 54, W(140), Hh(54));
+                    bool cur = f.style.Get(0).c1 == StyleData.Hex(p.fur);
+                    if (Event.current.type == EventType.Repaint)
+                    {
+                        Fill(r, cur ? CasHeader : new Color(0.93f, 0.9f, 0.86f));
+                        var sw = new Rect(r.x + 6, r.y + 6, r.width - 12, 22);
+                        Fill(new Rect(sw.x, sw.y, sw.width * 0.5f, sw.height), StyleData.Hex(p.fur));
+                        Fill(new Rect(sw.x + sw.width * 0.5f, sw.y, sw.width * 0.25f, sw.height), StyleData.Hex(p.light));
+                        Fill(new Rect(sw.x + sw.width * 0.75f, sw.y, sw.width * 0.25f, sw.height), StyleData.Hex(p.dark));
+                    }
+                    var ns = new GUIStyle(sSmall) { alignment = TextAnchor.LowerCenter, fontSize = 12 };
+                    ns.normal.textColor = cur ? Color.white : SimsInk;
+                    GUI.Label(new Rect(r.x, r.y, r.width, r.height - 4), p.name, ns);
+                    if (GUI.Button(r, GUIContent.none, GUIStyle.none))
                         Defer(() =>
                         {
                             f.style.SetStyle(0, StyleData.Make("Гладкий", p.fur));
@@ -1736,20 +1886,80 @@ namespace FoxLife
                         });
                 }
                 GUILayout.EndHorizontal();
+                GUILayout.Space(4);
             }
-            ClothesSection(f);
-            CasMore(f);
+            GUILayout.Label("Свой окрас и узоры — в «Создании стиля»: кликни по лисичке.", sSmall);
+        }
 
-            GUILayout.Space(10);
-            GUILayout.BeginHorizontal();
-            int lotNow = CasLot;
-            if (G.HomeCount(lotNow) < Game.MaxFoxes && Btn("+ Новая лисичка"))
-                Defer(() => { if (Net.IsClient) { Net.I.CasAddFox(f); return; } var nf = G.AddRandomFox(lotNow); if (nf != null) CasSelect(nf); });
-            if (G.HomeCount(lotNow) > 1 && Btn(new GUIContent("Отпустить в лес", "Убрать эту лисичку из семьи")))
-                Defer(() => { if (Net.IsClient) { Net.I.CasRemoveFox(f); return; } G.RemoveFox(f); CasSelect(G.FamilyOf(lotNow).Count > 0 ? G.FamilyOf(lotNow)[0] : null); });
-            GUILayout.EndHorizontal();
-            GUILayout.EndScrollView();
-            End();
+        /// <summary>Случайная лисичка: имя, характер, фигура, окрас и вкусы (пол и возраст остаются).</summary>
+        void CasRandomize(Fox f)
+        {
+            f.pers = Personality.Random();
+            string nn = Names.Pick(f.female, n => G.foxes.Exists(o => o != f && o.foxName == n));
+            if (!string.IsNullOrEmpty(nn)) f.Rename(nn);
+            f.earSize = Random.Range(0.85f, 1.4f); f.tailFluff = Random.Range(0.85f, 1.3f); f.size = Random.Range(0.88f, 1.08f);
+            f.ApplyShape();
+            var p = Game.FurPresets[Random.Range(0, Game.FurPresets.Length)];
+            f.style.SetStyle(0, StyleData.Make("Гладкий", p.fur));
+            f.style.SetStyle(1, StyleData.Make("Гладкий", p.light));
+            f.style.SetStyle(2, StyleData.Make("Гладкий", p.dark));
+            f.elementId = -1; f.likedWeather = -1; f.dislikedWeather = -1;
+            f.likedSeason = Random.Range(0, 4);
+            f.interests = Interests.Random(f.pers); f.interestsSet = true;
+            f.NewLook();
+        }
+
+        // ---------- отмена в редакторе лисичек: снимок правок раз в 0,3 с ----------
+
+        Fox casSnapFox;
+        string casSnap;
+        float casSnapTimer;
+
+        [System.Serializable] class CasSnapshot { public NetCas cas; public NetFoxStyle look; }
+
+        static string CasState(Fox f)
+        {
+            f.SyncWorn();
+            var look = new NetFoxStyle();
+            foreach (var p in f.style.parts) look.fur.Add(p.style.Clone());
+            if (f.outfits != null) look.outfits.AddRange(f.outfits);
+            var cas = NetCas.Of(f);
+            cas.needs = null; cas.health = -1; cas.mental = -1; cas.skillXp = null; // то, что меняется само, — не правка
+            return JsonUtility.ToJson(new CasSnapshot { cas = cas, look = look });
+        }
+
+        static void CasRestore(Fox f, string json)
+        {
+            if (f == null || string.IsNullOrEmpty(json)) return;
+            var s = JsonUtility.FromJson<CasSnapshot>(json);
+            if (s == null) return;
+            s.cas?.ApplyTo(f);
+            if (s.look != null)
+            {
+                if (s.look.fur != null) for (int i = 0; i < s.look.fur.Count && i < f.style.parts.Count; i++) f.style.SetStyle(i, s.look.fur[i]);
+                if (s.look.outfits != null && s.look.outfits.Count == 3)
+                {
+                    // глубокая копия нарядов через JSON, чтобы отмена не делила вещи со снимком
+                    var copy = JsonUtility.FromJson<NetFoxStyle>(JsonUtility.ToJson(s.look));
+                    f.outfits = copy.outfits.ToArray();
+                    f.wornOutfit = -1;
+                }
+            }
+        }
+
+        void CasUndoTrack(Fox f)
+        {
+            if (f == null) { casSnapFox = null; return; }
+            if (f != casSnapFox) { casSnapFox = f; casSnap = CasState(f); casSnapTimer = 0.3f; return; }
+            casSnapTimer -= Time.unscaledDeltaTime;
+            if (casSnapTimer > 0 || Event.current.type != EventType.Repaint) return;
+            casSnapTimer = 0.3f;
+            string now = CasState(f);
+            if (now == casSnap) return;
+            string before = casSnap, after = now;
+            var fox = f;
+            casSnap = now;
+            G.PushCasUndo(fox.foxName, () => { CasRestore(fox, before); casSnap = before; }, () => { CasRestore(fox, after); casSnap = after; }, fox);
         }
 
         /// <summary>Всё остальное о лисичке: вкусы, погода, умения, работа, мечты, настроение — чтобы сразу создать такую, как хочешь.</summary>
@@ -1812,7 +2022,10 @@ namespace FoxLife
                 GUILayout.EndHorizontal();
             }
 
-            GUILayout.Space(10);
+        }
+
+        void CasSkills(Fox f)
+        {
             GUILayout.Label("Умения", sBig);
             for (int s = 0; s < Skills.Count; s++)
             {
@@ -1859,11 +2072,14 @@ namespace FoxLife
                 }
             }
 
-            GUILayout.Space(10);
+        }
+
+        void CasWantsStates(Fox f)
+        {
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Мечты", sBig);
+            GUILayout.Label("Желания", sBig);
             GUILayout.FlexibleSpace();
-            if (Btn(new GUIContent("Другие мечты", "Загадать новые желания"))) Defer(() => { f.wants.Clear(); f.RefreshWants(); });
+            if (Btn(new GUIContent("Другие желания", "Загадать новые желания"))) Defer(() => { f.wants.Clear(); f.RefreshWants(); });
             GUILayout.EndHorizontal();
             foreach (var w in f.wants) GUILayout.Label("• " + w.DisplayText, sWrap);
 

@@ -59,9 +59,14 @@ namespace FoxLife
         public bool CanUndo => undoList.Count > 0;
         public bool CanRedo => redoList.Count > 0;
 
+        /// <summary>Правка лисички в редакторе (снимок до и после); быстрые правки одной лисички склеиваются.</summary>
+        public void PushCasUndo(string who, Action undo, Action redo, Fox key) => PushUndo("правка лисички " + who, undo, redo, key);
+
         void UndoKeys()
         {
-            if (mode != Mode.Build && mode != Mode.Style) return;
+            if (ui != null && ui.Typing) return;
+            bool cas = mode == Mode.Create || (mode == Mode.Town && ui != null && ui.townEditing);
+            if (mode != Mode.Build && mode != Mode.Style && !cas) return;
             bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
             if (!ctrl) return;
             bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);

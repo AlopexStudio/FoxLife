@@ -432,7 +432,8 @@ namespace FoxLife
         {
             if (townBuilder && (m == Mode.Live || m == Mode.Create || m == Mode.Town)) return; // в строительстве города лисички не участвуют
             CancelPlacing();
-            if (m != Mode.Build && m != Mode.Style) ClearUndo(); // история правок — только пока открыт план
+            bool plan = m == Mode.Build || m == Mode.Style, wasPlan = mode == Mode.Build || mode == Mode.Style;
+            if (!(plan && wasPlan) && m != mode) ClearUndo(); // история правок — своя у плана (стройка+стили) и у редактора лисичек
             SetWallTool(WallTool.None);
             SetLandTool(LandTool.None);
             mode = m;

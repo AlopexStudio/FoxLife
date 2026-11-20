@@ -182,6 +182,7 @@ namespace FoxLife
         void LateUpdate()
         {
             UpdateFoxSeen();
+            RenderThumbs();
             if (portraitQueue.Count == 0) return;
             var list = new List<Fox>(portraitQueue);
             portraitQueue.Clear();
