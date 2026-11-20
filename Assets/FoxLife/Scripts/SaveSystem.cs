@@ -549,6 +549,7 @@ namespace FoxLife
                 if (sf.romance != null)
                     foreach (var r in sf.romance)
                         if (byId.TryGetValue(r.other, out var b) && a != b) a.romance[b] = r.value;
+                foreach (var w in a.wants) w.BindLegacyTarget();
             }
 
             // семьи в архиве

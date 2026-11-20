@@ -311,6 +311,7 @@ namespace FoxLife
                     break;
                 }
                 case "knock": fox.CommandKnock(I1(), null); break;
+                case "visit": { var t = FoxById(a1); if (t != null) fox.VisitHome(t); break; }
                 case "invite": { var t = FoxById(a1); if (t != null) fox.InviteOver(t); break; }
                 case "goout":
                 {

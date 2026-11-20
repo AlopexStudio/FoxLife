@@ -137,7 +137,7 @@ namespace FoxLife
         // ---------- стук в дверь ----------
 
         /// <summary>Подойти к двери дома и постучать; если впустят — заняться делом then (если есть).</summary>
-        public void KnockAt(int lotId, House.DoorLeaf door = null, FoxAction then = null, bool byPlayer = true)
+        public void KnockAt(int lotId, House.DoorLeaf door = null, FoxAction then = null, bool byPlayer = true, Fox host = null)
         {
             var lot = G.house.LotById(lotId);
             if (lot == null) return;
@@ -146,7 +146,7 @@ namespace FoxLife
             var me = this;
             queue.Add(new FoxAction
             {
-                kind = ActKind.Move, byPlayer = byPlayer, label = "Идёт к двери: " + lot.name,
+                kind = ActKind.Move, byPlayer = byPlayer, other = host, label = "Идёт к двери: " + lot.name,
                 moveTarget = GridMap.Center(outside) + Vector3.up * G.house.FloorY(0, outside),
                 onArrive = () => me.StartKnock(lotId, door, then),
             });
@@ -203,7 +203,7 @@ namespace FoxLife
             Say(Random.value < 0.5f ? "Иду-иду!" : "Кто там?");
             queue.Insert(0, new FoxAction
             {
-                kind = ActKind.Move, label = "Идёт открывать дверь",
+                kind = ActKind.Move, label = "Идёт открывать дверь " + visitor.NameIn(NameCase.Dative),
                 moveTarget = GridMap.Center(inside) + Vector3.up * G.house.FloorY(0, inside),
                 onArrive = () => visitor.DoorOpened(me),
             });
@@ -274,7 +274,7 @@ namespace FoxLife
             {
                 opener.Say("Заходи! И держи ключ — приходи, когда захочешь.");
                 AddMoodlet("Мне доверили ключ", 8, 600);
-                Remember("Ключ от дома: " + (lot != null ? lot.name : opener.foxName));
+                Remember("Ключ от " + opener.NameIn(NameCase.Genitive), about: opener);
                 G.LogPair(this, opener, $"{opener.foxName} даёт {NameIn(NameCase.Dative)} постоянный ключ от дома.");
             }
             else
@@ -351,7 +351,7 @@ namespace FoxLife
                 if (o == null || o == this || o.KeyTo(home) != KeyKind.Trusted || Social.Rel(this, o) >= RevokeBelow) continue;
                 if (Vector3.Distance(o.transform.position, transform.position) > 25f || !o.CanBeApproached(this)) continue;
                 if (current != null) CancelCurrent(true);
-                queue.Insert(0, new FoxAction { kind = ActKind.Social, other = o, social = Social.TakeKey, label = Social.TakeKey.name + ": " + o.foxName });
+                queue.Insert(0, FoxAction.ForSocial(Social.TakeKey, o));
                 return;
             }
         }

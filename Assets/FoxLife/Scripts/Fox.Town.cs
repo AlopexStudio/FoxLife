@@ -34,7 +34,18 @@ namespace FoxLife
 
         public enum PhoneMode { Chat, InviteOver, InviteOut }
 
-        public static readonly string[] PhoneVerbs = { "Поболтать по телефону", "Пригласить в гости", "Позвать гулять" };
+        public static string PhoneText(PhoneMode mode, Fox target, bool active = false)
+        {
+            if (mode == PhoneMode.Chat)
+                return (active ? "Говорит с " : "Поговорить с ") + target.NameIn(NameCase.Instrumental) + " по телефону";
+            string name = target.NameIn(NameCase.Accusative);
+            return mode == PhoneMode.InviteOver
+                ? (active ? "Приглашает " : "Пригласить ") + name + " в гости"
+                : (active ? "Зовёт " : "Позвать ") + name + " гулять";
+        }
+
+        public void Call(Fox target, PhoneMode mode, int lot = -1) =>
+            Command(new FoxAction { kind = ActKind.Phone, other = target, phoneMode = mode, placeLot = lot, label = PhoneText(mode, target) });
 
         /// <summary>Звонок: болтает по телефону, а в конце — приглашение (если это приглашение).</summary>
         void RunPhone(FoxAction a, float dm)
@@ -89,7 +100,7 @@ namespace FoxLife
             guest.queue.Clear();
             guest.queue.Add(new FoxAction
             {
-                kind = ActKind.Move, label = "Идёт в гости: " + foxName,
+                kind = ActKind.Move, other = host, label = "Идёт в гости к " + host.NameIn(NameCase.Dative),
                 moveTarget = GridMap.Center(entry) + Vector3.up * G.house.FloorY(0, entry),
                 onArrive = () =>
                 {
@@ -114,18 +125,20 @@ namespace FoxLife
             var pos = GridMap.Center(target) + Vector3.up * G.house.FloorY(0, target);
             friend.CancelCurrentPublic();
             friend.queue.Clear();
-            friend.queue.Add(new FoxAction { kind = ActKind.Move, moveTarget = pos, label = "Идёт: " + lot.name });
-            queue.Add(new FoxAction { kind = ActKind.Move, moveTarget = pos + new Vector3(0.6f, 0, 0), label = "Идёт: " + lot.name, byPlayer = true });
+            friend.queue.Add(new FoxAction { kind = ActKind.Move, other = this, placeLot = lot.id, moveTarget = pos, label = "Идёт: " + lot.name });
+            queue.Add(new FoxAction { kind = ActKind.Move, other = friend, placeLot = lot.id, moveTarget = pos + new Vector3(0.6f, 0, 0), label = "Идёт: " + lot.name, byPlayer = true });
             Say("Встретимся там!");
             G.LogPair(this, friend, $"{foxName} и {friend.foxName} идут вместе: {lot.name}.");
         }
 
         /// <summary>Сходить в гости: с ключом — просто войти, без ключа — постучать в дверь, а там уж как встретят.</summary>
-        public void VisitHome(int lotId)
+        public void VisitHome(Fox host)
         {
+            if (Net.IsClient) { Net.I.SendOp(this, "visit", host.id); return; }
+            int lotId = host.home;
             var lot = G.house.LotById(lotId);
-            if (lot == null || lotId == home) return;
-            KnockAt(lotId, null, null, true);
+            if (lot == null || lot.removed || lotId == home) return;
+            KnockAt(lotId, host: host);
         }
 
         float eventTimer;
@@ -166,7 +179,7 @@ namespace FoxLife
             if (lot == null) return;
             if (refusedAt.TryGetValue(friend.home, out var rt) && G.minutes - rt < 240f) return; // недавно не пустили — не навязываемся
             // с ключом заходят сами, без ключа — стучат
-            KnockAt(friend.home, null, null, false);
+            KnockAt(friend.home, byPlayer: false, host: friend);
             G.LogFox(friend, $"{foxName} идёт к вам в гости.");
         }
     }

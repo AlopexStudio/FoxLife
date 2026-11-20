@@ -150,7 +150,7 @@ namespace FoxLife
             var o = thinkFox;
             if (o == null || !G.foxes.Contains(o)) { thinkFox = null; return; }
             bool she = o.female;
-            string[] titles = { o.foxName, "Мы с " + (she ? "ней" : "ним"), (she ? "Её" : "Его") + " друзья" };
+            string[] titles = { o.foxName, "Мы с " + o.NameIn(NameCase.Instrumental), "Друзья " + o.NameIn(NameCase.Genitive) };
             GUILayout.BeginHorizontal();
             GUILayout.Label(titles[Mathf.Clamp(thinkTab, 0, 2)], sTitle);
             GUILayout.FlexibleSpace();
@@ -180,7 +180,7 @@ namespace FoxLife
                     if (k01 >= 0.45f) GUILayout.Label($"Стихия: {Elements.Names[(int)o.Element].ToLower()} — любит {Elements.Music[(int)o.Element]} и {Elements.Tv[(int)o.Element]}", sWrap);
                     else GUILayout.Label("Любимая стихия — пока загадка.", sSmall);
                     if (k01 >= 0.55f) GUILayout.Label($"Любит {Fox.WeatherName(o.LikedWeather, accusative: true)}, не любит {Fox.WeatherName(o.DislikedWeather, accusative: true)}", sSmall);
-                    if (k01 >= 0.7f && o.wants.Count > 0) GUILayout.Label("Мечтает: " + string.Join("; ", o.wants.ConvertAll(w => w.text.ToLower())), sWrap);
+                    if (k01 >= 0.7f && o.wants.Count > 0) GUILayout.Label("Мечты: " + string.Join("; ", o.wants.ConvertAll(w => w.DisplayText)), sWrap);
                     if (k01 >= 0.6f && o.Dream != null) GUILayout.Label($"Мечта всей жизни: {o.Dream.name.ToLower()} ({Mathf.RoundToInt(Dreams.Progress(o, o.Dream) * 100)}%)", sWrap);
                     float rel = Social.Rel(me, o);
                     GUILayout.Space(6);

@@ -415,7 +415,13 @@ namespace FoxLife
                 if (r > 0) continue;
                 string arg = c.def.pickArg != null ? c.def.pickArg(this) : null;
                 if (c.def.pickArg != null && arg == null) return false;
-                wants.Add(new Want { id = c.def.id, arg = arg, text = c.def.text(arg), points = c.def.points });
+                var target = c.def.pickTarget?.Invoke(this);
+                if (c.def.pickTarget != null && target == null) return false;
+                wants.Add(new Want
+                {
+                    id = c.def.id, arg = target != null ? target.foxName : arg, targetFoxId = target?.id,
+                    text = c.def.text(target != null ? target.NameIn(c.def.targetCase) : arg), points = c.def.points
+                });
                 return true;
             }
             return false;
@@ -450,7 +456,7 @@ namespace FoxLife
             {
                 var w = wants[i];
                 var d = Wants.Get(w.id);
-                if (d != null && d.match(e, w.arg)) Fulfill(w);
+                if (d != null && d.Matches(e, w)) Fulfill(w);
             }
             if (fearId != null)
             {
@@ -465,7 +471,7 @@ namespace FoxLife
             happiness += w.points;
             AddMoodlet("Желание исполнилось", 8, 240);
             Say("Ура!");
-            G.LogFox(this, $"{foxName}: исполнилось желание «{w.text}» (+{w.points})");
+            G.LogFox(this, $"{foxName}: исполнилось желание «{w.DisplayText}» (+{w.points})");
             wantTimer = Mathf.Min(wantTimer, 20f);
         }
 

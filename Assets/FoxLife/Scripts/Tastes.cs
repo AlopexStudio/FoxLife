@@ -192,7 +192,7 @@ namespace FoxLife
             var m = Of(e);
             if (m == null || m.paintOwner == null || m.paintOwner == f || m.paint <= 0f || m.paint >= 1f) return null;
             if (!Game.I.foxes.Contains(m.paintOwner)) return null;
-            return "На мольберте недорисованная картина: " + m.paintOwner.foxName;
+            return "На мольберте недорисованная картина " + m.paintOwner.NameIn(NameCase.Genitive);
         }
 
         public static string DiscardBlocked(Furniture e)

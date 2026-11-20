@@ -42,6 +42,33 @@ namespace FoxLife
         public Vector3 targetSeen;          // где был собеседник, когда прокладывали путь
         public float repathTimer;
         public bool netDone;                // друг закончил выбирать одежду или план дома
+
+        public static FoxAction ForSocial(SocialDef def, Fox target) =>
+            new FoxAction { kind = ActKind.Social, other = target, social = def, label = def.CommandText(target) };
+
+        public string DisplayText(bool active = false)
+        {
+            if (other == null) return label;
+            switch (kind)
+            {
+                case ActKind.Social when social != null:
+                    return active ? social.ActivityText(other) : social.CommandText(other);
+                case ActKind.BeTalkedTo:
+                    string name = other.NameIn(NameCase.Instrumental);
+                    if (social != null && social.carry) return "Катается в зубах у " + other.NameIn(NameCase.Genitive);
+                    if (social != null && social.chase) return $"Играет с {name} в догонялки";
+                    return "Говорит с " + name;
+                case ActKind.Phone:
+                    return Fox.PhoneText(phoneMode, other, active);
+                case ActKind.Move when placeLot < 0:
+                    return "Идёт в гости к " + other.NameIn(NameCase.Dative);
+                case ActKind.Move:
+                    string place = Game.I?.house.LotById(placeLot)?.name;
+                    return "Идёт гулять с " + other.NameIn(NameCase.Instrumental) + (place != null ? " · " + place : "");
+                default:
+                    return label;
+            }
+        }
     }
 
     /// <summary>Лисичка: внешность, нужды, настроение, отношения и свобода воли, зависящая от характера.</summary>
@@ -97,7 +124,7 @@ namespace FoxLife
             if (wants.Count > 0 && Random.value < 0.3f)
             {
                 var wish = wants[Random.Range(0, wants.Count)];
-                Fox about = wish.arg != null ? G.foxes.Find(o => o.foxName == wish.arg) : null;
+                Fox about = wish.Target;
                 var line = Phrases.Pick("want:" + wish.id, this, about);
                 if (!string.IsNullOrEmpty(line) && (about != null || (wish.id != "talk" && wish.id != "hug" && wish.id != "kiss"))) { Say(line); return; }
             }
@@ -694,7 +721,7 @@ namespace FoxLife
             if (a.byPlayer)
             {
                 Say(msg);
-                G.LogFox(this, $"{foxName}: «{a.label}» — {msg.ToLower()}");
+                G.LogFox(this, $"{foxName}: «{a.DisplayText()}» — {msg}");
             }
             current = null;
             walking = false;
@@ -1129,7 +1156,7 @@ namespace FoxLife
                 if (s.moodNoB != null) o.AddMoodlet(s.moodNoB, s.valNoB, 120);
                 if (s.name == "Подразнить" && pers.A <= 3) AddMoodlet("Пакость удалась", 3, 60);
             }
-            G.LogPair(this, o, $"{foxName} и {o.foxName}: «{s.name}» — {(a.success ? "удачно" : "неудачно")} ({(a.success ? s.relYes : s.relNo):+0;-0;0})");
+            G.LogPair(this, o, $"{foxName} — {s.ActivityText(o)}. {(a.success ? "Удачно" : "Неудачно")} ({(a.success ? s.relYes : s.relNo):+0;-0;0})");
             OnEvent(new GameEvent { kind = "social", arg = s.name, other = o, success = a.success });
             o.OnEvent(new GameEvent { kind = "social_target", arg = s.name, other = this, success = a.success });
         }
@@ -1158,8 +1185,8 @@ namespace FoxLife
         public void BeginTalk(Fox with, float duration, SocialDef def = null)
         {
             if (current != null) CancelCurrent(true);
-            string label = def != null && def.carry ? "Катается в зубах: " + with.foxName : "Разговаривает: " + with.foxName;
-            current = new FoxAction { kind = ActKind.BeTalkedTo, other = with, social = def, label = label, duration = duration, stage = 2 };
+            current = new FoxAction { kind = ActKind.BeTalkedTo, other = with, social = def, duration = duration, stage = 2 };
+            current.label = current.DisplayText(true);
             pose = Pose.Talk;
         }
 
@@ -1302,7 +1329,7 @@ namespace FoxLife
                     float want = sd.want(this, o);
                     if (want < -0.1f) continue;
                     float s = socialNeed * 0.6f * (0.4f + want) + extra + relBonus - dist + Random.value * 0.05f;
-                    cands.Add((s, new FoxAction { kind = ActKind.Social, other = o, social = sd, label = sd.name + ": " + o.foxName }));
+                    cands.Add((s, FoxAction.ForSocial(sd, o)));
                 }
             }
             cands.Add((0.08f + Random.value * 0.06f, new FoxAction { kind = ActKind.Wander, label = "Бродит по дому" }));
@@ -1656,9 +1683,10 @@ namespace FoxLife
                 if (atWork && career != null) return $"На работе ({JobTitle}) до {career.endHour}:00";
                 if (current == null) return "Ничего не делает";
                 if (current.kind == ActKind.UseObject && current.stage < 2) return "Идёт: " + current.inter.name.ToLower();
-                if (current.kind == ActKind.Social && current.stage < 2) return "Идёт к " + current.other.NameIn(NameCase.Dative);
-                if (side != null && side.other != null) return current.label + " · болтает с " + side.other.NameIn(NameCase.Instrumental);
-                return current.label;
+                if (current.kind == ActKind.Social && current.stage < 2 && current.other != null) return "Идёт к " + current.other.NameIn(NameCase.Dative);
+                string activity = current.DisplayText(true);
+                if (side != null && side.other != null) return activity + " · говорит с " + side.other.NameIn(NameCase.Instrumental);
+                return activity;
             }
         }
     }

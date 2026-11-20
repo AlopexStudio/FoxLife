@@ -90,7 +90,7 @@ namespace FoxLife
             var g = Game.I;
             log.WriteLine($"--- {g.ClockText}, тарелок: {g.PlateCount}, монет: {g.money:0}");
             foreach (var f in g.foxes)
-                log.WriteLine($"{f.foxName} [{f.Summary}, {f.StageName}{(f.carried ? ", НЕСУТ" : "")}{(f.heldKind != null ? ", во рту " + f.heldKind : "")}]: {f.ActivityText} | настр {f.Mood:0} | нужды {string.Join(",", System.Array.ConvertAll(f.needs, n => n.ToString("0")))} | навыки {string.Join(",", f.skillLvl)} | работа {(f.career != null ? f.JobTitle + " " + f.performance.ToString("0") : "-")} | счастье {f.happiness} | желания: {string.Join("; ", f.wants.ConvertAll(w => w.text))} | страх {f.fearId} | мечта {(f.Dream != null ? f.Dream.name + " " + Mathf.RoundToInt(Dreams.Progress(f, f.Dream) * 100) + "%" : "-")}{(f.running ? " | бежит" : "")}");
+                log.WriteLine($"{f.foxName} [{f.Summary}, {f.StageName}{(f.carried ? ", НЕСУТ" : "")}{(f.heldKind != null ? ", во рту " + f.heldKind : "")}]: {f.ActivityText} | настр {f.Mood:0} | нужды {string.Join(",", System.Array.ConvertAll(f.needs, n => n.ToString("0")))} | навыки {string.Join(",", f.skillLvl)} | работа {(f.career != null ? f.JobTitle + " " + f.performance.ToString("0") : "-")} | счастье {f.happiness} | желания: {string.Join("; ", f.wants.ConvertAll(w => w.DisplayText))} | страх {f.fearId} | мечта {(f.Dream != null ? f.Dream.name + " " + Mathf.RoundToInt(Dreams.Progress(f, f.Dream) * 100) + "%" : "-")}{(f.running ? " | бежит" : "")}");
         }
 
         /// <summary>Кадр без постобработки: ищем NaN/бесконечность и сверхъяркие пиксели и под ними — объект.</summary>
@@ -318,6 +318,35 @@ namespace FoxLife
             yield return Shot("1b_weather_thought");
             g.ui.infoOpen = false;
             nameFox.dislikedWeather = oldDisliked;
+            var speaker = g.Household[1];
+            string speakerId = speaker.id;
+            var chat = Social.All.Find(d => d.name == "Поболтать");
+            var compliment = Social.All.Find(d => d.name == "Сделать комплимент");
+            var hug = Social.All.Find(d => d.name == "Обнять");
+            var act = FoxAction.ForSocial(chat, nameFox);
+            var queued = FoxAction.ForSocial(compliment, nameFox);
+            var receive = new FoxAction { kind = ActKind.BeTalkedTo, social = chat, other = nameFox };
+            if (act.DisplayText(true) != "Говорит с Рыжиком" || receive.DisplayText(true) != "Говорит с Рыжиком" ||
+                queued.DisplayText() != "Сделать комплимент Рыжику" || hug.ActivityText(nameFox) != "Обнимает Рыжика" ||
+                Social.TakeKey.ActivityText(nameFox) != "Забирает ключ у Рыжи" ||
+                Fox.PhoneText(Fox.PhoneMode.Chat, nameFox, true) != "Говорит с Рыжиком по телефону")
+                Debug.LogError("ОБЩЕНИЕ: неверные падежи в тексте действий.");
+            foreach (var def in Social.All)
+                if (def.CommandText(nameFox) == def.name || def.ActivityText(nameFox) == def.name)
+                    Debug.LogError("ОБЩЕНИЕ: не задана форма действия «" + def.name + "».");
+            var savedAction = speaker.current;
+            int savedSpeed = g.speedIndex;
+            g.SetSpeed(0);
+            g.Select(speaker);
+            act.stage = 2;
+            speaker.current = act;
+            speaker.queue.Insert(0, queued);
+            log.WriteLine("ОБЩЕНИЕ: " + speaker.ActivityText + " · " + queued.DisplayText());
+            yield return Shot("1c_social_cases");
+            speaker.current = savedAction;
+            speaker.queue.Remove(queued);
+            g.Select(nameFox);
+            g.SetSpeed(savedSpeed);
 
             // город: общий вид, кафе, парк, библиотека, соседи; поход в кафе по команде
             log.WriteLine($"ГОРОД: лисичек {g.foxes.Count}, наших {g.Household.Count}, мебели {g.furniture.Count}, участков {g.house.lots.Count}, комнат {g.house.rooms.Count}");
@@ -691,6 +720,8 @@ namespace FoxLife
             log.WriteLine($"ПОСУДА: немытых тарелок сейчас {g.PlateCount}");
             // сохранение и загрузка
             string before = $"{g.money:0} мон, {g.foxes[0].JobTitle}, навыки {string.Join(",", g.foxes[0].skillLvl)}, желаний {g.foxes[0].wants.Count}, {g.foxes.Count} лис, {g.furniture.Count} предметов, стены {ColorUtility.ToHtmlStringRGB(g.house.RoomAt(new Vector2Int(1, 1)).st.Get(1).c1) + " комнат " + g.house.rooms.Count}, {g.ClockText}";
+            speaker.wants.RemoveAll(w => w.id == "talk");
+            speaker.wants.Add(new Want { id = "talk", arg = "Рыжик", text = "Поболтать: Рыжик", points = 120 });
             bool saved = g.SaveGame();
             g.ResetWorld(true);
             yield return null;
@@ -704,6 +735,10 @@ namespace FoxLife
             if (loadedFox?.NameIn(NameCase.Genitive) != "Рыжи")
                 Debug.LogError("ПАДЕЖИ: ручная форма не восстановилась из сохранения.");
             else log.WriteLine("ПАДЕЖИ: ручная форма сохранена и загружена — Рыжи.");
+            var loadedWant = g.foxes.Find(f => f.id == speakerId)?.wants.Find(w => w.id == "talk");
+            if (loadedWant?.targetFoxId != nameFoxId || loadedWant.DisplayText != "Поговорить с Рыжиком")
+                Debug.LogError("ОБЩЕНИЕ: желание из старого сохранения не обновилось.");
+            else log.WriteLine("ОБЩЕНИЕ: старое желание восстановлено — " + loadedWant.DisplayText);
             yield return new WaitForSeconds(1f);
             yield return Shot("6_loaded");
             g.ui.screen = GameUI.MenuScreen.Pause;

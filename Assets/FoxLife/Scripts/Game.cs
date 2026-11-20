@@ -763,8 +763,8 @@ namespace FoxLife
                 string role = Family.Role(o, f);
                 if (o.home != f.home && rel < 30 && role == null) continue;
                 float grief = 8f + Mathf.Max(0, rel) / 8f + (role != null ? 8f : 0f);
-                o.AddMoodlet("Тоска: " + f.foxName, -grief, 4320);
-                o.Remember($"Прощание: {f.foxName} {(f.female ? "ушла" : "ушёл")} в звёздный лес", false);
+                o.AddMoodlet("Тоска по " + f.NameIn(NameCase.Dative), -grief, 4320);
+                o.Remember($"Прощание с {f.NameIn(NameCase.Instrumental)}", false, f);
             }
             RemoveFox(f, f.female ? "ушла в звёздный лес" : "ушёл в звёздный лес");
         }
@@ -882,8 +882,8 @@ namespace FoxLife
             if (partner != null) { if (partner.female) kit.motherId = partner.id; else kit.fatherId = partner.id; }
             Social.AddRel(kit, parent, 40f);
             if (partner != null) Social.AddRel(kit, partner, 40f);
-            Log($"{parent.foxName} берёт из приюта лисёнка: {kit.foxName}!");
-            parent.Remember("Из приюта в семью: " + kit.foxName);
+            Log($"{parent.foxName} берёт {kit.NameIn(NameCase.Accusative)} из приюта!");
+            parent.Remember("Приняли в семью " + kit.NameIn(NameCase.Accusative), about: kit);
             parent.OnEvent(new GameEvent { kind = "baby" });
             if (partner != null) partner.OnEvent(new GameEvent { kind = "baby" });
         }
@@ -1733,7 +1733,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
 
         PieItem SocialItem(Fox me, Fox target, SocialDef def)
         {
-            var pi = new PieItem(def.name, () => me.Command(new FoxAction { kind = ActKind.Social, other = target, social = def, label = def.name + ": " + target.foxName }));
+            var pi = new PieItem(def.CommandText(target), () => me.Command(FoxAction.ForSocial(def, target)));
             if (target.sleeping)
             {
                 pi.enabled = false;
@@ -1752,14 +1752,13 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
         void OpenSocialMenu(Fox target)
         {
             var me = selected;
-            string he = target.female ? "ней" : "нём", his = target.female ? "её" : "его";
             var items = new List<PieItem>
             {
                 new PieItem("Подумать") { sub = new List<PieItem>
                 {
-                    new PieItem("…о " + he, () => ui.ThinkAbout(target, 0)),
+                    new PieItem(Phrases.Fill("…{name:about}", me, target), () => ui.ThinkAbout(target, 0)),
                     new PieItem("…о нас", () => ui.ThinkAbout(target, 1)),
-                    new PieItem("…о " + his + " друзьях", () => ui.ThinkAbout(target, 2)),
+                    new PieItem("…о друзьях " + target.NameIn(NameCase.Genitive), () => ui.ThinkAbout(target, 2)),
                 } },
             };
             var friendly = new List<PieItem>(); var mischief = new List<PieItem>(); var romance = new List<PieItem>(); var kids = new List<PieItem>();
@@ -1775,10 +1774,10 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             if (target.home != me.home)
             {
                 if (target.KeyTo(me.home) == KeyKind.Trusted)
-                    friendly.Add(new PieItem(Social.TakeKey.name, () => me.Command(new FoxAction { kind = ActKind.Social, other = target, social = Social.TakeKey, label = Social.TakeKey.name + ": " + target.foxName })));
+                    friendly.Add(new PieItem(Social.TakeKey.CommandText(target), () => me.Command(FoxAction.ForSocial(Social.TakeKey, target))));
                 else
                 {
-                    var gk = new PieItem(Social.GiveKey.name, () => me.Command(new FoxAction { kind = ActKind.Social, other = target, social = Social.GiveKey, label = Social.GiveKey.name + ": " + target.foxName }));
+                    var gk = new PieItem(Social.GiveKey.CommandText(target), () => me.Command(FoxAction.ForSocial(Social.GiveKey, target)));
                     var whyKey = me.GiveKeyReason(target);
                     if (whyKey != null) { gk.enabled = false; gk.reason = whyKey; }
                     friendly.Add(gk);
@@ -1795,7 +1794,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             {
                 var invite = new List<PieItem>
                 {
-                    new PieItem("В гости к нам", () => { if (target.Accepts(me, 0.15f)) me.InviteOver(target); else { target.Say("Сейчас не могу..."); Log($"{target.foxName} сейчас не может прийти."); } }),
+                    new PieItem(Fox.PhoneText(Fox.PhoneMode.InviteOver, target), () => { if (target.Accepts(me, 0.15f)) me.InviteOver(target); else { target.Say("Сейчас не могу..."); Log($"{target.foxName} сейчас не может прийти."); } }),
                 };
                 foreach (var lot in house.lots)
                 {
@@ -1804,7 +1803,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                     var l = lot;
                     invite.Add(new PieItem(l.name, () => { if (target.Accepts(me, 0.2f)) me.GoOutTogether(target, l); else target.Say("Как-нибудь в другой раз..."); }));
                 }
-                items.Add(new PieItem("Позвать") { sub = invite });
+                items.Add(new PieItem("Позвать " + target.NameIn(NameCase.Accusative)) { sub = invite });
             }
             var why = target.BusyReason(me);
             ui.OpenPie(Input.mousePosition, target.foxName + (why != null ? "\n(" + why + ")" : ""), items);

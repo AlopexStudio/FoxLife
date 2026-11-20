@@ -199,8 +199,8 @@ namespace FoxLife
             if (other != null)
             {
                 var chat = Social.All.Find(d => d.name == "Поболтать");
-                me.Command(new FoxAction { kind = ActKind.Social, other = other, social = chat, label = chat.name + ": " + other.foxName });
-                log.WriteLine($"СЕТЬ гость: болтать с {other.foxName}");
+                me.Command(FoxAction.ForSocial(chat, other));
+                log.WriteLine("СЕТЬ гость: " + chat.CommandText(other));
             }
             t0 = Time.realtimeSinceStartup;
             last = null;

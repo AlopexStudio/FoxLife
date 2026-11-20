@@ -94,12 +94,12 @@ namespace FoxLife
             }
         }
 
-        public void OpenMenu(Vector3 screenPos, string title, List<(string, System.Action)> items)
+        public void OpenMenu(Vector3 screenPos, string title, List<(string, System.Action)> items, float width = 250)
         {
             menuTitle = title;
             menuItems = items;
             pieItems = null;
-            float w = 250, h = 58 + items.Count * 34;
+            float w = width, h = 58 + items.Count * 34;
             float x = screenPos.x / scale + 10, y = (Screen.height - screenPos.y) / scale - 10;
             x = Mathf.Min(x, vw - w - 10);
             y = Mathf.Clamp(y, 70, vh - h - 10);
@@ -682,7 +682,7 @@ namespace FoxLife
             {
                 var qq = q;
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("потом: " + q.label, sSmall, W(310));
+                GUILayout.Label("потом: " + q.DisplayText(), sWrap, W(310));
                 if (Btn("×", false, W(30))) Defer(() => f.Cancel(qq));
                 GUILayout.EndHorizontal();
             }
@@ -829,7 +829,7 @@ namespace FoxLife
             if (f.pension > 0) GUILayout.Label($"Пенсия: {f.pension} мон. в неделю", sSmall);
             var partner = f.Partner;
             GUILayout.Space(4);
-            GUILayout.Label(partner != null ? (f.married ? "В браке: " : "Пара: ") + partner.foxName : "Пары нет.", sLabel);
+            GUILayout.Label(partner != null ? (f.married ? "В браке с " : "В паре с ") + partner.NameIn(NameCase.Instrumental) : "Пары нет.", sLabel);
             if (f.Pregnant) GUILayout.Label($"Лисята появятся через {Mathf.CeilToInt((2880f - f.pregnantMinutes) / 60f)} ч.", sSmall);
 
             FamilyLine("Родители", new List<string>(Family.Parents(f.id)));
@@ -948,7 +948,7 @@ namespace FoxLife
             {
                 var w = w0;
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("• " + w.text, sLabel, W(250));
+                GUILayout.Label("• " + w.DisplayText, sWrap, W(250));
                 GUILayout.FlexibleSpace();
                 GUILayout.Label("+" + w.points, sBold, W(42));
                 if (Btn(new GUIContent("×", "Отказаться от желания"), false, W(28))) Defer(() => f.DismissWant(w));
@@ -1778,7 +1778,7 @@ namespace FoxLife
             GUILayout.FlexibleSpace();
             if (Btn(new GUIContent("Другие мечты", "Загадать новые желания"))) Defer(() => { f.wants.Clear(); f.RefreshWants(); });
             GUILayout.EndHorizontal();
-            foreach (var w in f.wants) GUILayout.Label("• " + w.text, sWrap);
+            foreach (var w in f.wants) GUILayout.Label("• " + w.DisplayText, sWrap);
 
             GUILayout.Space(10);
             GUILayout.Label("Самочувствие", sBig);

@@ -428,7 +428,10 @@ namespace FoxLife
             {
                 if (qn++ >= 3) break;
                 var qq = q;
-                if (Btn(new GUIContent(qq.label.Length > 14 ? qq.label.Substring(0, 13) + "…" : qq.label, "В очереди: " + qq.label + ". Нажми, чтобы отменить."), false, Hh(24))) Defer(() => f.Cancel(qq));
+                string text = qq.DisplayText();
+                string preview = text;
+                if (f.queue.Count > 1 && preview.Length > 14) preview = preview.Substring(0, 13) + "…";
+                if (Btn(new GUIContent(preview, "В очереди: " + text + ". Нажми, чтобы отменить."), false, Hh(24))) Defer(() => f.Cancel(qq));
             }
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
@@ -437,7 +440,7 @@ namespace FoxLife
             Gem(new Rect(pr.xMax - 30, pr.y - 4, 28, 34), Fox.MoodColor(mood));
             if (pr.Contains(Event.current.mousePosition)) tip = "Настроение: " + Fox.MoodLabel(mood) + ". Нажми — камера к лисичке.";
             if (Event.current.type == EventType.MouseDown && Event.current.button == 1 && pr.Contains(Event.current.mousePosition)) { Event.current.Use(); Defer(() => G.Select(null)); }
-            if (pr.Contains(Event.current.mousePosition)) tip = $"{f.foxName}: {Fox.MoodLabel(mood).ToLower()}. Сейчас: {f.ActivityText.ToLower()}.\nНажми — камера следует за лисичкой. ПКМ — снять выбор.";
+            if (pr.Contains(Event.current.mousePosition)) tip = $"{f.foxName}: {Fox.MoodLabel(mood).ToLower()}. Сейчас: {f.ActivityText}.\nНажми — камера следует за лисичкой. ПКМ — снять выбор.";
             if (GUI.Button(pr, GUIContent.none, GUIStyle.none)) Defer(() => { G.cam.Focus(f.transform.position, 9f); G.cam.Follow(f.transform); G.SetViewLevel(f.Level); });
             End();
         }
@@ -458,7 +461,7 @@ namespace FoxLife
                 var lbl = new GUIStyle(sSmall) { alignment = TextAnchor.UpperCenter, fontSize = 11, wordWrap = false, clipping = TextClipping.Clip };
                 lbl.normal.textColor = SimsInk;
                 GUI.Label(new Rect(pr.x - 4, pr.yMax + 1, s + 8, 16), fox.foxName, lbl);
-                if (pr.Contains(Event.current.mousePosition)) tip = $"{fox.foxName} — {Fox.MoodLabel(fox.Mood).ToLower()}. Сейчас: {fox.ActivityText.ToLower()}.";
+                if (pr.Contains(Event.current.mousePosition)) tip = $"{fox.foxName} — {Fox.MoodLabel(fox.Mood).ToLower()}. Сейчас: {fox.ActivityText}.";
                 if (Event.current.type == EventType.MouseDown && Event.current.button == 1 && pr.Contains(Event.current.mousePosition)) { Event.current.Use(); Defer(() => G.Select(null)); }
                 if (GUI.Button(pr, GUIContent.none, GUIStyle.none))
                     Defer(() =>
@@ -523,18 +526,18 @@ namespace FoxLife
         {
             var items = new List<(string, System.Action)>
             {
-                ("Поболтать по телефону", () => me.Command(new FoxAction { kind = ActKind.Phone, other = friend, phoneMode = Fox.PhoneMode.Chat, label = "Звонит: " + friend.foxName })),
-                ("Пригласить в гости", () => me.Command(new FoxAction { kind = ActKind.Phone, other = friend, phoneMode = Fox.PhoneMode.InviteOver, label = "Приглашает: " + friend.foxName })),
+                (Fox.PhoneText(Fox.PhoneMode.Chat, friend), () => me.Call(friend, Fox.PhoneMode.Chat)),
+                (Fox.PhoneText(Fox.PhoneMode.InviteOver, friend), () => me.Call(friend, Fox.PhoneMode.InviteOver)),
             };
             foreach (var lot in G.house.lots)
             {
                 if (lot.removed) continue;
                 if (!lot.Public || lot.kind == LotKind.School) continue;
                 var l = lot;
-                items.Add(("Позвать: " + l.name, () => me.Command(new FoxAction { kind = ActKind.Phone, other = friend, phoneMode = Fox.PhoneMode.InviteOut, placeLot = l.id, label = "Зовёт гулять: " + friend.foxName })));
+                items.Add(("Позвать " + friend.NameIn(NameCase.Accusative) + " · " + l.name, () => me.Call(friend, Fox.PhoneMode.InviteOut, l.id)));
             }
-            items.Add(("Сходить в гости: " + G.house.LotById(friend.home)?.name, () => me.VisitHome(friend.home)));
-            OpenMenu(Input.mousePosition, me.foxName + " → " + friend.foxName, items);
+            items.Add(("Сходить в гости к " + friend.NameIn(NameCase.Dative), () => me.VisitHome(friend)));
+            OpenMenu(Input.mousePosition, "Звонок " + friend.NameIn(NameCase.Dative), items, 360);
         }
 
         // ================= панель со вкладками (внизу справа) =================

@@ -19,8 +19,38 @@ namespace FoxLife
     {
         public string id;
         public string arg;     // имя лисички или навыка
+        public string targetFoxId;
         public string text;
         public int points;
+
+        Fox FindTarget() => string.IsNullOrEmpty(targetFoxId)
+            ? Game.I?.foxes.Find(f => f != null && f.foxName == arg)
+            : Fox.FoxById(targetFoxId);
+
+        public Fox Target => Wants.Get(id)?.pickTarget != null ? FindTarget() : null;
+
+        public void BindLegacyTarget()
+        {
+            if (!string.IsNullOrEmpty(targetFoxId)) return;
+            var target = Target;
+            if (target == null) return;
+            text = DisplayText;
+            targetFoxId = target.id;
+        }
+
+        public string DisplayText
+        {
+            get
+            {
+                var def = Wants.Get(id);
+                if (def?.pickTarget == null) return text;
+                var target = FindTarget();
+                if (target != null) return def.text(target.NameIn(def.targetCase));
+                // В сохранениях до 0.23 адресат записан только по имени.
+                return string.IsNullOrEmpty(targetFoxId) && !string.IsNullOrEmpty(arg)
+                    ? def.text(Names.DefaultForm(arg, def.targetCase)) : text;
+            }
+        }
     }
 
     [Serializable]
@@ -38,8 +68,14 @@ namespace FoxLife
         public int points = 150;
         public Func<Fox, float> weight;                 // <= 0 — недоступно
         public Func<Fox, string> pickArg;               // для желаний с параметром
+        public Func<Fox, Fox> pickTarget;
+        public NameCase targetCase;
         public Func<string, string> text;
         public Func<GameEvent, string, bool> match;
+
+        public bool Matches(GameEvent e, Want w) =>
+            match(e, w.arg) && (pickTarget == null || e.other != null &&
+                (string.IsNullOrEmpty(w.targetFoxId) ? e.other.foxName == w.arg : e.other.id == w.targetFoxId));
     }
 
     public class FearDef
@@ -69,13 +105,14 @@ namespace FoxLife
             {
                 id = "talk", points = 120,
                 weight = f => G.foxes.Count > 1 ? 0.8f + (f.pers.E - 5) * 0.15f : 0,
-                pickArg = f =>
+                pickTarget = f =>
                 {
                     var others = G.foxes.FindAll(o => o != f);
-                    return others.Count > 0 ? others[UnityEngine.Random.Range(0, others.Count)].foxName : null;
+                    return others.Count > 0 ? others[UnityEngine.Random.Range(0, others.Count)] : null;
                 },
-                text = a => "Поболтать: " + a,
-                match = (e, a) => (e.kind == "social" || e.kind == "social_target") && e.success && e.other != null && e.other.foxName == a,
+                targetCase = NameCase.Instrumental,
+                text = a => "Поговорить с " + a,
+                match = (e, a) => (e.kind == "social" || e.kind == "social_target") && e.success,
             },
             new WantDef
             {
@@ -226,9 +263,10 @@ namespace FoxLife
             {
                 id = "kiss", points = 160,
                 weight = f => f.Partner != null ? 0.5f : 0,
-                pickArg = f => f.Partner != null ? f.Partner.foxName : null,
-                text = a => "Поцеловать: " + a,
-                match = (e, a) => e.kind == "social" && e.arg == "Поцеловать" && e.success && e.other != null && e.other.foxName == a,
+                pickTarget = f => f.Partner,
+                targetCase = NameCase.Accusative,
+                text = a => "Поцеловать " + a,
+                match = (e, a) => Soc(e, "Поцеловать"),
             },
             new WantDef
             {

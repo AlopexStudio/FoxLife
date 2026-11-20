@@ -494,7 +494,7 @@ namespace FoxLife
             Begin(InfoRect(Mathf.Min(560, vh - 100)));
             createScroll = GUILayout.BeginScrollView(createScroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Одежда: " + f.foxName, sTitle);
+            GUILayout.Label("Одежда " + f.NameIn(NameCase.Genitive), sTitle);
             GUILayout.FlexibleSpace();
             if (Btn("×", false, W(30))) Defer(() => clothesOpen = false);
             GUILayout.EndHorizontal();

@@ -107,7 +107,7 @@ namespace FoxLife
                 if (sc > ps) { ps = sc; pick = sd; }
             }
             if (pick != null && TryStartSideTalk(best, pick))
-                G.LogPair(this, best, $"{foxName} и {best.foxName} болтают, не отрываясь от дел: «{pick.name}».");
+                G.LogPair(this, best, $"{foxName} говорит с {best.NameIn(NameCase.Instrumental)}, не отрываясь от дел.");
         }
     }
 }
