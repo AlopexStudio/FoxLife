@@ -44,11 +44,14 @@ namespace FoxLife
         {
             if (o == null || o == this || !IsSideTalkable(def) || !def.available(this, o)) return false;
             if (!CanTalkWhileBusy || !o.CanTalkWhileBusy || !CloseEnoughToChat(o)) return false;
-            float chance = Mathf.Clamp(def.accept(this, o) + SkillLevel(Skill.Charisma) * 0.015f + (HasPerk("charm") ? 0.1f : 0f), 0.05f, 0.95f);
+            string topic = Interests.PickTopic(this, o);
+            float chance = Mathf.Clamp(def.accept(this, o) + SkillLevel(Skill.Charisma) * 0.015f + (HasPerk("charm") ? 0.1f : 0f)
+                + Interests.ChanceShift(topic, def.name, o), 0.05f, 0.95f);
             float dur = def.duration * 0.8f;
             side = new SideTalk { other = o, def = def, duration = dur, lead = true, success = Random.value < chance };
             o.side = new SideTalk { other = this, def = def, duration = dur, lead = false };
-            Say(Phrases.Pick("say:" + def.name, this, o, def.say));
+            string line = topic != null ? Interests.Line(topic, def.name, this, o) : null;
+            Say(line ?? Phrases.Pick("say:" + def.name, this, o, def.say), line != null ? 4f : 2.8f);
             return true;
         }
 

@@ -648,6 +648,49 @@ namespace FoxLife
             ? Color.Lerp(new Color(0.95f, 0.78f, 0.25f), new Color(0.38f, 0.76f, 0.36f), (t - 0.5f) * 2f)
             : Color.Lerp(new Color(0.88f, 0.3f, 0.26f), new Color(0.95f, 0.78f, 0.25f), t * 2f);
 
+        /// <summary>Состояния: слева физические (главное — здоровье), справа психические (главное — менталка).</summary>
+        void StatesBlock(Fox f)
+        {
+            GUILayout.BeginHorizontal();
+            for (int col = 0; col < 2; col++)
+            {
+                GUILayout.BeginVertical(W(200));
+                ColorLabel(col == 0 ? "Тело" : "Душа", sBold, new Color(0.45f, 0.4f, 0.35f));
+                for (int k = 0; k < 3; k++)
+                {
+                    int i = col * 3 + k;
+                    float v = f.StateValue(i) / 100f;
+                    bool main = k == 0;
+                    var lr = GUILayoutUtility.GetRect(196, main ? 20 : 18, W(196));
+                    var tipR = lr;
+                    var st = main ? sBold : sLabel;
+                    GUI.Label(new Rect(lr.x, lr.y, 100, lr.height), new GUIContent(Fox.StateNames[i], Fox.StateTips[i]), st);
+                    if (tipR.Contains(Event.current.mousePosition)) tip = Fox.StateTips[i];
+                    var br = new Rect(lr.x + 92, lr.y + (main ? 4 : 4), 100, main ? 12 : 10);
+                    if (Event.current.type == EventType.Repaint)
+                    {
+                        Fill(br, new Color(0.3f, 0.2f, 0.1f, 0.13f));
+                        var fr = br; fr.width *= Mathf.Clamp01(v);
+                        Fill(fr, NeedColor(v));
+                    }
+                }
+                GUILayout.EndVertical();
+            }
+            GUILayout.EndHorizontal();
+            var notes = new List<string>();
+            if (f.Sick) notes.Add("болеет");
+            if (f.Depressed) notes.Add("в депрессии");
+            else if (f.mental < 30) notes.Add("грустит");
+            if (f.needs[(int)Need.Social] < 25) notes.Add("скучает по общению");
+            if (notes.Count > 0) GUILayout.Label("Сейчас: " + string.Join(", ", notes) + ".", sSmall);
+            if (f.interests.Count > 0)
+            {
+                var names = new List<string>();
+                foreach (var x in f.interests) names.Add(Interests.Name(x).ToLower());
+                GUILayout.Label("Увлечения: " + string.Join(", ", names) + ".", sSmall);
+            }
+        }
+
         void Bar(string label, float t, Color c, float labelW = 100, float barW = 210)
         {
             GUILayout.BeginHorizontal();
@@ -718,7 +761,7 @@ namespace FoxLife
             switch (foxTab)
             {
                 case 0:
-                    for (int i = 0; i < 5; i++) Bar(Fox.NeedNames[i], f.needs[i] / 100f, NeedColor(f.needs[i] / 100f));
+                    StatesBlock(f);
 
                     break;
                 case 1:
@@ -1731,6 +1774,34 @@ namespace FoxLife
                 if (Btn(wn[i], (int)f.DislikedWeather == i, W(78))) Defer(() => { f.dislikedWeather = k; if (f.likedWeather == k) f.likedWeather = (k + 2) % 5; });
             }
             GUILayout.EndHorizontal();
+            GUILayout.Label("Любимое время года", sBold);
+            GUILayout.BeginHorizontal();
+            string[] sn = { "Весна", "Лето", "Осень", "Зима" };
+            for (int i = 0; i < 4; i++)
+            {
+                int k = i;
+                if (Btn(sn[i], f.likedSeason == i, W(98))) Defer(() => f.likedSeason = k);
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(10);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(new GUIContent("Увлечения", "До трёх тем: о них лисичка шутит и рассказывает. С теми, кто увлечён тем же, легче подружиться."), sBig);
+            GUILayout.FlexibleSpace();
+            GUILayout.Label($"{f.interests.Count} из {Interests.Max}", sSmall);
+            GUILayout.EndHorizontal();
+            for (int row = 0; row < Interests.All.Count; row += 3)
+            {
+                GUILayout.BeginHorizontal();
+                for (int i = row; i < Mathf.Min(row + 3, Interests.All.Count); i++)
+                {
+                    var d = Interests.All[i];
+                    bool on = f.interests.Contains(d.id);
+                    if (Btn(new GUIContent(d.name, on ? "Убрать увлечение" : f.interests.Count >= Interests.Max ? "Уже три увлечения — сначала убери одно" : "Добавить увлечение"), on, W(130)))
+                        Defer(() => { if (on) f.interests.Remove(d.id); else if (f.interests.Count < Interests.Max) f.interests.Add(d.id); f.interestsSet = true; });
+                }
+                GUILayout.EndHorizontal();
+            }
 
             GUILayout.Space(10);
             GUILayout.Label("Умения", sBig);
@@ -1788,13 +1859,14 @@ namespace FoxLife
             foreach (var w in f.wants) GUILayout.Label("• " + w.DisplayText, sWrap);
 
             GUILayout.Space(10);
-            GUILayout.Label("Самочувствие", sBig);
-            for (int i = 0; i < 5; i++)
+            GUILayout.Label("Состояния", sBig);
+            for (int i = 0; i < 6; i++)
             {
                 GUILayout.BeginHorizontal();
-                GUILayout.Label(Fox.NeedNames[i], sLabel, W(110));
-                float v = GUILayout.HorizontalSlider(f.needs[i], 0, 100, W(250));
-                if (Mathf.Abs(v - f.needs[i]) > 0.01f) f.needs[i] = v;
+                GUILayout.Label(new GUIContent(Fox.StateNames[i], Fox.StateTips[i]), sLabel, W(110));
+                float cur = f.StateValue(i);
+                float v = GUILayout.HorizontalSlider(cur, 0, 100, W(250));
+                if (Mathf.Abs(v - cur) > 0.01f) f.SetState(i, v);
                 GUILayout.EndHorizontal();
             }
         }

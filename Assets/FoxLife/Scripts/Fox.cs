@@ -42,6 +42,7 @@ namespace FoxLife
         public Vector3 targetSeen;          // где был собеседник, когда прокладывали путь
         public float repathTimer;
         public bool netDone;                // друг закончил выбирать одежду или план дома
+        public string topic;                // тема разговора (интерес) или null
 
         public static FoxAction ForSocial(SocialDef def, Fox target) =>
             new FoxAction { kind = ActKind.Social, other = target, social = def, label = def.CommandText(target) };
@@ -346,10 +347,7 @@ namespace FoxLife
         {
             get
             {
-                float avg = 0;
-                foreach (var n in needs) avg += n;
-                avg /= needs.Length;
-                float m = avg - 50f;
+                float m = StatesMood();
                 float mul = MoodletMul;
                 foreach (var ml in moodlets) m += ml.value * mul * (ml.value < 0 && HasPerk("calm") ? 0.6f : 1f);
                 return Mathf.Clamp(m, -100, 100);
@@ -463,16 +461,19 @@ namespace FoxLife
             EventEffects(dm);
             float sm = sleeping ? 0.45f : 1f;
             needs[(int)Need.Hunger] -= 0.11f * dm * sm * (HasPerk("stomach") ? 0.75f : 1f);
-            if (!sleeping) needs[(int)Need.Energy] -= 0.075f * dm;
-            needs[(int)Need.Hygiene] -= 0.06f * dm * sm * (HasPerk("clean") ? 0.67f : 1f);
-            if (!sleeping) needs[(int)Need.Fun] -= 0.09f * dm;
+            if (!sleeping) needs[(int)Need.Energy] -= 0.075f * dm * (Sick ? 1.4f : 1f);
+            if (HygieneOn) needs[(int)Need.Hygiene] -= 0.06f * dm * sm * (HasPerk("clean") ? 0.67f : 1f);
+            else needs[(int)Need.Hygiene] = 100f;
+            if (!sleeping) needs[(int)Need.Fun] -= 0.075f * dm; // отдых: напряжение копится само
             needs[(int)Need.Social] -= 0.08f * (0.4f + pers.E * 0.12f) * dm * (sleeping ? 0.3f : 1f);
             for (int i = 0; i < needs.Length; i++) needs[i] = Mathf.Clamp(needs[i], 0, 100);
+            UpdateStates(dm);
 
             Condition("Голодно", needs[0] < 20, -12);
             Condition("Клонит в сон", needs[1] < 20, -10);
-            Condition("Пора помыться", needs[2] < 20, -8);
-            Condition("Скучно", needs[3] < 20, -6 - Mathf.Max(0, pers.O - 5));
+            if (HygieneOn) Condition("Пора помыться", needs[2] < 20, -8);
+            Condition("Нужен отдых", needs[3] < 20, -6 - Mathf.Max(0, pers.N - 5));
+            Condition("Неуютно", comfort < 25, -5 - Mathf.Max(0, pers.N - 5));
             Condition("Одиноко", needs[4] < 25, -(3 + pers.E));
         }
 
@@ -824,8 +825,9 @@ namespace FoxLife
                 needs[0] += it.hunger * dm * hungerMul;
                 needs[1] += it.energy * dm * energyMul;
                 if (it.hygiene <= 0 || needs[2] < it.hygieneCap) needs[2] = it.hygiene > 0 ? Mathf.Min(it.hygieneCap, needs[2] + it.hygiene * dm) : needs[2] + it.hygiene * dm;
-                needs[3] += it.fun * dm * a.funMul;
+                needs[3] += it.fun * dm * a.funMul * (it.fun > 0 ? RestFit(it) : 1f);
                 needs[4] += it.social * dm;
+                if (it.social > 0) needs[3] += it.social * dm * SocialRest * 4f; // общение: неугомонным — отдых, нелюдимым — нагрузка
                 // вместе за одним устройством: смотрят, листают, пишут вдвоём — веселее и почти как разговор
                 int mates = Together(a);
                 if (mates > 0)
@@ -1035,11 +1037,15 @@ namespace FoxLife
                 if (!a.busyTalk) { o.BeginTalk(this, a.duration, a.social); o.Face(transform.position); }
                 Face(o.transform.position);
                 pose = Pose.Talk;
-                float chance = Mathf.Clamp(a.social.accept(this, o) + SkillLevel(Skill.Charisma) * 0.015f + (HasPerk("charm") ? 0.1f : 0f), 0.05f, 0.95f);
+                a.topic = Interests.PickTopic(this, o);
+                float chance = Mathf.Clamp(a.social.accept(this, o) + SkillLevel(Skill.Charisma) * 0.015f + (HasPerk("charm") ? 0.1f : 0f)
+                    + Interests.ChanceShift(a.topic, a.social.name, o), 0.05f, 0.95f);
                 a.success = a.social.sure || Random.value < chance;
                 a.elapsed = 0;
                 a.stage = 2;
-                Say(Phrases.Pick("say:" + a.social.name, this, o, a.social.say));
+                string topicLine = a.topic != null ? Interests.Line(a.topic, a.social.name, this, o) : null;
+                if (topicLine == null) a.topic = null;
+                Say(topicLine ?? Phrases.Pick("say:" + a.social.name, this, o, a.social.say), topicLine != null ? 4.2f : 2.8f);
             }
             if (a.stage == 2)
             {
@@ -1131,8 +1137,25 @@ namespace FoxLife
         {
             var s = a.social;
             var o = a.other;
-            o.Say(Phrases.Pick((a.success ? "yes:" : "no:") + s.name, o, this, a.success ? s.yes : s.no));
+            bool shares = a.topic != null && o.interests.Contains(a.topic);
+            if (a.topic != null && a.success && shares) o.Say(Interests.SharedYes[Random.Range(0, Interests.SharedYes.Length)]);
+            else if (a.topic != null && !a.success && !shares)
+                o.Say(Phrases.Fill(Interests.Lost[Random.Range(0, Interests.Lost.Length)].Replace("{topic}", Interests.Name(a.topic).ToLower()), o, this));
+            else o.Say(Phrases.Pick((a.success ? "yes:" : "no:") + s.name, o, this, a.success ? s.yes : s.no));
             Social.AddRel(this, o, a.success ? s.relYes : s.relNo);
+            if (a.topic != null && a.success)
+            {
+                if (shares)
+                {
+                    // общий интерес — общий язык: дружба крепнет сильнее
+                    Social.AddRel(this, o, 3f);
+                    Social.AddRel(o, this, 3f);
+                    AddMoodlet("Нашли общий язык", 5, 180);
+                    o.AddMoodlet("Нашли общий язык", 5, 180);
+                }
+                else if (o.interests.Count < Interests.Max && Random.value < 0.06f + (o.pers.O - 5f) * 0.01f)
+                    o.AddInterest(a.topic, " — " + NameIn(NameCase.Nominative) + " так увлечённо рассказывал" + (female ? "а" : ""));
+            }
             if (s.romYes != 0 || s.romNo != 0) Social.AddRom(this, o, a.success ? s.romYes : s.romNo);
             if (a.success && s.funYes > 0)
             {
@@ -1335,6 +1358,9 @@ namespace FoxLife
                 }
             }
             cands.Add((0.08f + Random.value * 0.06f, new FoxAction { kind = ActKind.Wander, label = "Бродит по дому" }));
+            // в депрессии ничего не хочется
+            if (Depressed) cands.Add((0.5f + Random.value * 0.2f, new FoxAction { kind = ActKind.Idle, label = "Лежит и грустит", duration = 40 }));
+            if (Sick && needs[(int)Need.Energy] < 70f) cands.Add((0.25f, new FoxAction { kind = ActKind.Idle, label = "Отлёживается: болеет", duration = 30 }));
 
             float best = float.MinValue;
             foreach (var c in cands) best = Mathf.Max(best, c.score);

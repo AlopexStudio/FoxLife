@@ -46,6 +46,10 @@ namespace FoxLife
         public int stage = (int)LifeStage.Adult, ageDays, stageDays, pension;
         public float pregnantMinutes = -1f;
         public int element = -1, likedWeather = -1, dislikedWeather = -1;
+        // версия 0.26: состояния
+        public float health = -1f, mental = 60f, comfort = 60f, sick;
+        public int likedSeason = -1;
+        public List<string> interests = new List<string>();
         public List<SaveRel> romance = new List<SaveRel>();
         // ключи от чужих домов (постоянные)
         public List<HouseKey> keys = new List<HouseKey>();
@@ -374,6 +378,8 @@ namespace FoxLife
                 female = f.female, married = f.married, stage = (int)f.stage, ageDays = f.ageDays, stageDays = f.stageDays,
                 pension = f.pension, pregnantMinutes = f.pregnantMinutes,
                 element = f.elementId, likedWeather = f.likedWeather, dislikedWeather = f.dislikedWeather,
+                health = f.health, mental = f.mental, comfort = f.comfort, sick = f.sickMinutes, likedSeason = f.likedSeason,
+                interests = new List<string>(f.interests),
                 home = f.home,
                 stored = f.storeGroup != null,
                 group = f.storeGroup,
@@ -533,6 +539,8 @@ namespace FoxLife
                 fox.ageDays = sf.ageDays; fox.stageDays = sf.stageDays; fox.pension = sf.pension;
                 fox.pregnantMinutes = sf.pregnantMinutes;
                 fox.elementId = sf.element; fox.likedWeather = sf.likedWeather; fox.dislikedWeather = sf.dislikedWeather;
+                fox.health = sf.health; fox.mental = sf.mental; fox.comfort = sf.comfort; fox.sickMinutes = sf.sick; fox.likedSeason = sf.likedSeason;
+                if (sf.interests != null && sf.interests.Count > 0) { fox.interests = new List<string>(sf.interests); fox.interestsSet = true; }
                 fox.ApplyShape();
                 fox.transform.rotation = Quaternion.Euler(0, sf.yaw, 0);
                 if (sf.needs != null && sf.needs.Length == fox.needs.Length) fox.needs = (float[])sf.needs.Clone();
@@ -636,6 +644,8 @@ namespace FoxLife
             fox.ageDays = sf.ageDays; fox.stageDays = sf.stageDays; fox.pension = sf.pension;
             fox.pregnantMinutes = sf.pregnantMinutes;
             fox.elementId = sf.element; fox.likedWeather = sf.likedWeather; fox.dislikedWeather = sf.dislikedWeather;
+            fox.sickMinutes = sf.sick; fox.likedSeason = sf.likedSeason;
+            fox.interests = sf.interests != null ? new List<string>(sf.interests) : new List<string>();
             fox.moodlets.Clear();
             if (sf.moodlets != null) foreach (var m in sf.moodlets) fox.AddMoodlet(m.name, m.value, m.minutesLeft);
             if (sf.skillXp != null && sf.skillXp.Length == Skills.Count) fox.skillXp = (float[])sf.skillXp.Clone();

@@ -90,7 +90,7 @@ namespace FoxLife
             var g = Game.I;
             log.WriteLine($"--- {g.ClockText}, тарелок: {g.PlateCount}, монет: {g.money:0}");
             foreach (var f in g.foxes)
-                log.WriteLine($"{f.foxName} [{f.Summary}, {f.StageName}{(f.carried ? ", НЕСУТ" : "")}{(f.heldKind != null ? ", во рту " + f.heldKind : "")}]: {f.ActivityText} | настр {f.Mood:0} | нужды {string.Join(",", System.Array.ConvertAll(f.needs, n => n.ToString("0")))} | навыки {string.Join(",", f.skillLvl)} | работа {(f.career != null ? f.JobTitle + " " + f.performance.ToString("0") : "-")} | счастье {f.happiness} | желания: {string.Join("; ", f.wants.ConvertAll(w => w.DisplayText))} | страх {f.fearId} | мечта {(f.Dream != null ? f.Dream.name + " " + Mathf.RoundToInt(Dreams.Progress(f, f.Dream) * 100) + "%" : "-")}{(f.running ? " | бежит" : "")}");
+                log.WriteLine($"{f.foxName} [{f.Summary}, {f.StageName}{(f.carried ? ", НЕСУТ" : "")}{(f.heldKind != null ? ", во рту " + f.heldKind : "")}]: {f.ActivityText} | настр {f.Mood:0} | нужды {string.Join(",", System.Array.ConvertAll(f.needs, n => n.ToString("0")))} | здоровье {f.health:0} менталка {f.mental:0} комфорт {f.comfort:0}{(f.Sick ? " БОЛЕЕТ" : "")} | увлечения {string.Join(",", f.interests)} | навыки {string.Join(",", f.skillLvl)} | работа {(f.career != null ? f.JobTitle + " " + f.performance.ToString("0") : "-")} | счастье {f.happiness} | желания: {string.Join("; ", f.wants.ConvertAll(w => w.DisplayText))} | страх {f.fearId} | мечта {(f.Dream != null ? f.Dream.name + " " + Mathf.RoundToInt(Dreams.Progress(f, f.Dream) * 100) + "%" : "-")}{(f.running ? " | бежит" : "")}");
         }
 
         /// <summary>Кадр без постобработки: ищем NaN/бесконечность и сверхъяркие пиксели и под ними — объект.</summary>
@@ -722,6 +722,7 @@ namespace FoxLife
             yield return Shot("5_later");
 
             g.Select(g.foxes[0]);
+            g.ui.infoOpen = true; g.ui.foxTab = 0; yield return new WaitForSeconds(0.5f); yield return Shot("7b_states");
             g.ui.foxTab = 3; yield return new WaitForSeconds(0.5f); yield return Shot("8_skills");
             g.ui.foxTab = 4; yield return new WaitForSeconds(0.5f); yield return Shot("9_work");
             g.ui.foxTab = 5; yield return new WaitForSeconds(0.5f); yield return Shot("10_wants");

@@ -416,6 +416,9 @@ namespace FoxLife
                         w.Write(fl);
                         w.Write((byte)f.pose);
                         for (int k = 0; k < 5; k++) w.Write((byte)Mathf.RoundToInt(Mathf.Clamp(f.needs[k], 0, 100) * 2.55f));
+                        w.Write((byte)Mathf.RoundToInt(Mathf.Clamp(f.health, 0, 100) * 2.55f));
+                        w.Write((byte)Mathf.RoundToInt(Mathf.Clamp(f.mental, 0, 100) * 2.55f));
+                        w.Write((byte)Mathf.RoundToInt(Mathf.Clamp(f.comfort, 0, 100) * 2.55f));
                         if (!pp.sentAct.TryGetValue(f, out var old) || old != hashes[i])
                         {
                             w.Write(true);
@@ -893,6 +896,9 @@ namespace FoxLife
                 int fl = r.ReadByte();
                 var pose = (Pose)r.ReadByte();
                 for (int k = 0; k < 5; k++) needs[k] = r.ReadByte() / 2.55f;
+                float hp = r.ReadByte() / 2.55f, mn = r.ReadByte() / 2.55f, cf = r.ReadByte() / 2.55f;
+                if (f != null && !CasEditing(f)) { f.health = hp; f.mental = mn; }
+                if (f != null) f.comfort = cf;
                 byte[] act = null;
                 if (r.ReadBoolean()) act = r.ReadBytes(r.ReadInt32());
                 string bubble = null; float bt = 0;

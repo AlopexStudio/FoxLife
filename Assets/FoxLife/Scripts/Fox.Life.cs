@@ -456,6 +456,7 @@ namespace FoxLife
         void RealizeFear(FearDef fd)
         {
             AddMoodlet("Сбылся страх «" + fd.text + "»", -12, 300);
+            MentalChange(-10f - Mathf.Max(0, pers.N - 5));
             Say("Только не это!");
             G.LogFox(this, $"{foxName}: сбылся страх — {fd.text.ToLower()}");
             Remember($"Сбылся страх «{fd.text}»", false);
@@ -482,6 +483,7 @@ namespace FoxLife
         {
             wants.Remove(w);
             happiness += w.points;
+            MentalChange(Mathf.Clamp(w.points * 0.5f, 4f, 16f));
             AddMoodlet("Желание исполнилось", 8, 240);
             Say("Ура!");
             G.LogFox(this, $"{foxName}: исполнилось желание «{w.DisplayText}» (+{w.points})");

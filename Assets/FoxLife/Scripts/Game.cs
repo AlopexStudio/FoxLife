@@ -455,6 +455,11 @@ namespace FoxLife
 
         public float Hour => (minutes % 1440f) / 60f;
         public int Day => (int)(minutes / 1440f) + 1;
+
+        // ---------- времена года: по неделе на каждое ----------
+        public static readonly string[] SeasonNames = { "весна", "лето", "осень", "зима" };
+        public static int SeasonIndex(int day) => ((Mathf.Max(1, day) - 1) / 7) % 4;
+        public string SeasonName => SeasonNames[SeasonIndex(Day)];
         static readonly string[] Week = { "Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс" };
         public string ClockText
         {

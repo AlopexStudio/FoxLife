@@ -130,11 +130,16 @@ namespace FoxLife
         }
 
         /// <summary>Вызывается в полночь. Возвращает true, если пришло время уйти в звёздный лес.</summary>
+        float agingDebt;
+
         public bool AgeOneDay(Lifespan l)
         {
             ageDays++;
             if (l == Lifespan.Endless) return false;
             stageDays++;
+            // при плохом здоровье стареют быстрее: «долг» старения копится и иногда добавляет день
+            agingDebt += AgingMul - 1f;
+            if (agingDebt >= 1f) { agingDebt -= 1f; stageDays++; }
             int len = Family.StageDays(stage, l);
             if (stage < LifeStage.Elder)
             {

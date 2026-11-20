@@ -292,8 +292,8 @@ namespace FoxLife
                     if (Btn("+" + a, false, W(120))) Defer(() => { G.money += a; moneyText = Mathf.RoundToInt(G.money).ToString(); });
                 }
                 GUILayout.EndHorizontal();
-                if (Btn(new GUIContent("Все нужды семьи — полные", "Сытость, бодрость, гигиена, веселье и общение — до максимума"), false, Hh(34)))
-                    Defer(() => { foreach (var f in G.Household) for (int i = 0; i < f.needs.Length; i++) f.needs[i] = 100f; });
+                if (Btn(new GUIContent("Все состояния семьи — полные", "Здоровье, сытость, бодрость, менталка, комфорт и отдых — до максимума"), false, Hh(34)))
+                    Defer(() => { foreach (var f in G.Household) { for (int i = 0; i < f.needs.Length; i++) f.needs[i] = 100f; for (int i = 0; i < 6; i++) f.SetState(i, 100f); f.sickMinutes = 0; } });
             }
             GUILayout.Space(10);
             if (Btn("Назад", true, Hh(40))) Defer(() => { moneyText = ""; screen = settingsFrom; });

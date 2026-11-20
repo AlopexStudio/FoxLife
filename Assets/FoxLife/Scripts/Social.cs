@@ -317,6 +317,7 @@ namespace FoxLife
                     onSuccess = (a, b) => Game.I.StartPregnancy(a, b),
                 },
             };
+            Parenting.Add(all);
         }
     }
 }

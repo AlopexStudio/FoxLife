@@ -22,6 +22,9 @@ namespace FoxLife
         public int careerLevel;
         public List<Want> wants = new List<Want>();
         public float[] needs;
+        public float health = -1, mental = -1;
+        public List<string> interests = new List<string>();
+        public int likedSeason = -1;
 
         public static NetCas Of(Fox f) => new NetCas
         {
@@ -33,6 +36,8 @@ namespace FoxLife
             career = f.career != null ? f.career.id : null, careerLevel = f.careerLevel,
             wants = new List<Want>(f.wants),
             needs = new[] { Mathf.Round(f.needs[0]), Mathf.Round(f.needs[1]), Mathf.Round(f.needs[2]), Mathf.Round(f.needs[3]), Mathf.Round(f.needs[4]) },
+            health = Mathf.Round(f.health), mental = Mathf.Round(f.mental),
+            interests = new List<string>(f.interests), likedSeason = f.likedSeason,
         };
 
         public void ApplyTo(Fox f)
@@ -67,6 +72,10 @@ namespace FoxLife
                 foreach (var w in wants) if (w != null && Wants.Get(w.id) != null && f.wants.Count < 3) f.wants.Add(w);
             }
             if (needs != null && needs.Length == 5) for (int i = 0; i < 5; i++) f.needs[i] = Mathf.Clamp(needs[i], 0, 100);
+            if (health >= 0) f.health = Mathf.Clamp(health, 0, 100);
+            if (interests != null) { f.interests.Clear(); foreach (var x in interests) if (Interests.Get(x) != null && f.interests.Count < Interests.Max && !f.interests.Contains(x)) f.interests.Add(x); f.interestsSet = true; }
+            if (likedSeason >= 0) f.likedSeason = Mathf.Clamp(likedSeason, 0, 3);
+            if (mental >= 0) f.mental = Mathf.Clamp(mental, 0, 100);
         }
     }
 
