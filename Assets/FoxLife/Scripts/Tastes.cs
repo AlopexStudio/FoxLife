@@ -303,6 +303,12 @@ namespace FoxLife
             quad.transform.SetParent(furn.model, false);
             quad.transform.localPosition = pos;
             quad.transform.localEulerAngles = euler;
+            // холст и экран — часть предмета: по ним можно кликнуть, чтобы рисовать, смотреть и т. д.
+            var bc = quad.AddComponent<BoxCollider>();
+            bc.size = new Vector3(size.x, size.y, 0.06f);
+            var sref = quad.AddComponent<StyleRef>();
+            sref.owner = furn.style;
+            sref.part = 0;
             grid = quad.AddComponent<PixelGrid>();
             grid.Build(w, h, size, canvas ? 0.03f : 0.004f, canvas ? 0f : 0.0015f, canvas ? 0f : 0.85f, canvas ? 0.012f : 0f);
             if (canvas) grid.backColor = new Color32(214, 204, 184, 255); // обратная сторона холста — льняная ткань

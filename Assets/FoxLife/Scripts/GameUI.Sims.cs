@@ -612,6 +612,7 @@ namespace FoxLife
                     }
                 }
                 var r = new Rect((vw - 420) / 2, y, 420, 74);
+                Reg(r);
                 GUI.Box(r, GUIContent.none, sPanel);
                 if (Event.current.type == EventType.Repaint) Fill(new Rect(r.x + 6, r.y + 8, 4, r.height - 16), new Color(1f, 0.62f, 0.3f));
                 GUI.Label(new Rect(r.x + 18, r.y + 8, r.width - 30, 24), $"{v.foxName} стучится в дверь", sBold);

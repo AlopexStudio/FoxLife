@@ -19,7 +19,7 @@ namespace FoxLife
 
         public static readonly string[] Names = { "Ясно", "Облачно", "Туман", "Дождь", "Гроза" };
         static readonly string[] WinterNames = { "Ясно", "Облачно", "Туман", "Снег", "Метель" };
-        public static bool Winter => Game.I != null && Game.SeasonIndex(Game.I.Day) == 3;
+        public static bool Winter => Game.I != null && Game.I.Season == 3;
         public string Label => (Winter ? WinterNames : Names)[(int)kind];
         public bool Raining => rain > 0.3f && !Winter;
         public bool Snowing => rain > 0.3f && Winter;

@@ -243,6 +243,10 @@ namespace FoxLife
             {
                 GUILayout.Space(8);
                 GUILayout.Label("Игра", sBig);
+                if (Net.IsClient) GUILayout.Label("Время года — " + G.SeasonName + " (выбирает хозяин игры).", sWrap);
+                else if (Btn(new GUIContent("Время года — " + (G.seasonSetting < 0 ? "само (сейчас " + G.SeasonName + ")" : "всегда " + G.SeasonName),
+                    "Само — по неделе на каждое время года. Или выбери одно: весна с цветущими деревьями, лето, рыжая осень, снежная зима"), false, Hh(36)))
+                    Defer(() => G.seasonSetting = G.seasonSetting >= 3 ? -1 : G.seasonSetting + 1);
                 if (Btn(new GUIContent("Сообщения игроков — " + ChatShowNames[(int)chatShow], "Игра по сети: где показывать, что пишут друзья. Облачками — будто это говорят их лисички"), false, Hh(36)))
                     Defer(() => SetChatShow((ChatShow)(((int)chatShow + 1) % 4)));
                 if (Net.IsClient) GUILayout.Label("По сети погоду, время суток и правила города меняет хозяин игры.", sWrap);

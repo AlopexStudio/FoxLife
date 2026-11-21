@@ -395,6 +395,7 @@ namespace FoxLife
                     w.Write(G.minutes);
                     w.Write((byte)G.speedIndex);
                     w.Write((byte)G.weather.kind);
+                    w.Write((byte)G.Season);
                     w.Write(pp.lot >= 0 ? G.MoneyOf(pp.lot) : 0f);
                     w.Write(pp.moneySeq);
                     w.Write((byte)taken.Count);
@@ -877,6 +878,7 @@ namespace FoxLife
             float minutes = r.ReadSingle();
             int speed = r.ReadByte();
             var wk = (WeatherKind)r.ReadByte();
+            G.seasonSetting = r.ReadByte(); // у друга время года — как у хозяина
             float money = r.ReadSingle();
             int ack = r.ReadInt32();
             int tn = r.ReadByte();

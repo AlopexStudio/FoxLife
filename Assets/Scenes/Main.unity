@@ -194,6 +194,7 @@ MonoBehaviour:
     gloss: 0.15
   clipboardName: 
   started: 0
+  seasonSetting: -1
   wallTool: 0
   spray: 0
   landTool: 0

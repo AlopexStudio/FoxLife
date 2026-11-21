@@ -130,7 +130,8 @@ namespace FoxLife
                 if (mv != Vector3.zero) { target += mv.normalized * panSpeed * dt; follow = null; }
                 if (Input.GetKey(KeyCode.Q)) yaw += 90f * dt;
                 if (Input.GetKey(KeyCode.E)) yaw -= 90f * dt;
-                if (Input.GetKey(KeyCode.Z)) dist *= 1f + dt;
+                bool ctrlHeld = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+                if (Input.GetKey(KeyCode.Z) && !ctrlHeld) dist *= 1f + dt; // Ctrl+Z — отмена, а не зум
                 if (Input.GetKey(KeyCode.X)) dist *= 1f - dt;
             }
 

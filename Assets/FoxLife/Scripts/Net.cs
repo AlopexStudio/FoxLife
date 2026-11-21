@@ -128,7 +128,7 @@ namespace FoxLife
     {
         public static Net I;
         public const int DefaultPort = 7777;
-        public const int Protocol = 6;
+        public const int Protocol = 7;
         public enum Role { None, Host, Client }
         public Role role;
 

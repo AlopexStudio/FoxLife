@@ -149,6 +149,7 @@ namespace FoxLife
         public int lastBillDay;
         public string savedAt;
         public float minutes;
+        public int season = -1; // время года из настроек (−1 — само)
         public bool autonomy = true;
         public string selected;
         public string selectedId;
@@ -304,6 +305,7 @@ namespace FoxLife
                 {
                     savedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
                     minutes = g.minutes,
+                    season = g.seasonSetting,
                     money = g.money,
                     freeBuild = g.freeBuild,
                     mayorMode = g.mayorMode,
@@ -446,6 +448,7 @@ namespace FoxLife
             g.autoOutfits = s.autoOutfits;
             g.lastBillDay = s.lastBillDay;
             g.lifespan = (Lifespan)Mathf.Clamp(s.lifespan, 0, 3);
+            g.seasonSetting = s.season >= 0 && s.season <= 3 ? s.season : -1;
             g.lastAgeDay = s.lastAgeDay > 0 ? s.lastAgeDay : g.Day;
             if (s.archive != null) g.archive.AddRange(s.archive);
 

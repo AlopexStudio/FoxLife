@@ -523,7 +523,9 @@ namespace FoxLife
             g.ui.casTab = 3;
             yield return Shot("3b_create_pajama_tab");
             g.ui.casTab = 0;
+            g.ui.nameFormsOpen = true;
             yield return Shot("3_create");
+            g.ui.nameFormsOpen = false;
             for (int tab = 1; tab <= 6; tab++) { g.ui.casTab = tab; yield return new WaitForSeconds(0.4f); yield return Shot("3t" + tab + "_create_tab"); }
             g.ui.casTab = 0;
             // отмена правки в редакторе: переименовали и сменили характер — Ctrl+Z возвращает
@@ -544,6 +546,9 @@ namespace FoxLife
             g.ui.buildTab = 0;
             yield return new WaitForSeconds(2.5f);
             yield return Shot("4b_catalog");
+            g.ui.buildTab = 1; yield return new WaitForSeconds(0.6f); yield return Shot("4c_walls");
+            g.ui.buildTab = 2; yield return new WaitForSeconds(0.6f); yield return Shot("4d_land");
+            g.ui.buildTab = 0;
 
             // дом снаружи с поднятыми стенами — проверка окон и двери
             g.SetMode(Mode.Live);

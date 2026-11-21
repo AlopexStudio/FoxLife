@@ -460,7 +460,10 @@ namespace FoxLife
         // ---------- времена года: по неделе на каждое ----------
         public static readonly string[] SeasonNames = { "весна", "лето", "осень", "зима" };
         public static int SeasonIndex(int day) => ((Mathf.Max(1, day) - 1) / 7) % 4;
-        public string SeasonName => SeasonNames[SeasonIndex(Day)];
+        /// <summary>Время года из настроек: −1 — идёт само (по неделе), 0..3 — всегда весна, лето, осень или зима.</summary>
+        public int seasonSetting = -1;
+        public int Season => seasonSetting >= 0 ? seasonSetting % 4 : SeasonIndex(Day);
+        public string SeasonName => SeasonNames[Season];
         static readonly string[] Week = { "Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс" };
         public string ClockText
         {
@@ -522,8 +525,8 @@ namespace FoxLife
         /// зимой снег на земле, крышах и деревьях. Переходы плавные — в первые часы нового сезона.</summary>
         void SeasonFX(float day, float dusk)
         {
-            int s = SeasonIndex(Day);
-            float inSeason = ((Day - 1) % 7) + Hour / 24f; // дней от начала сезона
+            int s = Season;
+            float inSeason = seasonSetting >= 0 ? 3.5f : ((Day - 1) % 7) + Hour / 24f; // дней от начала сезона (выбрано вручную — середина)
             float ramp = Mathf.Clamp01(inSeason / 0.6f);
             float spring = s == 0 ? ramp * (inSeason > 5.5f ? Mathf.Clamp01((7f - inSeason) / 1.5f) : 1f) : 0f;
             float autumn = s == 2 ? ramp : 0f;
@@ -1571,6 +1574,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
 
         void Hotkeys()
         {
+            CleanOccupants();
             if (ui == null || ui.Typing) return;
             if (Input.GetKeyDown(KeyCode.Space)) TogglePause();
             if (Input.GetKeyDown(KeyCode.PageUp)) SetViewLevel(house.viewLevel + 1);
@@ -1787,6 +1791,33 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             return true;
         }
 
+        float occTimer;
+
+        /// <summary>
+        /// Раз в секунду: место за предметом, которым лисичка больше не пользуется (ушла, отменили, закрыли окно
+        /// одежды или плана крестиком), освобождается — иначе предмет навсегда «занят».
+        /// </summary>
+        void CleanOccupants()
+        {
+            if (Net.IsClient) return;
+            occTimer -= Time.unscaledDeltaTime;
+            if (occTimer > 0) return;
+            occTimer = 1f;
+            foreach (var fu in furniture)
+            {
+                if (fu == null || fu.occupants == null) continue;
+                for (int i = 0; i < fu.occupants.Length; i++)
+                {
+                    var o = fu.occupants[i];
+                    if (o == null) continue;
+                    var a = o.current;
+                    bool uses = o.gameObject.activeInHierarchy && foxes.Contains(o) && a != null
+                        && (a.furn == fu || a.seat == fu || (a.kind == ActKind.UseObject && a.stage >= 3));
+                    if (!uses) fu.occupants[i] = null;
+                }
+            }
+        }
+
         void OpenFurnitureMenu(Furniture f)
         {
             var me = selected;
@@ -1794,7 +1825,8 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             foreach (var it in f.def.actions)
             {
                 var inter = it;
-                var pi = new PieItem(inter.name + (f.HasFreeSlot(me) ? "" : " (занято)"),
+                var busy = f.HasFreeSlot(me) ? null : System.Array.Find(f.occupants, o => o != null && o != me);
+                var pi = new PieItem(inter.name + (busy == null ? (f.HasFreeSlot(me) ? "" : " (занято)") : " (занято: " + busy.foxName + ")"),
                     () => me.Command(new FoxAction { kind = ActKind.UseObject, furn = f, inter = inter, label = inter.verb ?? inter.name }));
                 if (me.stage < inter.minStage) { pi.enabled = false; pi.reason = inter.minStage >= LifeStage.Adult ? "Только для взрослых" : "Пока мал" + (me.female ? "а" : "") + " для этого"; }
                 else if (me.stage > inter.maxStage) { pi.enabled = false; pi.reason = "Это для лисят и подростков"; }

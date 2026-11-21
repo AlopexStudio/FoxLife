@@ -165,7 +165,7 @@ namespace FoxLife
                 else if ((int)w.kind == dislikedWeather) t -= outside ? 14f : 6f;
                 if (w.Raining && outside && !(IsChild && pers.E >= 7)) t -= 8f;
             }
-            if (Game.SeasonIndex(G.Day) == likedSeason) t += 6f;
+            if (G.Season == likedSeason) t += 6f;
             // место: нелюдимым уютнее дома, неугомонным — где люди
             var lot = G.house.LotAt(Cell);
             bool home_ = lot != null && lot.id == home;
@@ -222,9 +222,9 @@ namespace FoxLife
             if (needs[(int)Need.Fun] < 20f) dh -= 0.006f;   // стресс
             if (mental < 15f) dh -= 0.004f;
             if (Sick) dh -= 0.003f;
-            if (needs[(int)Need.Hunger] > 55f && needs[(int)Need.Energy] > 50f && needs[(int)Need.Fun] > 50f && !Sick) dh += sleeping ? 0.0045f : 0.0025f;
+            // здоровье само не восстанавливается: только лечение и спорт (их пока нет). Это показатель на всю жизнь,
+            // а сытость, бодрость, комфорт и отдых меняются в пределах дня
             dh -= stage == LifeStage.Elder ? 0.0006f : stage == LifeStage.Adult ? 0.0002f : 0f; // возраст
-            if (HasPerk("calm")) dh += 0.0005f;
             health = Mathf.Clamp(health + dh * dm, 0, 100);
 
             // ----- болезни: при низком здоровье — часто -----
@@ -244,7 +244,7 @@ namespace FoxLife
             }
 
             // ----- менталка: медленно тянется к середине, низкая — грусть и депрессия -----
-            mental = Mathf.MoveTowards(mental, 50f, 0.002f * dm);
+            // менталка — удовлетворённость жизнью: меняется от желаний, мечты и страхов, сама к середине не тянется
             if (Depressed) AddMoodlet("Депрессия", -25, 5);
             else if (mental < 30f) AddMoodlet("Грустно на душе", -7, 5);
             else if (mental > 80f) AddMoodlet("Жизнь удалась", 6, 5);
@@ -268,6 +268,40 @@ namespace FoxLife
         }
 
         static string Pick(params string[] s) => s[Random.Range(0, s.Length)];
+
+        /// <summary>Что повышает и понижает комфорт именно этой лисички (для подсказки в «Самочувствии»).</summary>
+        public string ComfortHints()
+        {
+            var up = new List<string>(); var down = new List<string>();
+            if (likedWeather >= 0) up.Add(WeatherName((WeatherKind)likedWeather).ToLower());
+            if (dislikedWeather >= 0) down.Add(WeatherName((WeatherKind)dislikedWeather).ToLower());
+            if (likedSeason >= 0) up.Add(Game.SeasonNames[likedSeason]);
+            if (pers.E <= 4) { up.Add("свой дом"); down.Add("незнакомцы рядом"); down.Add("толпа"); }
+            else if (pers.E >= 7) { up.Add("людные места"); up.Add("компания"); }
+            else { up.Add("свой дом"); up.Add("друзья рядом"); }
+            up.Add("диван, кресло, кровать");
+            down.Add("дождь на улице");
+            if (Sick) down.Add("болезнь");
+            string s = "лучше — " + string.Join(", ", up) + "; хуже — " + string.Join(", ", down) + ".";
+            if (pers.N >= 7) s += " Всё неуютное чувствует острее.";
+            return s;
+        }
+
+        /// <summary>Что снимает напряжение именно у этой лисички и что утомляет.</summary>
+        public string RestHints()
+        {
+            var up = new List<string>(); var down = new List<string>();
+            if (pers.O >= 7) { up.Add("новые занятия"); up.Add("творчество"); down.Add("одно и то же по кругу"); }
+            else if (pers.O <= 3) { up.Add("привычные дела"); down.Add("новое и непривычное"); }
+            else up.Add("любимые дела");
+            if (pers.E <= 4) { up.Add("дела в одиночестве"); down.Add("долгие разговоры"); }
+            else if (pers.E >= 7) { up.Add("общение"); up.Add("компания"); }
+            else up.Add("немного общения");
+            if (interests.Count > 0) up.Add("разговоры об увлечениях");
+            down.Add("плохое настроение и неприятности");
+            if (comfort < 30f) down.Add("неуютная обстановка");
+            return "помогает — " + string.Join(", ", up) + "; утомляет — " + string.Join(", ", down) + "." + (Depressed ? " В депрессии ничто не радует так, как раньше." : "");
+        }
 
         public void FallSick()
         {

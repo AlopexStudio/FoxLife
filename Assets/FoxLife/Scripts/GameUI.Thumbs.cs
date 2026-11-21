@@ -95,7 +95,9 @@ namespace FoxLife
                 thumbLight.enabled = false;
             }
             catch (System.Exception e) { Debug.LogWarning("FoxLife: картинка предмета " + d.id + ": " + e.Message); }
-            finally { if (f != null) Destroy(f.gameObject); }
+            // сразу выключить: Destroy срабатывает только в конце кадра, а второй снимок в этом же кадре
+            // иначе поймал бы и предыдущий предмет
+            finally { if (f != null) { f.gameObject.SetActive(false); Destroy(f.gameObject); } }
         }
 
         // ---------- каталог карточками ----------
