@@ -1,4 +1,4 @@
-// Вокселы с цветом в вершинах (земля, трава, цветы): в цвете уже учтены оттенок и затенение углов. URP.
+﻿// Вокселы с цветом в вершинах (земля, трава, цветы): в цвете уже учтены оттенок и затенение углов. URP.
 Shader "FoxLife/VoxelColor"
 {
     Properties
@@ -56,6 +56,12 @@ Shader "FoxLife/VoxelColor"
             half4 frag (Varyings i) : SV_Target
             {
                 half3 c = SRGBToLinear(i.color.rgb);
+                // трава (зелёный цвет) меняется со временем года, снег ложится на всё, что смотрит вверх
+                half grass = saturate((c.g - max(c.r, c.b) * 1.05) * 12);
+                half lum = dot(c, half3(0.3, 0.59, 0.11));
+                c = lerp(c, lum * half3(0.92, 0.85, 0.45) * 1.7, _FoxAutumn * grass * 0.3);
+                c *= lerp(half3(1, 1, 1), (half3)_FoxFoliageTint.rgb, grass);
+                c = FoxSeason(c, FoxSafeNormal(i.normalWS), 0, 0, 1);
                 return FoxShade(c, 1, _Glossiness, 0, i.positionWS, FoxSafeNormal(i.normalWS), i.positionCS, i.fogCoord);
             }
             ENDHLSL

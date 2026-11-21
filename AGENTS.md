@@ -114,6 +114,13 @@ grep -cE "Exception|\[Error\]" "<папка>/run.log"   # должно быть 
 - Редактор лисичек: вкладки (`casTab`), отмена — снимок `CasState` раз в 0,3 с, `Game.PushCasUndo`. Новое поле, которое
   меняется в редакторе, добавляйте в `NetCas` — тогда работают и сеть, и Ctrl+Z.
 
+## Времена года и свет
+- `Game.SeasonFX` раз в кадр задаёт шейдерам `_FoxFoliageTint`, `_FoxAutumn`, `_FoxSpring`, `_FoxSnow`; общая функция —
+  `FoxSeason` в `Resources/FoxLit.hlsl`. У материала `FoxLife/Styled` флаги `_Foliage` (листва деревьев и кустов)
+  и `_SnowOk` (уличное: снег сверху) ставит `Styleable.AddPart` по виду поверхности и имени детали; земля
+  (`VoxelColor`) — снег всегда, трава меняет цвет сама. Ёлки — без смены листвы.
+- Цветокоррекция по времени суток, погоде и сезону — `PostFX.LateUpdate` (плюс `SplitToning`); золотой час — в `UpdateSky`.
+
 ## Ключи и гости (`Fox.Keys.cs`)
 - `KeyKind`: Family (жильцы, `home`), Trusted (постоянный, сохраняется, `giver` — кто дал), Guest (пока не ушёл с участка).
 - `Fox.CanEnter(lot)` — общественные и пустые дома открыты всем; дверь (`House.UpdateDoors`) открывается только тем,

@@ -896,6 +896,45 @@ namespace FoxLife
                 yield return new WaitForSeconds(1.5f);
                 yield return Shot("98_dream");
             }
+            // времена года и свет: весна, лето, осень, зима; закат, туман, снегопад
+            {
+                float m0 = g.minutes;
+                var w = g.weather;
+                bool lk = w.locked;
+                w.locked = true;
+                int sp0 = g.speedIndex;
+                g.SetSpeed(0);
+                g.ui.infoOpen = false; g.cam.target = new Vector3(4f, 0, -14f); g.cam.yaw = 10f; g.cam.pitch = 48f; g.cam.dist = 40f;
+                string[] sn = { "spring", "summer", "autumn", "winter" };
+                for (int s = 0; s < 4; s++)
+                {
+                    g.minutes = (s * 7 + 3) * 1440f + 13 * 60f;
+                    w.Set(WeatherKind.Clear); w.Snap();
+                    yield return new WaitForSeconds(1.2f);
+                    log.WriteLine($"СЕЗОН: {g.SeasonName}, день {g.Day}, снег {g.SnowCover:0.00}, погода {w.Label}");
+                    yield return Shot("50_season_" + s + "_" + sn[s]);
+                }
+                w.Set(WeatherKind.Rain); w.Snap();
+                yield return new WaitForSeconds(2.5f);
+                log.WriteLine($"СНЕГОПАД: {w.Label}, идёт снег {w.Snowing}");
+                yield return Shot("51_snowfall");
+                g.minutes = (1 * 7 + 3) * 1440f + 19.6f * 60f;
+                w.Set(WeatherKind.Clear); w.Snap();
+                yield return new WaitForSeconds(1.2f);
+                yield return Shot("52_golden_hour");
+                g.minutes = (1 * 7 + 3) * 1440f + 7.5f * 60f;
+                w.Set(WeatherKind.Fog); w.Snap();
+                yield return new WaitForSeconds(1.2f);
+                yield return Shot("53_fog_morning");
+                g.minutes = (2 * 7 + 3) * 1440f + 15f * 60f;
+                w.Set(WeatherKind.Rain); w.Snap();
+                yield return new WaitForSeconds(1.5f);
+                yield return Shot("54_rain_autumn");
+                g.minutes = m0;
+                w.Set(WeatherKind.Clear); w.Snap();
+                w.locked = lk;
+                g.SetSpeed(sp0);
+            }
             // главное меню: семья из сохранения у костра и у ручья
             {
                 g.PlayFamily(House.PlayerLotId);

@@ -62,6 +62,12 @@ namespace FoxLife
             // слой глубины против z-fighting: стены и земля — 0, предметы — 1, детали одного предмета — чуть выше друг друга
             float layer = (kind == SurfaceKind.Object ? 1f : kind == SurfaceKind.Fox ? 0.6f : 0f) + (parts.Count - 1) * 0.12f + depthLayer;
             if (layer > 0) p.mat.SetFloat("_DepthBias", layer);
+            // времена года: снег ложится на всё уличное (земля, крыши, заборы, деревья, постройки),
+            // листва деревьев и кустов осенью желтеет, весной часть деревьев цветёт (ёлки — всегда зелёные)
+            bool outdoor = displayName != null && (kind == SurfaceKind.Outdoor || displayName == "Крыша" || displayName == "Забор" || displayName == "Перила и колонны");
+            if (!glass && outdoor) p.mat.SetFloat("_SnowOk", 1f);
+            bool leaves = name == "Крона" || name.StartsWith("Листв") || name == "Листья" || name == "Мох";
+            if (!glass && kind == SurfaceKind.Outdoor && leaves && displayName != "Ёлка") p.mat.SetFloat("_Foliage", 1f);
             MaterialFactory.Apply(p.mat, p.style);
             return parts.Count - 1;
         }

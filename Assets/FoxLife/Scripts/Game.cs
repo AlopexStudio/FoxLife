@@ -512,6 +512,32 @@ namespace FoxLife
             }
         }
 
+        static readonly int FoliageTintId = Shader.PropertyToID("_FoxFoliageTint"), AutumnId = Shader.PropertyToID("_FoxAutumn"),
+            SpringId = Shader.PropertyToID("_FoxSpring"), SnowId = Shader.PropertyToID("_FoxSnow");
+
+        /// <summary>Сколько снега лежит (0..1): зимой выпадает за первые часы, в первый день весны тает.</summary>
+        public float SnowCover { get; private set; }
+
+        /// <summary>Времена года для шейдеров: весной часть деревьев цветёт, летом сочная зелень, осенью рыжая листва,
+        /// зимой снег на земле, крышах и деревьях. Переходы плавные — в первые часы нового сезона.</summary>
+        void SeasonFX(float day, float dusk)
+        {
+            int s = SeasonIndex(Day);
+            float inSeason = ((Day - 1) % 7) + Hour / 24f; // дней от начала сезона
+            float ramp = Mathf.Clamp01(inSeason / 0.6f);
+            float spring = s == 0 ? ramp * (inSeason > 5.5f ? Mathf.Clamp01((7f - inSeason) / 1.5f) : 1f) : 0f;
+            float autumn = s == 2 ? ramp : 0f;
+            float snow = s == 3 ? Mathf.Clamp01(inSeason / 0.4f) : s == 0 && Day > 7 ? Mathf.Clamp01(1f - inSeason) : 0f; // в первую весну тает только настоящий снег
+            SnowCover = snow;
+            Color tint = s == 0 ? new Color(1.06f, 1.05f, 1.0f) : s == 1 ? new Color(0.98f, 1.06f, 0.9f) : s == 2 ? Color.white : new Color(0.72f, 0.84f, 0.8f); // зимой листва приглушённая, под снегом
+            Shader.SetGlobalColor(FoliageTintId, tint);
+            Shader.SetGlobalFloat(AutumnId, autumn);
+            Shader.SetGlobalFloat(SpringId, spring * 0.85f);
+            Shader.SetGlobalFloat(SnowId, snow);
+            PostFX.season = s;
+            PostFX.dusk = dusk;
+        }
+
         void UpdateSky()
         {
             float h = Hour;
@@ -527,8 +553,15 @@ namespace FoxLife
             RenderSettings.ambientLight = Color.Lerp(new Color(0.17f, 0.19f, 0.32f), new Color(0.56f, 0.56f, 0.6f), day);
             Color sky = Color.Lerp(new Color(0.05f, 0.07f, 0.16f), new Color(0.62f, 0.8f, 0.95f), day);
             var bg = Color.Lerp(sky, new Color(0.95f, 0.6f, 0.45f), dusk * 0.5f);
+            // золотой час: на рассвете и закате свет тёплый и низкий, окружение — персиковое, в долине — лёгкая дымка
+            sun.color = Color.Lerp(sun.color, new Color(1f, 0.56f, 0.3f), dusk * 0.35f);
+            RenderSettings.ambientLight = Color.Lerp(RenderSettings.ambientLight, new Color(0.6f, 0.48f, 0.46f), dusk * 0.45f);
+            bg = Color.Lerp(bg, new Color(1f, 0.66f, 0.42f), dusk * 0.35f);
             if (weather != null) weather.ApplySky(sun, camera3d, ref bg);
+            RenderSettings.fogDensity += dusk * 0.004f;
+            RenderSettings.fogColor = Color.Lerp(RenderSettings.fogColor, new Color(1f, 0.72f, 0.55f), dusk * 0.5f);
             camera3d.backgroundColor = bg;
+            SeasonFX(day, dusk);
             bool lampsOn = day < 0.65f;
             // свет в доме — только если там кто-то не спит; общественные места светятся в часы работы
             var lots = house.lots;

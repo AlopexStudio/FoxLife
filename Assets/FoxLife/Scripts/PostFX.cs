@@ -18,6 +18,10 @@ namespace FoxLife
 
         Volume volume;
         Bloom bloom;
+        SplitToning split;
+        // что сейчас за окном (задаёт игра): время года, закат/рассвет; погоду берём у Weather
+        public static int season;
+        public static float dusk;
         ColorAdjustments color;
         Vignette vignette;
         UniversalAdditionalCameraData camData;
@@ -61,6 +65,8 @@ namespace FoxLife
             color = profile.Add<ColorAdjustments>(true);
             color.saturation.Override(10f);
             color.contrast.Override(4f);
+            split = profile.Add<SplitToning>(true);
+            split.balance.Override(10f);
             vignette = profile.Add<Vignette>(true);
             vignette.intensity.Override(0.26f);
             vignette.smoothness.Override(0.45f);
@@ -81,8 +87,22 @@ namespace FoxLife
             // светятся только по-настоящему яркие места (костёр, фонари ночью)
             bloom.threshold.Override(Mathf.Lerp(1.5f, 1.0f, night));
             bloom.intensity.Override(Mathf.Lerp(0.3f, 0.9f, night));
-            color.postExposure.Override(Mathf.Log(Mathf.Lerp(1.12f, 1.25f, night), 2f));
-            color.colorFilter.Override(Color.Lerp(new Color(1.03f, 1.0f, 0.96f), new Color(0.97f, 0.98f, 1.06f), night));
+            // цветокоррекция по свету и погоде: тёплый день, золотой закат, синяя ночь, холодный дождь, пастельный туман
+            var w = game != null ? game.weather : null;
+            float rain = w != null ? Mathf.Clamp01(w.rain + w.storm * 0.5f) : 0f, fog = w != null ? w.fog : 0f;
+            Color filter = Color.Lerp(new Color(1.03f, 1.0f, 0.96f), new Color(0.95f, 0.98f, 1.08f), night);
+            filter = Color.Lerp(filter, new Color(1.08f, 0.97f, 0.88f), dusk * (1f - night) * 0.8f);
+            filter = Color.Lerp(filter, new Color(0.95f, 0.98f, 1.04f), rain * 0.7f);
+            filter = Color.Lerp(filter, new Color(1.02f, 1.0f, 1.03f), fog * 0.6f);
+            if (season == 3) filter = Color.Lerp(filter, new Color(0.97f, 0.99f, 1.04f), 0.5f);
+            color.colorFilter.Override(filter);
+            color.postExposure.Override(Mathf.Log(Mathf.Lerp(1.12f, 1.25f, night) + fog * 0.03f, 2f));
+            color.saturation.Override(10f + dusk * 8f - rain * 12f - fog * 8f + (season == 2 ? 6f : 0f));
+            color.contrast.Override(4f - fog * 5f - rain * 3f);
+            // тени чуть сиреневые, света тёплые (как в уютных открытках); ночью тени синее
+            split.shadows.Override(Color.Lerp(new Color(0.56f, 0.5f, 0.62f), new Color(0.38f, 0.45f, 0.7f), night));
+            split.highlights.Override(Color.Lerp(new Color(0.62f, 0.55f, 0.46f), new Color(0.66f, 0.5f, 0.38f), dusk));
+            bloom.intensity.Override(Mathf.Lerp(0.3f, 1.05f, night) + dusk * 0.15f);
         }
 
         /// <summary>Отрисовать камеру в текстуру (портреты, отладка) — в URP через запрос рендера.</summary>

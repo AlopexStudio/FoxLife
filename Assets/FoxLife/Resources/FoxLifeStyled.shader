@@ -14,6 +14,8 @@ Shader "FoxLife/Styled"
         _Voxel ("Voxel size", Float) = 0
         _UseAO ("Use vertex AO", Float) = 0
         _DepthBias ("Depth bias layer", Float) = 0
+        _Foliage ("Foliage (season colors)", Float) = 0
+        _SnowOk ("Snow on top", Float) = 0
     }
     SubShader
     {
@@ -31,6 +33,8 @@ Shader "FoxLife/Styled"
             float _Voxel;
             float _UseAO;
             float _DepthBias;
+            float _Foliage;
+            float _SnowOk;
         CBUFFER_END
         ENDHLSL
 
@@ -111,6 +115,7 @@ Shader "FoxLife/Styled"
                 half4 t = tx * an.x + ty * an.y + tz * an.z;
                 half3 col = lerp(_Color.rgb, _Color2.rgb, t.g) * t.r * vary;
                 ao = SRGBToLinear(ao);
+                if (_Foliage > 0 || _SnowOk > 0) col = FoxSeason(col, FoxSafeNormal(i.normalWS), i.positionWS, _Foliage, _SnowOk);
                 return FoxShade(col * ao, 1, _Glossiness, _Highlight.rgb, i.positionWS, FoxSafeNormal(i.normalWS), i.positionCS, i.fogCoord);
             }
             ENDHLSL

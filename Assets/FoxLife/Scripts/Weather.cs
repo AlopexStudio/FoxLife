@@ -18,8 +18,12 @@ namespace FoxLife
         public float cloud, fog, rain, storm;
 
         public static readonly string[] Names = { "Ясно", "Облачно", "Туман", "Дождь", "Гроза" };
-        public string Label => Names[(int)kind];
-        public bool Raining => rain > 0.3f;
+        static readonly string[] WinterNames = { "Ясно", "Облачно", "Туман", "Снег", "Метель" };
+        public static bool Winter => Game.I != null && Game.SeasonIndex(Game.I.Day) == 3;
+        public string Label => (Winter ? WinterNames : Names)[(int)kind];
+        public bool Raining => rain > 0.3f && !Winter;
+        public bool Snowing => rain > 0.3f && Winter;
+        bool snowMode;
 
         readonly List<(Transform t, Material m, float speed, float h)> clouds = new List<(Transform, Material, float, float)>();
         ParticleSystem rainPs;
@@ -156,14 +160,16 @@ namespace FoxLife
                 c.m.SetColor("_Color2", grey);
             }
 
-            // дождь вокруг камеры
+            // дождь (зимой — снег крупными хлопьями) вокруг камеры
+            bool winter = Winter;
+            if (winter != snowMode) SetSnowMode(winter);
             var em = rainPs.emission;
-            em.rateOverTime = rain * (2500f + storm * 2000f);
+            em.rateOverTime = winter ? rain * (420f + storm * 700f) : rain * (2500f + storm * 2000f);
             rainPs.transform.position = new Vector3(focus.x, focus.y + 18f, focus.z);
             if (rain > 0.02f) KillIndoorDrops();
 
-            // молнии
-            if (storm > 0.6f)
+            // молнии (зимой гроз не бывает — метель)
+            if (storm > 0.6f && !winter)
             {
                 nextBolt -= Time.deltaTime;
                 if (nextBolt <= 0)
@@ -188,6 +194,25 @@ namespace FoxLife
             }
             if (boltShow > 0) { boltShow -= Time.deltaTime; if (boltShow <= 0) bolt.positionCount = 0; }
             flash = Mathf.Max(0, flash - Time.deltaTime * 5f);
+        }
+
+        /// <summary>Переключить частицы: капли дождя или неспешные снежинки, которых несёт ветер.</summary>
+        void SetSnowMode(bool snow)
+        {
+            snowMode = snow;
+            var main = rainPs.main;
+            main.startLifetime = snow ? 9f : 1.1f;
+            main.startSize = snow ? new ParticleSystem.MinMaxCurve(0.07f, 0.16f) : new ParticleSystem.MinMaxCurve(0.022f);
+            main.startColor = snow ? new Color(1f, 1f, 1f, 0.95f) : new Color(0.8f, 0.88f, 1f, 0.35f);
+            var vel = rainPs.velocityOverLifetime;
+            vel.x = snow ? new ParticleSystem.MinMaxCurve(-1.2f, 0.6f) : new ParticleSystem.MinMaxCurve(-1.5f);
+            vel.y = snow ? new ParticleSystem.MinMaxCurve(-2.6f, -1.6f) : new ParticleSystem.MinMaxCurve(-22f);
+            vel.z = snow ? new ParticleSystem.MinMaxCurve(-0.6f, 0.6f) : new ParticleSystem.MinMaxCurve(-0.5f);
+            var noise = rainPs.noise;
+            noise.enabled = snow; noise.strength = 0.6f; noise.frequency = 0.4f;
+            var pr = rainPs.GetComponent<ParticleSystemRenderer>();
+            pr.renderMode = snow ? ParticleSystemRenderMode.Billboard : ParticleSystemRenderMode.Stretch;
+            rainPs.Clear();
         }
 
         ParticleSystem.Particle[] drops;
@@ -229,7 +254,7 @@ namespace FoxLife
             }
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = 0.004f + fog * 0.04f + rain * 0.006f;
+            RenderSettings.fogDensity = 0.004f + fog * 0.021f + rain * 0.006f; // туман молочный, но город сквозь него виден
             RenderSettings.fogColor = Color.Lerp(sky, new Color(0.85f, 0.87f, 0.9f) * Mathf.Max(0.3f, sky.grayscale * 1.3f), fog * 0.6f);
         }
     }

@@ -444,7 +444,18 @@ namespace FoxLife
         void WeatherEffects(float dm)
         {
             var w = G.weather;
-            if (w == null || !w.Raining || carried) return;
+            if (w == null || carried) return;
+            if (w.Snowing)
+            {
+                wetTimer -= dm;
+                if (wetTimer > 0) return;
+                wetTimer = 20f;
+                if (Level != 0 || G.house.RoomAt(0, Cell) != null) return;
+                if (IsChild || pers.O >= 7) AddMoodlet("Снежинки!", 5, 120);
+                else AddMoodlet("Зябко", pers.N >= 7 ? -5 : -2, 90);
+                return;
+            }
+            if (!w.Raining) return;
             wetTimer -= dm;
             if (wetTimer > 0) return;
             wetTimer = 20f;
