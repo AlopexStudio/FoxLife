@@ -34,7 +34,6 @@ namespace FoxLife
             house.focusLot = -2;
             cam.Focus(new Vector3(20f, 0, -5f), 999f);
             cam.dist = 80f; cam.pitch = 55f;
-            ShowLotBorders(true);
             if (!again) Log("В городе можно строить и перестраивать бесплатно. Во вкладке «Участки» можно создавать, переименовывать и сносить участки.");
         }
 
@@ -46,7 +45,6 @@ namespace FoxLife
             lotTool = false;
             CancelResize();
             townBuilder = false;
-            ShowLotBorders(false);
             freeBuild = prevFree;
             mayorMode = prevMayor;
             if (lotsDirty) { lotsDirty = false; StartCoroutine(RebuildTownRoutine()); }
@@ -264,49 +262,6 @@ namespace FoxLife
             Edge(new Vector2(r.xMin, r.yMax), new Vector2(r.xMin, r.yMin));
             lr.positionCount = pts.Count;
             lr.SetPositions(pts.ToArray());
-        }
-
-        // ---------- границы участков ----------
-
-        readonly List<GameObject> borders = new List<GameObject>();
-
-        /// <summary>В строительстве города видны границы всех участков (пунктиром по земле).</summary>
-        public void ShowLotBorders(bool on)
-        {
-            foreach (var b in borders) if (b != null) Destroy(b);
-            borders.Clear();
-            if (!on || house == null) return;
-            var mat = new Material(Shader.Find("FoxLife/Particle")) { color = new Color(1f, 1f, 1f, 0.85f) };
-            mat.SetFloat("_Unlit", 1f);
-            foreach (var l in house.lots)
-            {
-                if (l.removed || l.rect.width <= 0) continue;
-                var go = new GameObject("граница: " + l.name);
-                var lr = go.AddComponent<LineRenderer>();
-                lr.sharedMaterial = mat;
-                lr.widthMultiplier = 0.14f;
-                lr.loop = true;
-                lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                var r = l.rect;
-                var pts = new List<Vector3>();
-                void Edge(Vector2 a, Vector2 b)
-                {
-                    int n = Mathf.CeilToInt((b - a).magnitude);
-                    for (int i = 0; i < n; i++)
-                    {
-                        var q = Vector2.Lerp(a, b, i / (float)n);
-                        pts.Add(new Vector3(q.x, house.terrain.GroundAt(q.x, q.y) + 0.12f, q.y));
-                    }
-                }
-                Edge(new Vector2(r.xMin, r.yMin), new Vector2(r.xMax, r.yMin));
-                Edge(new Vector2(r.xMax, r.yMin), new Vector2(r.xMax, r.yMax));
-                Edge(new Vector2(r.xMax, r.yMax), new Vector2(r.xMin, r.yMax));
-                Edge(new Vector2(r.xMin, r.yMax), new Vector2(r.xMin, r.yMin));
-                lr.positionCount = pts.Count;
-                lr.SetPositions(pts.ToArray());
-                lr.startColor = lr.endColor = l.kind == LotKind.Home ? new Color(1f, 0.95f, 0.6f) : new Color(0.6f, 0.85f, 1f);
-                borders.Add(go);
-            }
         }
 
         // ---------- декорации ----------

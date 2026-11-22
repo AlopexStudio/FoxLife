@@ -6,6 +6,7 @@ namespace FoxLife
     {
         (int level, (int x, int z, bool v) edge, bool centered)? openingMove;
         public bool MovingOpening => openingMove.HasValue;
+        static readonly Color SledgeRed = new Color(0.36f, 0.07f, 0.04f);
 
         static (int x, int z, bool v) NearestWall(Vector3 point, out float distance)
         {
@@ -49,7 +50,7 @@ namespace FoxLife
         internal (int x, int z, bool v) SnapOpening(int level, (int x, int z, bool v) edge, Vector3 point, EdgeKind want, out bool centered)
         {
             centered = false;
-            if (want != EdgeKind.Door && want != EdgeKind.Window) return edge;
+            if (!House.IsFramedOpening(want)) return edge;
             float along = edge.v ? point.z : point.x;
             int vertex = Mathf.RoundToInt(along);
             if (Mathf.Abs(along - vertex) > 0.25f) return edge;
@@ -99,7 +100,7 @@ namespace FoxLife
 
         void WriteOpening(int level, (int x, int z, bool v) edge, EdgeKind want, bool centered)
         {
-            var kind = centered ? want == EdgeKind.Door ? EdgeKind.CenterDoor : EdgeKind.CenterWindow : want;
+            var kind = centered ? want == EdgeKind.Door ? EdgeKind.CenterDoor : want == EdgeKind.Window ? EdgeKind.CenterWindow : EdgeKind.CenterArch : want;
             house.SetEdge(level, edge.x, edge.z, edge.v, kind);
             if (centered)
             {
@@ -112,8 +113,8 @@ namespace FoxLife
         {
             var kind = house.GetEdge(level, edge.x, edge.z, edge.v);
             var opening = House.OpeningKind(kind);
-            if (!MayEditLot(house.EdgeLot(edge.x, edge.z, edge.v)) || opening != EdgeKind.Door && opening != EdgeKind.Window) return;
-            SetWallTool(opening == EdgeKind.Door ? WallTool.Door : WallTool.Window);
+            if (!MayEditLot(house.EdgeLot(edge.x, edge.z, edge.v)) || !House.IsFramedOpening(kind)) return;
+            SetWallTool(opening == EdgeKind.Door ? WallTool.Door : opening == EdgeKind.Window ? WallTool.Window : WallTool.Arch);
             openingMove = (level, edge, House.IsCenteredOpening(kind));
         }
 
@@ -142,8 +143,7 @@ namespace FoxLife
         {
             var lot = house.LotById(house.EdgeLot(edge.x, edge.z, edge.v));
             var kind = house.GetEdge(level, edge.x, edge.z, edge.v);
-            var opening = House.OpeningKind(kind);
-            if (lot == null || !MayEditLot(lot.id) || opening != EdgeKind.Door && opening != EdgeKind.Window) return;
+            if (lot == null || !MayEditLot(lot.id) || !House.IsFramedOpening(kind)) return;
             Recorded("снос проёма", () =>
             {
                 WriteOpening(level, edge, EdgeKind.Wall, false);
@@ -200,26 +200,47 @@ namespace FoxLife
 
         void UpdateSledgehammer()
         {
-            UpdateHover();
-            if (ui.MouseOverUI || !Input.GetMouseButtonDown(0)) return;
+            if (ui.MouseOverUI)
+            {
+                ClearHover();
+                house.ClearSledgeHighlight();
+                return;
+            }
             int level = house.viewLevel;
+            bool click = Input.GetMouseButtonDown(0);
             if (RaycastWorld(out var hit, out var part))
             {
                 var item = part.owner.GetComponentInParent<Furniture>();
                 if (item != null)
                 {
-                    if (item.level == level && MayEditLot(item.lot) && item.def.id != "plate") SellFurniture(item);
+                    house.ClearSledgeHighlight();
+                    bool allowed = item.level == level && MayEditLot(item.lot) && item.def.id != "plate";
+                    SetHover(allowed ? item.style : null, -1, SledgeRed);
+                    if (click && allowed) SellFurniture(item);
                     return;
                 }
                 if (house.TryHitEdge(hit.transform, level, out var picked, out bool opening))
                 {
-                    if (opening) DemolishOpening(level, picked); else DemolishWall(level, picked);
+                    SledgeWall(level, picked, opening, click);
                     return;
                 }
             }
-            if (!GroundPoint(out var point)) return;
-            var edge = NearestWall(point, out float distance);
-            if (distance < 0.25f) DemolishWall(level, edge);
+            if (GroundPoint(out var point))
+            {
+                var edge = NearestWall(point, out float distance);
+                if (distance < 0.25f) { SledgeWall(level, edge, false, click); return; }
+            }
+            ClearHover();
+            house.ClearSledgeHighlight();
+        }
+
+        void SledgeWall(int level, (int x, int z, bool v) edge, bool opening, bool click)
+        {
+            ClearHover();
+            if (!MayEditLot(house.EdgeLot(edge.x, edge.z, edge.v))) { house.ClearSledgeHighlight(); return; }
+            house.SetSledgeHighlight(level, edge, opening, SledgeRed);
+            if (!click) return;
+            if (opening) DemolishOpening(level, edge); else DemolishWall(level, edge);
         }
     }
 }

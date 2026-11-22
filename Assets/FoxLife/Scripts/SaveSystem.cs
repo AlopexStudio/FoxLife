@@ -133,7 +133,7 @@ namespace FoxLife
         public List<SaveFlower> flowers = new List<SaveFlower>();
         public List<SaveTree> trees = new List<SaveTree>();
         public List<SaveRoom> rooms = new List<SaveRoom>();
-        public int version = 11;
+        public int version = 12;
         public int weather;
         public int playerLot;
         public List<int> moneyLots = new List<int>();

@@ -161,6 +161,7 @@ namespace FoxLife
 
         void ClearWorld()
         {
+            ClearBuildGuides();
             if (Net.IsHost) Net.I.Stop("Хозяин начал другую игру.");
             ClearUndo();
             pendingBefore = null;
@@ -988,8 +989,9 @@ namespace FoxLife
             openingMove = null;
             if (t != WallTool.None) CancelPlacing();
             wallTool = t;
-            if (t != WallTool.None) { landTool = LandTool.None; lotTool = false; }
+            if (t != WallTool.None) { SetLandTool(LandTool.None); lotTool = false; }
             ClearHover();
+            if (house != null) house.ClearSledgeHighlight();
             wallDragging = false;
             roomDrag = null;
             RoomToolHint = null;
@@ -1133,7 +1135,7 @@ namespace FoxLife
 
         // ================= ландшафт и сад =================
 
-        public enum LandTool { None, Raise, Lower, Flatten, Pond, Fill, Flowers, Tree, Pine, Remove, Smooth, Road, Path, Lawn, Undergrowth, Stones, StonesX }
+        public enum LandTool { None, Raise, Lower, Flatten, Pond, Fill, Flowers, Tree, Pine, Remove, Smooth, Road, Path, Lawn, Undergrowth, Stones, StonesX, EraseStones }
         public bool spray; // кисть-спрей для дорог, газона и подлеска
 
         /// <summary>Можно ли тут менять землю и сажать: в строительстве города — везде, в игре — только на своём участке и вокруг.</summary>
@@ -1147,6 +1149,7 @@ namespace FoxLife
         public float brushRadius = 1.5f;
         public const int FlowerPrice = 5, TreePrice = 40;
         float brushTimer, flattenH;
+        Vector3? lastFootpathPoint;
 
         static string LandToolName(LandTool t)
         {
@@ -1161,6 +1164,8 @@ namespace FoxLife
                 case LandTool.Flowers: return "цветы";
                 case LandTool.Tree: case LandTool.Pine: return "деревья";
                 case LandTool.Remove: return "уборка растений";
+                case LandTool.Stones: case LandTool.StonesX: return "мощение дорожки";
+                case LandTool.EraseStones: return "уборка дорожки";
                 default: return "покраска земли";
             }
         }
@@ -1168,6 +1173,7 @@ namespace FoxLife
         public void SetLandTool(LandTool t)
         {
             EndStroke();
+            lastFootpathPoint = null;
             landTool = t;
             if (t != LandTool.None) SetWallTool(WallTool.None);
             HideWallGhost();
@@ -1190,16 +1196,16 @@ namespace FoxLife
 
         void UpdateLandTool()
         {
-            if (ui.MouseOverUI) { HideWallGhost(); return; }
-            if (!TerrainPoint(out var p)) { HideWallGhost(); return; }
+            if (!Input.GetMouseButton(0)) { EndStroke(); lastFootpathPoint = null; }
+            if (ui.MouseOverUI || !TerrainPoint(out var p)) { HideWallGhost(); lastFootpathPoint = null; return; }
             bool plant = landTool == LandTool.Flowers || landTool == LandTool.Tree || landTool == LandTool.Pine;
             float r = brushRadius;
             var col = landTool == LandTool.Lower || landTool == LandTool.Pond || landTool == LandTool.Remove ? new Color(0.95f, 0.45f, 0.35f)
                 : landTool == LandTool.Raise || landTool == LandTool.Fill ? new Color(0.5f, 0.85f, 0.45f) : new Color(0.5f, 0.75f, 1f);
             ShowWallGhost(p + Vector3.up * 0.05f, new Vector3(r * 2f, 0.06f, r * 2f), col);
 
-            if (Input.GetMouseButtonDown(0)) { brushTimer = 0; flattenH = p.y; BeginStroke(LandToolName(landTool)); }
-            if (!Input.GetMouseButton(0)) { EndStroke(); return; }
+            if (Input.GetMouseButtonDown(0)) { brushTimer = 0; flattenH = p.y; lastFootpathPoint = null; BeginStroke(LandToolName(landTool)); }
+            if (strokeOld == null) return;
             brushTimer -= Time.unscaledDeltaTime;
             if (brushTimer > 0) return;
             brushTimer = plant || landTool == LandTool.Remove ? 0.25f : landTool >= LandTool.Road ? 0.04f : 0.12f;
@@ -1212,10 +1218,15 @@ namespace FoxLife
                 case LandTool.Pond: Brush(p, VoxelTerrain.Brush.Pond); break;
                 case LandTool.Fill: Brush(p, VoxelTerrain.Brush.Fill); break;
                 case LandTool.Smooth: Brush(p, VoxelTerrain.Brush.Smooth); break;
-                case LandTool.Road: case LandTool.Path: case LandTool.Lawn: case LandTool.Undergrowth: case LandTool.Stones: case LandTool.StonesX:
+                case LandTool.Stones: case LandTool.StonesX: case LandTool.EraseStones:
+                    var surface = landTool == LandTool.Stones ? VoxelTerrain.Paint.Stones : landTool == LandTool.StonesX ? VoxelTerrain.Paint.StonesX : VoxelTerrain.Paint.None;
+                    PaintFootpath(p, surface, lastFootpathPoint);
+                    lastFootpathPoint = p;
+                    break;
+                case LandTool.Road: case LandTool.Path: case LandTool.Lawn: case LandTool.Undergrowth:
                 {
                     var v = landTool == LandTool.Road ? VoxelTerrain.Paint.Road : landTool == LandTool.Path ? VoxelTerrain.Paint.Path
-                        : landTool == LandTool.Lawn ? VoxelTerrain.Paint.Grass : landTool == LandTool.Stones ? VoxelTerrain.Paint.Stones : landTool == LandTool.StonesX ? VoxelTerrain.Paint.StonesX : VoxelTerrain.Paint.Forest;
+                        : landTool == LandTool.Lawn ? VoxelTerrain.Paint.Grass : VoxelTerrain.Paint.Forest;
                     if (t.PaintBrush(p, brushRadius, v, spray) && landTool == LandTool.Undergrowth && Random.value < (spray ? 0.12f : 0.35f))
                     {
                         // подлесок: папоротники и кустики там, где ещё пусто
@@ -1263,6 +1274,13 @@ namespace FoxLife
                     if (n > 0) Log($"Убрано {n} раст.");
                     break;
             }
+        }
+
+        internal bool PaintFootpath(Vector3 point, VoxelTerrain.Paint surface, Vector3? last = null)
+        {
+            var terrain = house.terrain;
+            return terrain.PaintBrush(point, brushRadius, surface, allow: (x, z) => townBuilder ||
+                InsideEditable(new Vector3(x, 0, z)) && Town.StreetKind(x, z) == 0 && !terrain.IsRoad(x, z), from: last);
         }
 
         bool OnBuilding(Vector3 p)
@@ -1459,6 +1477,7 @@ namespace FoxLife
                 ears.position = tp + dir.normalized * Mathf.Min(dir.magnitude, 4f) + Vector3.up * 1.2f;
                 ears.rotation = camera3d.transform.rotation;
             }
+            UpdateBuildGuides();
             if (loading || house == null) return;
             house.UpdateDoors(foxes, dt);
             if (mode == Mode.Build) UpdateLotTool();
@@ -1473,6 +1492,7 @@ namespace FoxLife
             }
             if (ui.screen != GameUI.MenuScreen.None)
             {
+                if (wallTool == WallTool.Sledgehammer) { ClearHover(); house.ClearSledgeHighlight(); }
                 // в меню время стоит, лисички только дышат, камера медленно облетает дом на титульном экране
                 UpdateSky();
                 foreach (var f in foxes) if (f != null) f.Tick(0, dt);
@@ -1706,8 +1726,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                         if (fox != null || (furn != null && furn.def.actions.Count > 0)) { st = o; col = new Color(0.12f, 0.08f, 0.02f); }
                         break;
                     case Mode.Build:
-                        if (furn != null && MayEditLot(furn.lot))
-                        { st = o; col = wallTool == WallTool.Sledgehammer ? new Color(0.36f, 0.07f, 0.04f) : new Color(0.1f, 0.12f, 0.02f); }
+                        if (furn != null && MayEditLot(furn.lot)) { st = o; col = new Color(0.1f, 0.12f, 0.02f); }
                         break;
                     case Mode.Style:
                         if (CanStyle(o)) { st = o; part = sr.part; col = new Color(0.16f, 0.12f, 0.04f); }
@@ -1717,6 +1736,11 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                         break;
                 }
             }
+            SetHover(st, part, col);
+        }
+
+        void SetHover(Styleable st, int part, Color col)
+        {
             if (st == hoverStyle && part == hoverPart && col == hoverColor) return;
             ClearHover();
             hoverStyle = st;

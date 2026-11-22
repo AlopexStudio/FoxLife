@@ -128,7 +128,7 @@ namespace FoxLife
             WallCard(a, "Снести", "Возврат цены", "erase", Game.WallTool.Erase, "Протяни вдоль стен, которые нужно убрать.");
             WallCard(a, "Дверь", Each(Game.DoorPrice), "door", Game.WallTool.Door, "Кликни по стене или по стыку двух секций.");
             WallCard(a, "Окно", Each(Game.WindowPrice), "window", Game.WallTool.Window, "Кликни по стене или по стыку двух секций.");
-            WallCard(a, "Проём", Each(Game.ArchPrice), "arch", Game.WallTool.Arch, "Арка без двери — проход между комнатами.");
+            WallCard(a, "Проём", Each(Game.ArchPrice), "arch", Game.WallTool.Arch, "Проход с косяком. Кликни по стене или по стыку двух секций.");
             ToolCards(a, wdt);
             Section("Двор и веранды");
             var b = new List<ToolCardDef>();
@@ -138,11 +138,12 @@ namespace FoxLife
             WallCard(b, "Вход в перилах", Each(Game.RailingGapPrice), "railgap", Game.WallTool.RailingGap, "Кликни по перилам, чтобы сделать проход.");
             ToolCards(b, wdt);
             string hint = G.wallTool == Game.WallTool.Wall ? "Зажми мышь на углу сетки и протяни стену. ПКМ — отменить."
+                : G.wallTool == Game.WallTool.Sledgehammer ? "ЛКМ — убрать подсвеченную стену, мебель или проём."
                 : G.wallTool == Game.WallTool.Erase ? "Протяни вдоль стен, которые нужно снести."
                 : G.wallTool == Game.WallTool.MoveRoom ? "Зажми ЛКМ на полу комнаты, перетащи и отпусти. ПКМ — отменить."
                 : G.wallTool == Game.WallTool.ResizeRoom ? "Зажми ЛКМ у стены прямоугольной комнаты и потяни поперёк стены."
                 : G.wallTool == Game.WallTool.None ? "Page Up / Page Down — этажи. Home / End — стены."
-                : G.wallTool == Game.WallTool.Door || G.wallTool == Game.WallTool.Window ? "Кликни по середине секции стены или по стыку двух секций."
+                : G.wallTool == Game.WallTool.Door || G.wallTool == Game.WallTool.Window || G.wallTool == Game.WallTool.Arch ? "Кликни по середине секции стены или по стыку двух секций."
                 : "Кликни по стене или забору, чтобы поставить. Esc — выйти из инструмента.";
             ColorLabel(G.RoomToolHint ?? hint, sSmall, new Color(0.35f, 0.4f, 0.5f));
             Section("Планировка");
@@ -234,14 +235,18 @@ namespace FoxLife
             LandCard(a, "Выровнять", "", "flatten", Game.LandTool.Flatten, "Выравнивает по высоте места, где нажал.");
             LandCard(a, "Сгладить", "", "smooth", Game.LandTool.Smooth, "Склоны оплывают, ступеньки и бугры разглаживаются.");
             ToolCards(a, wdt);
+            Section("Дорожки");
+            var paths = new List<ToolCardDef>();
+            LandCard(paths, "Плитки ↕", "", "stones", Game.LandTool.Stones, "Каменные плитки, как у входов в дома. Веди кистью с севера на юг.");
+            LandCard(paths, "Плитки ↔", "", "stonesx", Game.LandTool.StonesX, "Каменные плитки, как у входов в дома. Веди кистью с запада на восток.");
+            LandCard(paths, "Убрать плитки", "", "lawn", Game.LandTool.EraseStones, "Убирает уложенные плитки и возвращает исходное покрытие.");
+            ToolCards(paths, wdt);
             if (G.townBuilder)
             {
                 Section("Дороги и лес");
                 var t = new List<ToolCardDef>();
                 LandCard(t, "Дорога", "", "road", Game.LandTool.Road, "Веди мышью — мощёная улица.");
                 LandCard(t, "Тропинка", "", "path", Game.LandTool.Path, "Веди мышью — тропинка из гравия.");
-                LandCard(t, "Плитки ↕", "", "stones", Game.LandTool.Stones, "Дорожка из плиток с травой, с севера на юг.");
-                LandCard(t, "Плитки ↔", "", "stonesx", Game.LandTool.StonesX, "Дорожка из плиток с травой, с запада на восток.");
                 LandCard(t, "Подлесок", "", "under", Game.LandTool.Undergrowth, "Хвоя, мох и папоротники, как в лесу.");
                 LandCard(t, "Газон", "", "lawn", Game.LandTool.Lawn, "Стирает дороги, тропинки и подлесок.");
                 t.Add(new ToolCardDef { name = G.spray ? "Спрей: вкл" : "Спрей: выкл", pict = "spray", on = G.spray, tip = "Кисть брызгает редкими точками, гуще к середине — мягкий переход.", click = () => G.spray = !G.spray });

@@ -264,23 +264,39 @@ namespace FoxLife
 
         public bool IsRoad(float wx, float wz)
         {
+            var surface = PaintAt(wx, wz);
+            return surface != Paint.None ? surface == Paint.Road : Town.OnRoad(wx, wz);
+        }
+
+        internal Paint PaintAt(float wx, float wz)
+        {
             int i = Mathf.FloorToInt((wx - MinX) / S), k = Mathf.FloorToInt((wz - MinZ) / S);
-            if (paint != null && i >= 0 && k >= 0 && i < NX && k < NZ && paint[i, k] != 0) return paint[i, k] == (byte)Paint.Road;
-            return Town.OnRoad(wx, wz);
+            return paint != null && i >= 0 && k >= 0 && i < NX && k < NZ ? (Paint)paint[i, k] : Paint.None;
         }
 
         /// <summary>Кисть покраски: края кисти чуть рваные, чтобы дорожки не выглядели нарисованными по линейке.</summary>
-        public bool PaintBrush(Vector3 p, float radius, Paint v, bool spray = false)
+        public bool PaintBrush(Vector3 p, float radius, Paint v, bool spray = false,
+            System.Func<float, float, bool> allow = null, Vector3? from = null)
         {
-            int i0 = Mathf.Max(0, Mathf.FloorToInt((p.x - radius - MinX) / S)), i1 = Mathf.Min(NX - 1, Mathf.CeilToInt((p.x + radius - MinX) / S));
-            int k0 = Mathf.Max(0, Mathf.FloorToInt((p.z - radius - MinZ) / S)), k1 = Mathf.Min(NZ - 1, Mathf.CeilToInt((p.z + radius - MinZ) / S));
+            var a = from.GetValueOrDefault(p);
+            var span = new Vector2(p.x - a.x, p.z - a.z);
+            float length = span.sqrMagnitude;
+            int i0 = Mathf.Max(0, Mathf.FloorToInt((Mathf.Min(a.x, p.x) - radius - MinX) / S));
+            int i1 = Mathf.Min(NX - 1, Mathf.CeilToInt((Mathf.Max(a.x, p.x) + radius - MinX) / S));
+            int k0 = Mathf.Max(0, Mathf.FloorToInt((Mathf.Min(a.z, p.z) - radius - MinZ) / S));
+            int k1 = Mathf.Min(NZ - 1, Mathf.CeilToInt((Mathf.Max(a.z, p.z) + radius - MinZ) / S));
+            bool paving = v == Paint.Stones || v == Paint.StonesX;
             bool changed = false;
             for (int i = i0; i <= i1; i++)
                 for (int k = k0; k <= k1; k++)
                 {
                     float wx = MinX + (i + 0.5f) * S, wz = MinZ + (k + 0.5f) * S;
-                    float d = new Vector2(wx - p.x, wz - p.z).magnitude;
-                    if (d > radius - (v == Paint.Road || v == Paint.Stones || v == Paint.StonesX ? 0f : Hash(i, 61, k) * 0.35f) || InHouse(wx, wz)) continue;
+                    var q = new Vector2(wx - a.x, wz - a.z);
+                    if (length > 0.001f) q -= span * Mathf.Clamp01(Vector2.Dot(q, span) / length);
+                    float d = q.magnitude;
+                    if (d > radius - (v == Paint.Road || paving || v == Paint.None ? 0f : Hash(i, 61, k) * 0.35f) || InHouse(wx, wz)) continue;
+                    if (paving && IsWaterColumn(i, k) || allow != null && !allow(wx, wz)) continue;
+                    if (v == Paint.None && paint[i, k] != (byte)Paint.Stones && paint[i, k] != (byte)Paint.StonesX) continue;
                     // спрей: редкие точки, гуще к середине — мягкий переход (как опушка между газоном и подлеском)
                     if (spray && Random.value > 0.18f * (1f - d / radius) + 0.02f) continue;
                     if (paint[i, k] == (byte)v) continue;

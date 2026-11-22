@@ -123,6 +123,72 @@ namespace FoxLife
             return g.house.GetEdge(0, door.x, door.z, door.v) == EdgeKind.CenterDoor && g.house.GetEdge(0, tail.x, tail.z, tail.v) == EdgeKind.OpeningEnd;
         }
 
+        bool CheckInteriorArch(Game g, Vector2Int corner)
+        {
+            int x = corner.x + 3, z = corner.y;
+            for (int i = 0; i < 5; i++) g.house.SetEdge(0, x, z + i, true, EdgeKind.Wall);
+            g.house.Rebuild();
+            var left = new Vector2Int(x - 1, z + 1);
+            var right = new Vector2Int(x, z + 1);
+            if (g.house.RoomAt(left) == null || g.house.RoomAt(right) == null || g.house.RoomAt(left) == g.house.RoomAt(right)) return false;
+
+            var arch = g.SnapOpening(0, (x, z + 2, true), new Vector3(x, 0, z + 2), EdgeKind.Arch, out bool centered);
+            if (!centered || !g.PlaceOpening(0, arch, EdgeKind.Arch, true)) return false;
+            var walk = g.house.grid.FindPath(left, right);
+            if (walk == null || !walk.Exists(p => p.x == x && p.z == z + 2)) return false;
+
+            var openings = g.house.openings;
+            Renderer frame = null;
+            foreach (var part in openings.GetComponentsInChildren<StyleRef>(true))
+                if (part.part == House.ArchFramePart && g.house.TryHitEdge(part.transform, 0, out var hit, out bool opening) && opening && hit == arch)
+                { frame = part.transform.parent.Find("voxels")?.GetComponent<Renderer>(); break; }
+            if (frame == null) return false;
+            var color = new Color(0.36f, 0.07f, 0.04f);
+            var properties = new MaterialPropertyBlock();
+            g.house.SetSledgeHighlight(0, arch, true, color);
+            frame.GetPropertyBlock(properties);
+            if (properties.GetColor("_Highlight").r < 0.3f) return false;
+            g.house.ClearSledgeHighlight();
+            frame.GetPropertyBlock(properties);
+            if (properties.GetColor("_Highlight").r > 0f) return false;
+            openings.SetStyle(House.ArchFramePart, StyleData.Make("Гладкий", "#C5A3BA"));
+
+            g.StartMovingOpening(0, arch);
+            if (!g.MoveOpening(0, (x, z + 3, true), EdgeKind.Arch, false)) return false;
+            g.DemolishOpening(0, (x, z + 3, true));
+            if (g.house.GetEdge(0, x, z + 3, true) != EdgeKind.Wall) return false;
+            g.Undo();
+            g.Undo();
+            return g.house.GetEdge(0, arch.x, arch.z, arch.v) == EdgeKind.CenterArch;
+        }
+
+        bool CheckFootpath(Game g, out Vector3 show)
+        {
+            var lot = g.house.PlayerLot.rect;
+            var terrain = g.house.terrain;
+            float radius = g.brushRadius;
+            g.brushRadius = 0.8f;
+            foreach (var direction in new[] { Vector3.forward, Vector3.right, Vector3.back, Vector3.left })
+            {
+                float extent = direction.x != 0 ? lot.width * 0.5f : lot.height * 0.5f;
+                var boundary = new Vector3(lot.center.x, 0, lot.center.y) + direction * extent;
+                var outside = boundary + direction * 1.25f;
+                var inside = boundary - direction * 1.25f;
+                if (Town.LotIdAt(outside.x, outside.z) >= 0 || Town.StreetKind(outside.x, outside.z) != 0) continue;
+                var material = direction.x != 0 ? VoxelTerrain.Paint.StonesX : VoxelTerrain.Paint.Stones;
+                if (!g.PaintFootpath(outside, material, inside) || terrain.PaintAt(outside.x, outside.z) != material ||
+                    terrain.PaintAt(inside.x, inside.z) != material) continue;
+                bool erased = g.PaintFootpath(outside, VoxelTerrain.Paint.None, inside) && terrain.PaintAt(outside.x, outside.z) == VoxelTerrain.Paint.None;
+                g.PaintFootpath(outside, material, inside);
+                g.brushRadius = radius;
+                show = boundary;
+                return erased;
+            }
+            g.brushRadius = radius;
+            show = new Vector3(lot.center.x, 0, lot.center.y);
+            return false;
+        }
+
         void Dump()
         {
             var g = Game.I;
@@ -943,11 +1009,20 @@ namespace FoxLife
                             g.house.wallMode = House.WallMode.Up;
                             if (!CheckCenteredOpenings(g, start)) Debug.LogError("ПРОЁМЫ: не прошла проверка стройки, пути, переноса или сноса.");
                             else log.WriteLine("ПРОЁМЫ: дверь и окно на стыке, путь через дверь, перенос, отмена и снос.");
+                            if (!CheckInteriorArch(g, start)) Debug.LogError("КОСЯК: проверка межкомнатного проёма не прошла.");
+                            else log.WriteLine("КОСЯК: стык стен, проход, попадание курсором, подсветка, перенос и снос.");
+                            if (!CheckFootpath(g, out var pathView)) Debug.LogError("ДОРОЖКА: мощение через границу участка не прошло.");
+                            else log.WriteLine("ДОРОЖКА: плитки внутри и снаружи участка, стирание возвращает исходное покрытие.");
                             g.SetHour(13);
                             g.cam.Focus(new Vector3(start.x + 3.5f, 0, start.y + 2.5f), 15f);
                             g.SetMode(Mode.Build);
                             g.SetWallTool(Game.WallTool.Sledgehammer);
                             yield return Shot("9c_center_openings");
+                            g.SetWallTool(Game.WallTool.None);
+                            g.ui.buildTab = 2;
+                            g.cam.Focus(pathView, 20f);
+                            yield return Shot("9d_path_grid");
+                            g.ui.buildTab = 0;
                             g.SetMode(Mode.Live);
                         }
                     }

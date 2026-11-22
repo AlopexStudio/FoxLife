@@ -94,6 +94,11 @@ namespace FoxLife
                 case "play3": s = (x, y) => Max(Tri(x, y, new Vector2(0.06f, 0.28f), new Vector2(0.06f, 0.72f), new Vector2(0.34f, 0.5f)), Tri(x, y, new Vector2(0.36f, 0.28f), new Vector2(0.36f, 0.72f), new Vector2(0.64f, 0.5f)), Tri(x, y, new Vector2(0.66f, 0.28f), new Vector2(0.66f, 0.72f), new Vector2(0.94f, 0.5f))); break;
                 case "roof": s = (x, y) => Mathf.Max(Tri(x, y, new Vector2(0.5f, 0.18f), new Vector2(0.08f, 0.62f), new Vector2(0.92f, 0.62f)) - Tri(x, y, new Vector2(0.5f, 0.36f), new Vector2(0.28f, 0.6f), new Vector2(0.72f, 0.6f)), 0); break;
                 case "walls": s = (x, y) => Max(Box(x, y, 0.12f, 0.2f, 0.3f, 0.82f), Box(x, y, 0.41f, 0.42f, 0.59f, 0.82f), Box(x, y, 0.7f, 0.64f, 0.88f, 0.82f)); break;
+                case "hammer": s = (x, y) =>
+                {
+                    float u = 0.5f + (x + y - 1f) * 0.7071f, v = 0.5f + (y - x) * 0.7071f;
+                    return Max(Box(u, v, 0.42f, 0.23f, 0.58f, 0.91f), Box(u, v, 0.19f, 0.14f, 0.8f, 0.42f));
+                }; break;
                 case "names": s = (x, y) => Mathf.Max(Max(Box(x, y, 0.14f, 0.3f, 0.72f, 0.7f), Tri(x, y, new Vector2(0.72f, 0.3f), new Vector2(0.72f, 0.7f), new Vector2(0.9f, 0.5f))) - Circle(x, y, 0.27f, 0.5f, 0.06f), 0); break;
                 case "phrases": s = (x, y) => Max(Box(x, y, 0.14f, 0.22f, 0.86f, 0.62f), Tri(x, y, new Vector2(0.28f, 0.6f), new Vector2(0.48f, 0.6f), new Vector2(0.22f, 0.86f))); break;
                 case "auto": s = (x, y) => Mathf.Max(Ring(x, y, 0.5f, 0.5f, 0.3f, 0.07f) - Box(x, y, 0.45f, 0.1f, 0.9f, 0.32f), Tri(x, y, new Vector2(0.62f, 0.12f), new Vector2(0.62f, 0.38f), new Vector2(0.86f, 0.25f))); break;

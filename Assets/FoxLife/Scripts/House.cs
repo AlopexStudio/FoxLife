@@ -4,7 +4,7 @@ using UnityEngine;
 namespace FoxLife
 {
     public enum EdgeKind { None = 0, Wall = 1, Door = 2, Window = 3, Arch = 4, Fence = 5, Gate = 6, Railing = 7, RailingOpen = 8,
-        CenterDoor = 9, CenterWindow = 10, OpeningEnd = 11 }
+        CenterDoor = 9, CenterWindow = 10, OpeningEnd = 11, CenterArch = 12 }
 
     public enum LotKind { Home, Park, Cafe, Library, Square, School, Market, Workshop, Observatory, Camp }
 
@@ -18,7 +18,8 @@ namespace FoxLife
     public class House : MonoBehaviour
     {
         public const int W = 20, H = 16, Levels = 2;   // W, H — размер участка игрока
-        public const float WallH = 2.0f, CutH = 0.25f, DoorH = 1.45f, FenceH = 0.8f;
+        public const float WallH = 2.0f, CutH = 0.25f, FenceH = 0.8f;
+        internal const int ArchFramePart = 6;
         const float Half = 0.0625f;
 
         public enum WallMode { Auto, Up, Down }
@@ -29,6 +30,7 @@ namespace FoxLife
 
         public GridMap[] grids;
         public GridMap grid => grids[0];
+        internal int BuildGuideRevision { get; private set; }
         public VoxelTerrain terrain;
 
         // ---------- участки ----------
@@ -94,7 +96,6 @@ namespace FoxLife
             public int level, lot;
             public GameObject root, full, cut, opening;
             public readonly List<Transform> lowSlabs = new List<Transform>();
-            public readonly List<GameObject> highSlabs = new List<GameObject>();
             public int state = -1;
             public bool needCut;
             public float baseY;
@@ -103,6 +104,11 @@ namespace FoxLife
 
         readonly Dictionary<Vector3Int, Edge> edges = new Dictionary<Vector3Int, Edge>();
         readonly Dictionary<Transform, Vector3Int> edgeHits = new Dictionary<Transform, Vector3Int>();
+        readonly List<Renderer> sledgeRenderers = new List<Renderer>();
+        MaterialPropertyBlock sledgeProperties;
+        static readonly int HighlightProperty = Shader.PropertyToID("_Highlight");
+        Edge sledgeEdge;
+        bool sledgeOpening;
         Transform roomsRoot, wallsRoot, roofsRoot, treesRoot;
         public Transform propsRoot;
         public Transform WallsRoot => wallsRoot;
@@ -188,8 +194,13 @@ namespace FoxLife
 
         public static bool IsWallLike(EdgeKind k) => k == EdgeKind.Wall || k == EdgeKind.Door || k == EdgeKind.Window || k == EdgeKind.Arch
             || IsCenteredOpening(k) || k == EdgeKind.OpeningEnd;
-        internal static bool IsCenteredOpening(EdgeKind k) => k == EdgeKind.CenterDoor || k == EdgeKind.CenterWindow;
-        internal static EdgeKind OpeningKind(EdgeKind k) => k == EdgeKind.CenterDoor ? EdgeKind.Door : k == EdgeKind.CenterWindow ? EdgeKind.Window : k;
+        internal static bool IsCenteredOpening(EdgeKind k) => k == EdgeKind.CenterDoor || k == EdgeKind.CenterWindow || k == EdgeKind.CenterArch;
+        internal static EdgeKind OpeningKind(EdgeKind k) => k == EdgeKind.CenterDoor ? EdgeKind.Door : k == EdgeKind.CenterWindow ? EdgeKind.Window : k == EdgeKind.CenterArch ? EdgeKind.Arch : k;
+        internal static bool IsFramedOpening(EdgeKind k)
+        {
+            var kind = OpeningKind(k);
+            return kind == EdgeKind.Door || kind == EdgeKind.Window || kind == EdgeKind.Arch;
+        }
         internal static (int x, int z, bool v) AlongEdge((int x, int z, bool v) edge, int step) =>
             edge.v ? (edge.x, edge.z + step, true) : (edge.x + step, edge.z, false);
 
@@ -280,6 +291,50 @@ namespace FoxLife
             edge = default;
             opening = false;
             return false;
+        }
+
+        internal void SetSledgeHighlight(int level, (int x, int z, bool v) edge, bool opening, Color color)
+        {
+            edges.TryGetValue(Key(level, edge.x, edge.z, edge.v), out var segment);
+            if (segment == sledgeEdge && opening == sledgeOpening) return;
+            ClearSledgeHighlight();
+            if (segment == null) return;
+            sledgeEdge = segment;
+            sledgeOpening = opening;
+            if (!opening) AppendSledgeRenderers(segment.root);
+            if (opening || IsCenteredOpening(segment.kind)) AppendSledgeRenderers(segment.opening);
+            else if (segment.kind == EdgeKind.OpeningEnd)
+            {
+                var first = AlongEdge(edge, -1);
+                if (edges.TryGetValue(Key(level, first.x, first.z, first.v), out var paired)) AppendSledgeRenderers(paired.opening);
+            }
+            ApplySledgeColor(color);
+        }
+
+        void AppendSledgeRenderers(GameObject target)
+        {
+            if (target == null) return;
+            sledgeRenderers.AddRange(target.GetComponentsInChildren<Renderer>(true));
+        }
+
+        void ApplySledgeColor(Color color)
+        {
+            sledgeProperties ??= new MaterialPropertyBlock();
+            foreach (var renderer in sledgeRenderers)
+            {
+                if (renderer == null) continue;
+                renderer.GetPropertyBlock(sledgeProperties);
+                sledgeProperties.SetColor(HighlightProperty, color);
+                renderer.SetPropertyBlock(sledgeProperties);
+            }
+        }
+
+        internal void ClearSledgeHighlight()
+        {
+            if (sledgeEdge == null) return;
+            ApplySledgeColor(Color.clear);
+            sledgeRenderers.Clear();
+            sledgeEdge = null;
         }
 
         public static void Sides(int x, int z, bool v, out Vector2Int a, out Vector2Int b)
@@ -485,6 +540,7 @@ namespace FoxLife
             l.openings.AddPart("Ставни", StyleData.Make("Доски", "#5B8FB9", null, 2f));
             l.openings.AddPart("Ящик для цветов", StyleData.Make("Доски", "#A8774F", null, 2f));
             l.openings.AddPart("Цветы на окнах", StyleData.Make("Горошек", "#F5A3C1", "#FFF2B3", 3f));
+            l.openings.AddPart("Косяки проёмов", StyleData.Make("Гладкий", "#FFF8EE", null, 1, 0.4f));
             l.railing = NewStyleable("Перила и колонны", SurfaceKind.Wall, l.root);
             l.railing.AddPart("Перила", StyleData.Make("Гладкий", "#FFF8EE", null, 1, 0.3f));
             l.railing.AddPart("Колонны", StyleData.Make("Гладкий", "#F4EBDD", null, 1, 0.3f));
@@ -589,6 +645,7 @@ namespace FoxLife
         public void Rebuild(Lot lot)
         {
             if (lot == null) return;
+            ClearSledgeHighlight();
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var pt = new long[4];
             FindRooms(lot);
@@ -601,7 +658,7 @@ namespace FoxLife
                 DestroyEdge(e);
                 e.root = e.full = e.cut = e.opening = null;
                 e.holes = null;
-                e.lowSlabs.Clear(); e.highSlabs.Clear();
+                e.lowSlabs.Clear();
                 e.state = -1;
             }
             lot.facade.ClearRenderers();
@@ -646,8 +703,7 @@ namespace FoxLife
                 var posts = CornerPosts(level, lot.rect);
                 var columns = RailingColumns(level, lot.rect);
                 foreach (var kv in edges)
-                    if (kv.Key.z / 2 == level && kv.Value.lot == lot.id &&
-                        (OpeningKind(kv.Value.kind) == EdgeKind.Door || OpeningKind(kv.Value.kind) == EdgeKind.Window))
+                    if (kv.Key.z / 2 == level && kv.Value.lot == lot.id && IsFramedOpening(kv.Value.kind))
                         BuildEdgeOpening(kv.Key, kv.Value, lot);
                 foreach (var kv in edges)
                 {
@@ -822,17 +878,14 @@ namespace FoxLife
             var rt = e.root.transform;
             var prims = new List<Renderer>();
 
-            float y0 = e.kind == EdgeKind.Arch ? DoorH : 0f;
-            float h = WallH - y0;
             Vector3 ctr = (v ? new Vector3(x, 0, z + 0.5f) : new Vector3(x + 0.5f, 0, z)) + Vector3.up * by;
             Vector3 off = v ? new Vector3(Half / 2f, 0, 0) : new Vector3(0, 0, Half / 2f);
-            Vector3 size = v ? new Vector3(Half, h, 1f) : new Vector3(1f, h, Half);
-            var slabA = Shapes.Box(sa.st, sa.part, rt, ctr - off + Vector3.up * (y0 + h / 2f), size);
-            var slabB = Shapes.Box(sb.st, sb.part, rt, ctr + off + Vector3.up * (y0 + h / 2f), size);
+            Vector3 size = v ? new Vector3(Half, WallH, 1f) : new Vector3(1f, WallH, Half);
+            var slabA = Shapes.Box(sa.st, sa.part, rt, ctr - off + Vector3.up * (WallH / 2f), size);
+            var slabB = Shapes.Box(sb.st, sb.part, rt, ctr + off + Vector3.up * (WallH / 2f), size);
             prims.Add(slabA.GetComponent<Renderer>());
             prims.Add(slabB.GetComponent<Renderer>());
-            if (y0 > 0) { e.highSlabs.Add(slabA); e.highSlabs.Add(slabB); }
-            else { e.lowSlabs.Add(slabA.transform); e.lowSlabs.Add(slabB.transform); }
+            e.lowSlabs.Add(slabA.transform); e.lowSlabs.Add(slabB.transform);
             if (posts != null)
                 foreach (var p in posts)
                 {
@@ -848,7 +901,7 @@ namespace FoxLife
                 if (edges.TryGetValue(Key(level, start.x, start.z, v), out var opener)) e.holes = opener.holes;
             }
             e.full = Voxelizer.BakeRenderers(transform, prims, Voxelizer.HouseVoxel, rt, e.holes);
-            e.needCut = y0 == 0;
+            e.needCut = true;
         }
 
         void BuildEdgeOpening(Vector3Int key, Edge e, Lot lot)
@@ -858,7 +911,7 @@ namespace FoxLife
             var kind = OpeningKind(e.kind);
             var center = OpeningCenter(level, key.x, key.y, v, IsCenteredOpening(e.kind));
             Sides(key.x, key.y, v, out var ca, out var cb);
-            e.opening = BuildOpening(center, !v, kind == EdgeKind.Door, lot);
+            e.opening = BuildOpening(center, !v, kind, lot);
             edgeHits[e.opening.transform] = key;
             e.holes = new List<Renderer>(e.opening.GetComponentsInChildren<Renderer>(true));
             e.holes.RemoveAll(r => r.transform.parent != null && r.transform.parent.name == "створка");
@@ -1069,20 +1122,24 @@ namespace FoxLife
             }
         }
 
-        GameObject BuildOpening(Vector3 center, bool alongX, bool door, Lot lot)
+        GameObject BuildOpening(Vector3 center, bool alongX, EdgeKind kind, Lot lot)
         {
             var openings = lot.openings;
-            var g = new GameObject(door ? "door" : "window").transform;
+            var g = new GameObject(kind == EdgeKind.Door ? "door" : kind == EdgeKind.Window ? "window" : "arch").transform;
             g.SetParent(openings.transform, false);
             float d = Half * 2f + 0.04f;
             Vector3 S(float a, float b, float c) => alongX ? new Vector3(a, b, c) : new Vector3(c, b, a);
             Vector3 P(float a, float b) => center + (alongX ? new Vector3(a, b, 0) : new Vector3(0, b, a));
-            if (door)
+            if (kind != EdgeKind.Window)
             {
-                float w = 0.78f, h = 1.5f;
-                Shapes.Box(openings, 0, g, P(0, h + 0.04f), S(w + 0.16f, 0.08f, d));
-                Shapes.Box(openings, 0, g, P(-w / 2 - 0.04f, h / 2), S(0.08f, h, d));
-                Shapes.Box(openings, 0, g, P(w / 2 + 0.04f, h / 2), S(0.08f, h, d));
+                float w = kind == EdgeKind.Arch ? 0.84f : 0.78f, h = 1.5f;
+                int frame = kind == EdgeKind.Arch ? ArchFramePart : 0;
+                Shapes.Box(openings, frame, g, P(0, h + 0.04f), S(w + 0.16f, 0.08f, d));
+                Shapes.Box(openings, frame, g, P(-w / 2 - 0.04f, h / 2), S(0.08f, h, d));
+                Shapes.Box(openings, frame, g, P(w / 2 + 0.04f, h / 2), S(0.08f, h, d));
+                var hole = Shapes.Box(openings, frame, g, P(0, h / 2), S(w, h, d - 0.02f));
+                hole.GetComponent<Renderer>().forceRenderingOff = true;
+                if (kind == EdgeKind.Arch) return g.gameObject;
                 // створка — на отдельной петле, открывается, когда лисичка подходит
                 var hinge = new GameObject("створка").transform;
                 hinge.SetParent(g, false);
@@ -1092,9 +1149,6 @@ namespace FoxLife
                 Shapes.Box(openings, 2, hinge, P(0, h / 2) - hp, S(w, h, leafD));
                 Shapes.Box(openings, 1, hinge, P(0, h * 0.72f) - hp, S(0.3f, 0.3f, leafD + 0.01f));
                 Shapes.Ball(openings, 0, hinge, P(0.27f, 0.75f) - hp, new Vector3(0.07f, 0.07f, 0.07f) + S(0, 0, leafD + 0.06f));
-                // дыра в стене — на весь проём (створка тоньше стены)
-                var hole = Shapes.Box(openings, 2, g, P(0, h / 2), S(w, h, d - 0.02f));
-                hole.GetComponent<Renderer>().forceRenderingOff = true;
                 pendingLeaves.Add((hinge, center));
             }
             else
@@ -1307,6 +1361,7 @@ namespace FoxLife
 
         public void UpdateGrid(RectInt rect)
         {
+            BuildGuideRevision++;
             foreach (var g in grids) g.ClearWalls(rect);
             foreach (var kv in edges)
             {
@@ -1315,11 +1370,12 @@ namespace FoxLife
                 if (kv.Key.x < rect.xMin || kv.Key.x > rect.xMax || kv.Key.y < rect.yMin || kv.Key.y > rect.yMax) continue;
                 var k = kv.Value.kind;
                 var start = AlongEdge((kv.Key.x, kv.Key.y, v), k == EdgeKind.OpeningEnd ? -1 : 0);
-                bool centerDoor = k == EdgeKind.CenterDoor || k == EdgeKind.OpeningEnd && GetEdge(level, start.x, start.z, v) == EdgeKind.CenterDoor;
-                bool blocks = k == EdgeKind.Wall || OpeningKind(k) == EdgeKind.Window || k == EdgeKind.Fence || k == EdgeKind.Railing || k == EdgeKind.OpeningEnd && !centerDoor;
+                var first = k == EdgeKind.OpeningEnd ? GetEdge(level, start.x, start.z, v) : k;
+                bool centerPassage = first == EdgeKind.CenterDoor || first == EdgeKind.CenterArch;
+                bool blocks = k == EdgeKind.Wall || OpeningKind(k) == EdgeKind.Window || k == EdgeKind.Fence || k == EdgeKind.Railing || k == EdgeKind.OpeningEnd && !centerPassage;
                 if (v) grids[level].SetWallX(kv.Key.x, kv.Key.y, blocks, true);
                 else grids[level].SetWallZ(kv.Key.x, kv.Key.y, blocks, true);
-                if (centerDoor)
+                if (centerPassage)
                     grids[level].SetDoorCrossing(kv.Key.x, kv.Key.y, v, OpeningCenter(level, start.x, start.z, v, true));
             }
             for (int level = 0; level < Levels; level++)
@@ -1525,7 +1581,6 @@ namespace FoxLife
                 if (e.full != null) { e.full.SetActive(true); ShadowOnly(e.full, hidden || down); }
                 if (e.cut != null) e.cut.SetActive(down);
                 if (e.opening != null) e.opening.SetActive(state == 0);
-                foreach (var s in e.highSlabs) s.SetActive(state == 0);
                     float by = e.baseY;
                 foreach (var s in e.lowSlabs) SetHeight(s, by, down ? CutH : WallH);
             }

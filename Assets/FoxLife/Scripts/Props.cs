@@ -608,12 +608,23 @@ namespace FoxLife
             Shapes.Box(st, 3, t, V(0, 1.1f, -3.25f), V(1.1f, 1.9f, 0.3f));
             Shapes.Ball(st, 3, t, V(0, 2.05f, -3.25f), V(1.1f, 0.8f, 0.3f));
             Shapes.Cyl(st, 4, t, V(1.3f, 4.2f, -2.85f), 0.7f, 0.2f, V(90, 0, 0));
+            // Подвесы начинаются внутри веток, а нижний конец нити входит в фонарик.
+            void HangLantern(Transform branch, float along, float length)
+            {
+                var anchor = t.InverseTransformPoint(branch.TransformPoint(V(0, -0.14f, along)));
+                var lamp = anchor - V(0, length, 0);
+                Shapes.Box(st, 5, t, (lamp + anchor) * 0.5f, V(0.19f, length, 0.19f));
+                Shapes.Ball(st, 4, t, lamp, V(0.45f, 0.55f, 0.45f));
+            }
+
             // ветви
             for (int i = 0; i < 7; i++)
             {
                 float a = i / 7f * 360f + 20f;
                 var dir = Quaternion.Euler(0, a, 0) * Vector3.forward;
-                Shapes.Box(st, 0, t, dir * 3.2f + V(0, 9.2f + (i % 3) * 0.8f, 0), V(1.0f, 1.0f, 6.5f), V(-28, a, 0));
+                var branch = Shapes.Box(st, 0, t, dir * 3.2f + V(0, 9.2f + (i % 3) * 0.8f, 0), V(1.0f, 1.0f, 6.5f), V(-28, a, 0)).transform;
+                HangLantern(branch, 0.24f + (i % 2) * 0.12f, 1.6f + (i % 3) * 0.35f);
+                if (i == 2) HangLantern(branch, 0.04f, 2.2f);
             }
             // крона
             for (int i = 0; i < 13; i++)
@@ -622,15 +633,6 @@ namespace FoxLife
                 float rr = i == 0 ? 0 : 3.5f + (i % 4) * 1.6f;
                 float s = 5.5f + (i % 3) * 1.6f;
                 Shapes.Ball(st, i % 3 == 0 ? 2 : 1, t, V(Mathf.Cos(a) * rr, 12.5f + (i % 4) * 1.3f + (i == 0 ? 2.5f : 0), Mathf.Sin(a) * rr), V(s, s * 0.75f, s));
-            }
-            // фонарики на нитях
-            for (int i = 0; i < 8; i++)
-            {
-                float a = i / 8f * Mathf.PI * 2f + 0.3f;
-                float rr = 5.2f + (i % 2) * 1.4f;
-                var p = V(Mathf.Cos(a) * rr, 8.4f - (i % 3) * 0.5f, Mathf.Sin(a) * rr);
-                Shapes.Box(st, 5, t, p + V(0, 0.9f, 0), V(0.05f, 1.6f, 0.05f));
-                Shapes.Ball(st, 4, t, p, V(0.45f, 0.55f, 0.45f));
             }
             Bake(st, 0.25f);
             Lantern(st, 4);
