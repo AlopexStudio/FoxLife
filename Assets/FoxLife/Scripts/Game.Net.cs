@@ -48,6 +48,7 @@ namespace FoxLife
             loadingProgress = 0.02f;
             yield return null; yield return null;
             yield return ResetWorldAsync(true);
+            SaveSystem.UseLatestSave();
             SetupTitleScene();
             loading = false;
             SetSpeed(1);

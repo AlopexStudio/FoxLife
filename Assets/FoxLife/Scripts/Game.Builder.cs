@@ -426,6 +426,7 @@ namespace FoxLife
         /// <summary>Новая игра в выбранном городе (из файла): потом — выбор семьи.</summary>
         public void NewGameFromTown(string path)
         {
+            SaveSystem.BeginSave();
             ui.screen = GameUI.MenuScreen.None;
             StartCoroutine(TownFileRoutine(path));
         }

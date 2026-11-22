@@ -52,6 +52,8 @@ namespace FoxLife
             Directory.CreateDirectory(dir);
             Application.runInBackground = true; // чтобы прогон не вставал на паузу без фокуса окна
             SaveSystem.PathOverride = Path.Combine(dir, "test_save.json"); // не трогаем настоящее сохранение
+            if (SaveSystem.PathToSave != SaveSystem.PathOverride)
+                throw new System.InvalidOperationException("Автотесту нужен отдельный файл сохранения.");
             log = new StreamWriter(Path.Combine(dir, "run.log")) { AutoFlush = true };
             Application.logMessageReceived += (c, st, t) =>
             {
@@ -870,6 +872,62 @@ namespace FoxLife
                 g.cam.Focus(new Vector3(pl.xMin + 6, 0, pl.yMin + 5), 16f);
                 yield return new WaitForSeconds(2f);
                 yield return Shot("9_newhouse");
+                if (moved)
+                {
+                    var origin = new Vector2Int(pl.xMin + 3, pl.yMin + 3);
+                    var offset = new Vector2Int(3, -1);
+                    var partition = origin + new Vector2Int(2, 2);
+                    g.house.SetEdge(0, partition.x, partition.y, true, EdgeKind.Wall);
+                    g.house.Rebuild();
+                    var room = g.house.RoomAt(origin);
+                    var chair = g.SpawnFurniture(Catalog.Get("chair"), origin + Vector2Int.one, 0, false);
+                    var plan = g.PlanRoom(room, new RectInt(origin + offset, new Vector2Int(6, 5)), default, offset, out string reason);
+                    if (plan == null) Debug.LogError("КОМНАТЫ: перенос не удался. " + reason);
+                    else
+                    {
+                        g.ApplyRoomPlan(room, plan, true);
+                        var start = origin + offset;
+                        var next = g.house.RoomAt(start);
+                        if (next?.cells.Count != 30 || chair.anchor != start + Vector2Int.one ||
+                            g.house.GetEdge(0, partition.x + offset.x, partition.y + offset.y, true) != EdgeKind.Wall ||
+                            g.house.GetEdge(0, partition.x, partition.y, true) != EdgeKind.None ||
+                            g.house.GetEdge(0, start.x + 2, start.y + 5, false) != EdgeKind.Door)
+                            Debug.LogError("КОМНАТЫ: при переносе потерялись стены, дверь или мебель.");
+                        var stretch = g.PlanRoom(next, new RectInt(start, new Vector2Int(7, 5)), Vector2Int.right, Vector2Int.right, out reason);
+                        if (stretch == null) Debug.LogError("КОМНАТЫ: растяжение не удалось. " + reason);
+                        else
+                        {
+                            g.ApplyRoomPlan(next, stretch, false);
+                            if (g.house.RoomAt(start)?.cells.Count != 35) Debug.LogError("КОМНАТЫ: новая площадь неверна.");
+                            g.Undo();
+                            if (g.house.RoomAt(start)?.cells.Count != 30) Debug.LogError("КОМНАТЫ: отмена растяжения не сработала.");
+                            g.Redo();
+                            if (g.house.RoomAt(start)?.cells.Count != 35) Debug.LogError("КОМНАТЫ: повтор растяжения не сработал.");
+                            log.WriteLine("КОМНАТЫ: перенос с дверью и стулом, растяжение 30→35 м², отмена и повтор.");
+                        }
+                    }
+                    g.ChangeWalls(10);
+                    if (g.house.wallMode != House.WallMode.Up) Debug.LogError("СТЕНЫ: не поднимаются.");
+                    g.ChangeWalls(-1);
+                    if (g.house.wallMode != House.WallMode.Auto) Debug.LogError("СТЕНЫ: нет автоматического режима.");
+                    g.ChangeWalls(-1);
+                    if (g.house.wallMode != House.WallMode.Down) Debug.LogError("СТЕНЫ: не опускаются.");
+                    g.ChangeWalls(1);
+                    string previousSave = SaveSystem.PathToSave;
+                    if (!SaveSystem.SaveAs(g, "Тестовая копия") || SaveSystem.PathToSave == previousSave ||
+                        !SaveSystem.ListSaves().Exists(s => s.name == "Тестовая копия") || !File.Exists(previousSave))
+                        Debug.LogError("СОХРАНЕНИЯ: не удалось создать второй слот.");
+                    else
+                    {
+                        log.WriteLine("СОХРАНЕНИЯ: новая копия и исходный слот существуют отдельно.");
+                        g.ui.screen = GameUI.MenuScreen.Pause;
+                        g.ui.OpenSaves();
+                        yield return Shot("9b_save_slots");
+                        g.ui.CloseMenuOverlay();
+                        g.ui.screen = GameUI.MenuScreen.None;
+                    }
+                    SaveSystem.SelectSave(previousSave, null);
+                }
             }
             // город: выселить соседей в архив и заселить их на свободный участок
             {

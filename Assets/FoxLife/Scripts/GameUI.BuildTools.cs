@@ -139,9 +139,16 @@ namespace FoxLife
             ToolCards(b, wdt);
             string hint = G.wallTool == Game.WallTool.Wall ? "Зажми мышь на углу сетки и протяни стену. ПКМ — отменить."
                 : G.wallTool == Game.WallTool.Erase ? "Протяни вдоль стен, которые нужно снести."
-                : G.wallTool == Game.WallTool.None ? "Выбери инструмент. Этаж — вверху справа или PageUp / PageDown; на второй этаж ведёт лестница (Мебель → Дом)."
+                : G.wallTool == Game.WallTool.MoveRoom ? "Зажми ЛКМ на полу комнаты, перетащи и отпусти. ПКМ — отменить."
+                : G.wallTool == Game.WallTool.ResizeRoom ? "Зажми ЛКМ у стены прямоугольной комнаты и потяни поперёк стены."
+                : G.wallTool == Game.WallTool.None ? "Page Up / Page Down — стены. Shift + Page Up / Page Down — этаж."
                 : "Кликни по стене или забору, чтобы поставить. Esc — выйти из инструмента.";
-            ColorLabel(hint, sSmall, new Color(0.35f, 0.4f, 0.5f));
+            ColorLabel(G.RoomToolHint ?? hint, sSmall, new Color(0.35f, 0.4f, 0.5f));
+            Section("Планировка");
+            GUILayout.BeginHorizontal();
+            WallTool("Перенести комнату", Game.WallTool.MoveRoom, "Перетащи комнату вместе со стенами и мебелью.");
+            WallTool("Растянуть стену", Game.WallTool.ResizeRoom, "Потяни сторону прямоугольной комнаты наружу или внутрь.");
+            GUILayout.EndHorizontal();
             RoofSettings();
             var rooms = G.house.rooms.FindAll(r => r.lot == House.PlayerLotId);
             if (rooms.Count > 0)

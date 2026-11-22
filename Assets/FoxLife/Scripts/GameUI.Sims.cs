@@ -330,13 +330,13 @@ namespace FoxLife
                 int k = lv;
                 var r = Slot(lv);
                 bool on = G.house.viewLevel == lv;
-                if (RoundBtn(r, "build", on, $"Этаж {lv + 1} (PageUp / PageDown)")) Defer(() => G.SetViewLevel(k));
+                if (RoundBtn(r, "build", on, $"Этаж {lv + 1} (Shift + Page Up / Page Down)")) Defer(() => G.SetViewLevel(k));
                 var lbl = new GUIStyle(sBold) { alignment = TextAnchor.LowerRight, fontSize = 12 };
                 lbl.normal.textColor = on ? Color.white : SimsInk;
                 GUI.Label(new Rect(r.x, r.y, r.width - 4, r.height - 2), (lv + 1).ToString(), lbl);
             }
             if (RoundBtn(Slot(2), "roof", G.house.showRoof, "Показать или спрятать крыши")) Defer(() => { G.house.showRoof = !G.house.showRoof; G.house.ApplyVisibility(); });
-            if (RoundBtn(Slot(3), "walls", G.house.wallMode != House.WallMode.Up, "Стены — " + G.house.WallModeName + " (нажми, чтобы сменить)")) Defer(() => G.house.CycleWallMode());
+            if (RoundBtn(Slot(3), "walls", G.house.wallMode != House.WallMode.Up, "Стены — " + G.house.WallModeName + " (Page Up / Page Down)")) Defer(() => G.house.CycleWallMode());
             if (RoundBtn(Slot(4), "auto", G.autonomy, "Свобода воли — " + (G.autonomy ? "лисички сами решают, чем заняться" : "выключена"))) Defer(() => G.autonomy = !G.autonomy);
             LabelBtn(Slot(5), "names", "Имена над лисичками", NameMode, m => NameMode = m);
             LabelBtn(Slot(6), "phrases", "Фразы лисичек", PhraseMode, m => PhraseMode = m);

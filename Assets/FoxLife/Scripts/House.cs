@@ -189,7 +189,7 @@ namespace FoxLife
         public static bool IsBoundary(EdgeKind k) => IsWallLike(k) || IsRailing(k);
         public static bool IsRailing(EdgeKind k) => k == EdgeKind.Railing || k == EdgeKind.RailingOpen;
 
-        bool RoomHasWalls(Room r)
+        internal bool RoomHasWalls(Room r)
         {
             foreach (var c in r.cells)
             {

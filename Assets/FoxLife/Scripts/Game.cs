@@ -165,6 +165,9 @@ namespace FoxLife
             ClearUndo();
             pendingBefore = null;
             EndTitleScene();
+            if (ui != null) ui.developerFox = null;
+            townBuilder = false;
+            lotsDirty = false;
             CancelPlacing();
             ClearHover();
             if (ui != null) ui.CloseMenu();
@@ -184,8 +187,10 @@ namespace FoxLife
 
         void OnApplicationQuit()
         {
-            if (started && !Net.IsClient) SaveSystem.Save(this); // у друга в гостях своё сохранение не трогаем
+            if (!skipQuitSave && started && !Net.IsClient) SaveSystem.Save(this);
         }
+
+        internal bool skipQuitSave;
 
         void SetupCameraAndLight()
         {
@@ -437,6 +442,7 @@ namespace FoxLife
             SetWallTool(WallTool.None);
             SetLandTool(LandTool.None);
             mode = m;
+            if (m != Mode.Create) ui.developerFox = null;
             ClearHover();
             if (m == Mode.Create && selected != null) cam.Focus(selected.transform.position, 6f);
             if (m != Mode.Style) ui.tool = GameUI.StyleTool.Select;
@@ -969,7 +975,7 @@ namespace FoxLife
 
         // ================= стены, двери, окна =================
 
-        public enum WallTool { None, Wall, Erase, Door, Window, Arch, Fence, Gate, Railing, RailingGap }
+        public enum WallTool { None, Wall, Erase, Door, Window, Arch, Fence, Gate, Railing, RailingGap, MoveRoom, ResizeRoom }
         public WallTool wallTool;
         public const int WallPrice = 10, DoorPrice = 120, WindowPrice = 80, ArchPrice = 40, FencePrice = 6, GatePrice = 30, RailingPrice = 15, RailingGapPrice = 10;
         bool wallDragging;
@@ -979,9 +985,12 @@ namespace FoxLife
 
         public void SetWallTool(WallTool t)
         {
+            if (t != WallTool.None) CancelPlacing();
             wallTool = t;
             if (t != WallTool.None) landTool = LandTool.None;
             wallDragging = false;
+            roomDrag = null;
+            RoomToolHint = null;
             HideWallGhost();
         }
 
@@ -1027,6 +1036,7 @@ namespace FoxLife
 
         void UpdateWallTool()
         {
+            if (wallTool == WallTool.MoveRoom || wallTool == WallTool.ResizeRoom) { UpdateRoomTool(); return; }
             if (ui.MouseOverUI && !wallDragging) { HideWallGhost(); return; }
             if (!GroundPoint(out var p)) return;
             int lvl = house.viewLevel;
@@ -1479,8 +1489,9 @@ namespace FoxLife
                 UpdateSky();
                 foreach (var f in foxes) if (f != null) f.Tick(0, dt);
                 if (titleScene && (ui.screen == GameUI.MenuScreen.Title || ui.screen == GameUI.MenuScreen.Settings)) UpdateTitleScene(dt);
+                if (Input.GetKeyDown(KeyCode.Escape) && !ui.Typing && ui.CloseMenuOverlay()) return;
                 if (Input.GetKeyDown(KeyCode.Escape) && ui.screen == GameUI.MenuScreen.Pause && (mode == Mode.Town || Household.Count > 0)) ui.screen = GameUI.MenuScreen.None;
-                else if (Input.GetKeyDown(KeyCode.Escape) && ui.screen == GameUI.MenuScreen.Settings) ui.screen = GameUI.MenuScreen.Pause;
+                else if (Input.GetKeyDown(KeyCode.Escape) && ui.screen == GameUI.MenuScreen.Settings && !ui.Typing) ui.CloseSettings();
                 return;
             }
 
@@ -1577,8 +1588,8 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             CleanOccupants();
             if (ui == null || ui.Typing) return;
             if (Input.GetKeyDown(KeyCode.Space)) TogglePause();
-            if (Input.GetKeyDown(KeyCode.PageUp)) SetViewLevel(house.viewLevel + 1);
-            if (Input.GetKeyDown(KeyCode.PageDown)) SetViewLevel(house.viewLevel - 1);
+            if (Input.GetKeyDown(KeyCode.PageUp)) PageKey(1);
+            if (Input.GetKeyDown(KeyCode.PageDown)) PageKey(-1);
             if (Input.GetKeyDown(KeyCode.Alpha1)) SetSpeed(1);
             if (Input.GetKeyDown(KeyCode.Alpha2)) SetSpeed(2);
             if (Input.GetKeyDown(KeyCode.Alpha3)) SetSpeed(3);
@@ -1750,8 +1761,14 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
         {
             if (fox != null)
             {
-                if (!IsPlayer(fox)) { if (selected != null) OpenSocialMenu(fox); else Log($"Это {fox.foxName}. Выбери свою лисичку, чтобы познакомиться."); return; }
-                if (selected == null) Select(fox);
+                if (!IsPlayer(fox))
+                {
+                    if (selected != null) OpenSocialMenu(fox);
+                    else if (CanDeveloperEdit(fox)) ui.OpenPie(Input.mousePosition, fox.foxName, new List<PieItem> { DeveloperEditItem(fox) });
+                    else Log($"Это {fox.foxName}. Выбери свою лисичку, чтобы познакомиться.");
+                    return;
+                }
+                if (selected == null) { Select(fox); if (CanDeveloperEdit(fox)) OpenSelfMenu(fox); }
                 else if (fox == selected) OpenSelfMenu(fox);
                 else OpenSocialMenu(fox);
                 return;
@@ -1914,6 +1931,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                 }
                 items.Add(new PieItem("Позвать") { sub = invite });
             }
+            if (CanDeveloperEdit(target)) items.Add(DeveloperEditItem(target));
             var why = target.BusyReason(me);
             ui.OpenPie(Input.mousePosition, target.foxName + (why != null ? "\n(" + why + ")" : ""), items);
         }
@@ -1937,7 +1955,33 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                 } },
                 new PieItem("Телефон", () => ui.OpenPhone(me)),
             };
+            if (CanDeveloperEdit(me)) items.Add(DeveloperEditItem(me));
             ui.OpenPie(Input.mousePosition, me.foxName, items);
+        }
+
+        internal bool CanDeveloperEdit(Fox fox) => ui.DeveloperMode && fox != null && (!Net.Active || IsPlayer(fox));
+
+        PieItem DeveloperEditItem(Fox fox) => new PieItem("Редактировать лисичку", () =>
+        {
+            if (!CanDeveloperEdit(fox)) return;
+            if (IsPlayer(fox)) Select(fox);
+            SetMode(Mode.Create);
+            ui.developerFox = fox;
+            cam.Focus(fox.transform.position, 6f);
+            SetViewLevel(fox.Level);
+        });
+
+        void PageKey(int step)
+        {
+            if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) SetViewLevel(house.viewLevel + step);
+            else ChangeWalls(step);
+        }
+
+        internal void ChangeWalls(int step)
+        {
+            int position = house.wallMode == House.WallMode.Down ? 0 : house.wallMode == House.WallMode.Auto ? 1 : 2;
+            int next = Mathf.Clamp(position + step, 0, 2);
+            house.wallMode = next == 0 ? House.WallMode.Down : next == 1 ? House.WallMode.Auto : House.WallMode.Up;
         }
 
         void StyleClick(Styleable st, int part)

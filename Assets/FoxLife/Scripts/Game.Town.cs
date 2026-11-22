@@ -43,6 +43,7 @@ namespace FoxLife
             loadingProgress = 0.03f;
             loadingText = "Рисуем долину, горы и лес…";
             yield return null; yield return null;
+            SaveSystem.UseLatestSave();
             yield return ResetWorldAsync(true);
             Log("Добро пожаловать в Лисью Долину!");
             SetupTitleScene();
@@ -86,6 +87,7 @@ namespace FoxLife
 
         public void NewGame()
         {
+            SaveSystem.BeginSave();
             ui.screen = GameUI.MenuScreen.None;
             StartCoroutine(NewGameRoutine());
         }
@@ -106,23 +108,28 @@ namespace FoxLife
             EnterTown();
         }
 
-        public void ContinueGame()
+        public void ContinueGame(string path = null, string name = null)
         {
             ui.screen = GameUI.MenuScreen.None;
-            StartCoroutine(LoadRoutine());
+            StartCoroutine(LoadRoutine(path, name));
         }
 
-        IEnumerator LoadRoutine()
+        IEnumerator LoadRoutine(string path, string name)
         {
             loading = true;
             loadingText = "Загружаем сохранение…";
             loadingProgress = 0.02f;
             yield return null; yield return null;
             bool ok = false;
-            yield return SaveSystem.LoadAsync(this, r => ok = r, restoreCamera: true);
+            yield return SaveSystem.LoadAsync(this, r => ok = r, path, restoreCamera: true);
             loading = false;
-            if (ok) StartPlaying();
-            else { ui.screen = GameUI.MenuScreen.Title; ui.Note("Не получилось загрузить сохранение."); }
+            if (ok)
+            {
+                if (path != null) SaveSystem.SelectSave(path, name);
+                mode = Mode.Live;
+                StartPlaying();
+            }
+            else ReturnToTitle("Не получилось загрузить сохранение.");
         }
 
         // ================= семьи =================

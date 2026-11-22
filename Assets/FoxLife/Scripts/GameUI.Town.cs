@@ -12,16 +12,94 @@ namespace FoxLife
         public bool showViewTools = true;
         public bool clothesOpen;
         string moneyText = "";
+        public bool DeveloperMode => PlayerPrefs.GetInt("foxlife.developer") != 0;
+
+        List<(string path, string name, string info)> saves;
+        Vector2 saveScroll;
+        string newSaveName = "";
+        string confirmText;
+        System.Action confirmed;
+
+        internal void OpenSaves()
+        {
+            try { saves = SaveSystem.ListSaves(); saveScroll = Vector2.zero; }
+            catch (System.IO.IOException) { Note("Не получилось открыть список сохранений."); }
+            catch (System.UnauthorizedAccessException) { Note("Нет доступа к папке сохранений."); }
+        }
+
+        void ConfirmMenu(string text, System.Action action) { confirmText = text; confirmed = action; }
+
+        internal bool CloseMenuOverlay()
+        {
+            if (confirmed != null) { confirmed = null; return true; }
+            if (saves != null) { saves = null; return true; }
+            return false;
+        }
+
+        void SavesPanel()
+        {
+            float h = Mathf.Min(580, vh - 30);
+            GUILayout.BeginArea(new Rect((vw - 540) / 2, (vh - h) / 2, 540, h), sPanel);
+            GUILayout.Label("Сохранения", sTitle);
+            saveScroll = GUILayout.BeginScrollView(saveScroll);
+            if (saves.Count == 0) GUILayout.Label("Сохранений пока нет.", sWrap);
+            foreach (var entry in saves)
+            {
+                var slot = entry;
+                GUILayout.Label(slot.name + (slot.path == SaveSystem.PathToSave ? " · текущее" : ""), sBold);
+                GUILayout.Label(slot.info, sSmall);
+                if (Btn("Загрузить")) Defer(() =>
+                {
+                    System.Action load = () => { saves = null; G.ContinueGame(slot.path, slot.name); };
+                    if (screen == MenuScreen.Pause) ConfirmMenu("Загрузить это сохранение? Несохранённые изменения пропадут.", load);
+                    else load();
+                });
+                GUILayout.Space(8);
+            }
+            GUILayout.EndScrollView();
+            if (screen == MenuScreen.Pause)
+            {
+                GUILayout.Label("Новое сохранение", sBold);
+                GUILayout.BeginHorizontal();
+                GUI.SetNextControlName("saveName");
+                newSaveName = GUILayout.TextField(newSaveName, 48, sField);
+                GUI.enabled = !string.IsNullOrWhiteSpace(newSaveName);
+                if (Btn("Сохранить как…", false, W(145))) Defer(() =>
+                {
+                    if (SaveSystem.SaveAs(G, newSaveName)) { newSaveName = ""; OpenSaves(); }
+                    else Note("Не получилось создать сохранение.");
+                });
+                GUI.enabled = true;
+                GUILayout.EndHorizontal();
+                if (Btn("Сохранить в текущую игру")) Defer(() =>
+                {
+                    if (G.SaveGame()) OpenSaves(); else Note("Не получилось сохранить игру.");
+                });
+            }
+            if (Time.unscaledTime - menuNoteTime < 3f) GUILayout.Label(menuNote ?? "", sSmall);
+            if (Btn("Назад")) Defer(() => saves = null);
+            GUILayout.EndArea();
+        }
+
+        void LeaveToTitle(bool save)
+        {
+            if (save && !G.SaveGame()) { Note("Не получилось сохранить игру."); return; }
+            if (Net.IsHost) Net.I.Stop("Хозяин вышел в главное меню.");
+            G.ReturnToTitle(null);
+        }
 
         // ---------- кого редактируем в «создании лисички» ----------
 
-        Fox CasFox => G.mode == Mode.Town ? townEditFox : G.selected;
-        int CasLot => G.mode == Mode.Town ? (townEditFox != null && townEditFox.home >= 0 ? townEditFox.home : townLot) : House.PlayerLotId;
+        internal Fox developerFox;
+        Fox CasFox => G.mode == Mode.Town ? townEditFox : developerFox != null ? developerFox : G.selected;
+        int CasLot => G.mode == Mode.Town ? (townEditFox != null && townEditFox.home >= 0 ? townEditFox.home : townLot) : developerFox != null ? developerFox.home : House.PlayerLotId;
         List<Fox> CasFamily => G.FamilyOf(CasLot);
 
         void CasSelect(Fox f)
         {
-            if (G.mode == Mode.Town) townEditFox = f; else G.Select(f);
+            if (G.mode == Mode.Town) townEditFox = f;
+            else if (developerFox != null) { developerFox = f; if (Game.IsPlayer(f)) G.Select(f); }
+            else G.Select(f);
             if (f != null) { G.cam.Focus(f.transform.position, 5f); G.cam.pitch = 25f; }
         }
 
@@ -73,7 +151,7 @@ namespace FoxLife
                 titleShade.Apply();
             }
             if (Event.current.type == EventType.Repaint) GUI.DrawTexture(new Rect(0, 0, vw * 0.55f, vh), titleShade);
-            float x0 = 64, y0 = vh * 0.5f - 250;
+            float x0 = 64, y0 = Mathf.Max(10, vh * 0.5f - 282);
             var big = new GUIStyle(sTitle) { fontSize = 60, alignment = TextAnchor.MiddleLeft };
             big.normal.textColor = Color.white;
             var subSt = new GUIStyle(sBold) { fontSize = 18 };
@@ -102,11 +180,22 @@ namespace FoxLife
             if (title) TitleBackdrop();
             else Fill(new Rect(0, 0, vw, vh), new Color(0.05f, 0.1f, 0.15f, 0.45f));
             if (screen == MenuScreen.Settings) { SettingsScreen(); return; }
+            if (confirmed != null)
+            {
+                GUILayout.BeginArea(new Rect((vw - 436) / 2, (vh - 180) / 2, 436, 180), sPanel);
+                GUILayout.Label(confirmText, sWrap);
+                if (Btn("Подтвердить", false, Hh(36))) Defer(() => { var action = confirmed; confirmed = null; action?.Invoke(); });
+                if (Btn("Назад", true, Hh(36))) Defer(() => confirmed = null);
+                GUILayout.EndArea();
+                return;
+            }
+            if (saves != null) { SavesPanel(); return; }
             if (netPanel || (title && Net.IsClient)) { NetPanel(); return; }
             if (townChoices != null) { TownPicker(); return; }
             bool hasSave = SaveSystem.HasSave;
-            float w = title ? 360 : 420, h = confirmNew ? 330 : title ? (hasSave ? 284 : 220) : Net.IsClient ? 300 : (hasSave ? 608 : 558) - (Net.Active ? 48 : 0);
-            var r = title ? new Rect(64, vh * 0.5f - 130, w, h) : new Rect((vw - w) / 2, (vh - h) / 2, w, h);
+            float w = title ? 360 : 460;
+            float h = Mathf.Min(vh - (title ? 144 : 24), confirmNew ? 270 : title ? (hasSave ? 336 : 276) : Net.IsClient ? 360 : 705);
+            var r = title ? new Rect(64, Mathf.Max(122, (vh - h) / 2), w, h) : new Rect((vw - w) / 2, (vh - h) / 2, w, h);
             var oldBg = GUI.backgroundColor;
             if (title) GUI.backgroundColor = new Color(1f, 1f, 1f, 0.82f);
             GUILayout.BeginArea(r, sPanel);
@@ -122,12 +211,14 @@ namespace FoxLife
             }
             else GUILayout.Space(8);
 
+            pauseScroll = GUILayout.BeginScrollView(pauseScroll);
             if (confirmNew)
             {
-                GUILayout.Label("Начать заново? Нынешний город пропадёт, если его не сохранить.", new GUIStyle(sWrap) { alignment = TextAnchor.MiddleCenter, fontSize = 15 });
+                GUILayout.Label("Начать новую игру? Чтобы сохранить текущий прогресс, вернись и нажми «Сохранить».", new GUIStyle(sWrap) { alignment = TextAnchor.MiddleCenter, fontSize = 15 });
                 GUILayout.Space(10);
                 if (Btn("Да, начать новую игру", false, Hh(40))) Defer(() => { confirmNew = false; StartNew(); });
                 if (Btn("Нет", false, Hh(40))) Defer(() => confirmNew = false);
+                GUILayout.EndScrollView();
                 GUILayout.EndArea();
                 return;
             }
@@ -139,10 +230,11 @@ namespace FoxLife
                     if (Btn("Продолжить", true, Hh(44))) Defer(() => G.ContinueGame());
                     GUILayout.Label(SaveSystem.SaveInfo ?? "", sub);
                 }
-                if (Btn("Новая игра", !hasSave, Hh(44))) Defer(() => { if (hasSave) confirmNew = true; else StartNew(); });
+                if (Btn("Сохранения", false, Hh(40))) Defer(OpenSaves);
+                if (Btn("Новая игра", !hasSave, Hh(44))) Defer(StartNew);
                 if (Btn(new GUIContent("Играть вместе", "Зайти в город к другу по сети (Radmin VPN или домашняя сеть)"), false, Hh(40))) Defer(() => netPanel = true);
                 if (Btn("Настройки", false, Hh(40))) Defer(() => { settingsFrom = MenuScreen.Title; screen = MenuScreen.Settings; });
-                if (Btn("Выйти", false, Hh(40))) Defer(Quit);
+                if (Btn("Выйти", false, Hh(40))) Defer(() => Quit(false));
             }
             else if (Net.IsClient)
             {
@@ -151,6 +243,7 @@ namespace FoxLife
                 if (Btn("Настройки", false, Hh(40))) Defer(() => { settingsFrom = MenuScreen.Pause; screen = MenuScreen.Settings; });
                 if (Btn(new GUIContent("Играть вместе", "Кто в игре, покинуть игру друга"), false, Hh(40))) Defer(() => netPanel = true);
                 if (Btn("Покинуть игру друга", false, Hh(40))) Defer(() => Net.I.Stop("Ты вышел(ла) из игры друга."));
+                if (Btn("Выйти из игры", false, Hh(40))) Defer(() => Quit(false));
                 GUILayout.Label("Пока меню открыто, у всех пауза.", sub);
             }
             else
@@ -159,22 +252,34 @@ namespace FoxLife
                 if (canReturn && Btn("Вернуться в игру", true, Hh(42))) Defer(() => screen = MenuScreen.None);
                 if (Btn("Сохранить", false, Hh(40))) Defer(() => Note(G.SaveGame() ? "Сохранено!" : "Не получилось сохранить."));
                 if (G.mode != Mode.Town && Btn(new GUIContent(Net.IsHost ? "Играть вместе (игра открыта)" : "Играть вместе", "Открыть этот город для друга по сети"), Net.IsHost, Hh(40))) Defer(() => netPanel = true);
-                if (hasSave && Btn(new GUIContent("Загрузить сохранение  (" + SaveSystem.SaveInfo + ")"), false, Hh(40))) Defer(() => G.ContinueGame());
+                if (Btn("Сохранения", false, Hh(40))) Defer(OpenSaves);
                 if (!Net.Active && Btn(new GUIContent("Редактирование города", "Выбирай, создавай и переселяй семьи. Меняй участки, ландшафт и оформление города."), false, Hh(40))) Defer(() => G.EnterTown());
                 if (Btn("Настройки", false, Hh(40))) Defer(() => { settingsFrom = MenuScreen.Pause; screen = MenuScreen.Settings; });
                 if (Btn("Новая игра", false, Hh(40))) Defer(() => confirmNew = true);
                 if (G.mode == Mode.Town && !Net.Active && Btn(new GUIContent("Строить город", "Перестроить весь город"), false, Hh(40))) Defer(() => G.EnterTownBuilder());
-                if (Btn("Сохранить и выйти", false, Hh(40))) Defer(Quit);
+                GUILayout.Label("В главное меню", sBold);
+                GUILayout.BeginHorizontal();
+                if (Btn("Сохранить и вернуться", false, Hh(36))) Defer(() => LeaveToTitle(true));
+                if (Btn("Без сохранения", false, Hh(36))) Defer(() => ConfirmMenu("Выйти в главное меню без сохранения?", () => LeaveToTitle(false)));
+                GUILayout.EndHorizontal();
+                GUILayout.Label("Закрыть игру", sBold);
+                GUILayout.BeginHorizontal();
+                if (Btn("Сохранить и выйти", false, Hh(36))) Defer(() => Quit(true));
+                if (Btn("Без сохранения", false, Hh(36))) Defer(() => ConfirmMenu("Закрыть игру без сохранения?", () => Quit(false)));
+                GUILayout.EndHorizontal();
             }
             if (!string.IsNullOrEmpty(menuNote) && Time.unscaledTime - menuNoteTime < 3f)
             {
                 GUILayout.Space(6);
                 GUILayout.Label(menuNote, new GUIStyle(sBold) { alignment = TextAnchor.MiddleCenter });
             }
+            GUILayout.EndScrollView();
             GUILayout.EndArea();
         }
 
         MenuScreen settingsFrom = MenuScreen.Pause;
+
+        internal void CloseSettings() { moneyText = ""; screen = settingsFrom; }
         List<(string name, string path, string info)> townChoices;
 
         /// <summary>Новая игра: если сохранены свои города — сначала выбрать город.</summary>
@@ -278,6 +383,13 @@ namespace FoxLife
                 }
                 GUILayout.EndHorizontal();
 
+            }
+            GUILayout.Space(8);
+            GUILayout.Label("Режим разработчика", sBig);
+            if (Btn(DeveloperMode ? "Выключить режим разработчика" : "Включить режим разработчика", DeveloperMode, Hh(34)))
+                Defer(() => { PlayerPrefs.SetInt("foxlife.developer", DeveloperMode ? 0 : 1); PlayerPrefs.Save(); });
+            if (DeveloperMode && inGame && !Net.IsClient)
+            {
                 GUILayout.Space(8);
                 GUILayout.Label("Хитрости", sBig);
                 if (Btn(new GUIContent("Бесплатное строительство — " + (G.freeBuild ? "вкл" : "выкл"), "Мебель и стены ничего не стоят"), false, Hh(34)))
@@ -300,12 +412,12 @@ namespace FoxLife
                     Defer(() => { foreach (var f in G.Household) { for (int i = 0; i < f.needs.Length; i++) f.needs[i] = 100f; for (int i = 0; i < 6; i++) f.SetState(i, 100f); f.sickMinutes = 0; } });
             }
             GUILayout.Space(10);
-            if (Btn("Назад", true, Hh(40))) Defer(() => { moneyText = ""; screen = settingsFrom; });
+            if (Btn("Назад", true, Hh(40))) Defer(CloseSettings);
             GUILayout.EndScrollView();
             GUILayout.EndArea();
         }
 
-        Vector2 settingsScroll, townScroll;
+        Vector2 settingsScroll, townScroll, pauseScroll;
 
         // ================= экран города =================
 

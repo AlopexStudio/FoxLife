@@ -123,6 +123,7 @@ namespace FoxLife
     [Serializable]
     public class SaveGame
     {
+        public string slotName;
         public string townName;
         public List<SaveLot> lots = new List<SaveLot>();
         public List<string> removedProps = new List<string>();
@@ -163,8 +164,80 @@ namespace FoxLife
     /// <summary>Сохранение в JSON в папке данных игры (Application.persistentDataPath).</summary>
     public static class SaveSystem
     {
-        public static string PathOverride;
-        public static string PathToSave => PathOverride ?? Path.Combine(Application.persistentDataPath, "save.json");
+        static string pathOverride;
+        public static string PathOverride
+        {
+            get => pathOverride;
+            set
+            {
+                if (pathOverride == value) return;
+                pathOverride = value;
+                SelectSave(null, null);
+            }
+        }
+        static string LegacyPath => PathOverride ?? Path.Combine(Application.persistentDataPath, "save.json");
+        static string SlotsDir => Path.Combine(Path.GetDirectoryName(LegacyPath), "Saves");
+        static string activePath, activeName;
+        public static string PathToSave => activePath ?? LegacyPath;
+
+        public static List<(string path, string name, string info)> ListSaves()
+        {
+            var files = new List<string>();
+            if (File.Exists(LegacyPath)) files.Add(LegacyPath);
+            if (Directory.Exists(SlotsDir)) files.AddRange(Directory.GetFiles(SlotsDir, "*.json"));
+            files.Sort((a, b) => File.GetLastWriteTimeUtc(b).CompareTo(File.GetLastWriteTimeUtc(a)));
+            var saves = new List<(string, string, string)>();
+            foreach (var file in files)
+            {
+                try
+                {
+                    var s = JsonUtility.FromJson<SaveGame>(File.ReadAllText(file));
+                    if (s == null) continue;
+                    saves.Add((file, SlotLabel(s), $"{s.townName ?? "Лисья Долина"} · день {(int)(s.minutes / 1440f) + 1} · {s.savedAt}"));
+                }
+                catch (Exception e) { Debug.LogWarning("Не удалось прочитать сохранение: " + e.Message); }
+            }
+            return saves;
+        }
+
+        static string SlotLabel(SaveGame save) => string.IsNullOrWhiteSpace(save.slotName) ? "Основное сохранение" : save.slotName;
+
+        public static void UseLatestSave()
+        {
+            if (PathOverride != null) return;
+            if (activePath != null && File.Exists(activePath)) return;
+            try
+            {
+                var saves = ListSaves();
+                var latest = saves.Count > 0 ? saves[0] : default;
+                SelectSave(latest.path, latest.name);
+            }
+            catch (IOException e) { Debug.LogWarning("Не удалось найти сохранения: " + e.Message); }
+            catch (UnauthorizedAccessException e) { Debug.LogWarning("Не удалось найти сохранения: " + e.Message); }
+        }
+
+        public static void SelectSave(string path, string name)
+        {
+            activePath = path;
+            activeName = name;
+            Touch();
+        }
+
+        public static void BeginSave()
+        {
+            if (PathOverride != null) return;
+            SelectSave(Path.Combine(SlotsDir, Guid.NewGuid().ToString("N") + ".json"), "Игра от " + DateTime.Now.ToString("dd.MM.yy HH:mm"));
+        }
+
+        public static bool SaveAs(Game game, string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return false;
+            string previousPath = activePath, previousName = activeName;
+            SelectSave(Path.Combine(SlotsDir, Guid.NewGuid().ToString("N") + ".json"), name.Trim());
+            if (Save(game)) return true;
+            SelectSave(previousPath, previousName);
+            return false;
+        }
         // меню рисуется несколько раз за кадр: проверять файл и разбирать сохранение каждый раз — очень дорого.
         // Поэтому существование файла проверяем не чаще раза в секунду, а сводку перечитываем, только когда файл изменился.
         static float hasSaveAt = -10f;
@@ -286,7 +359,11 @@ namespace FoxLife
         {
             try
             {
-                File.WriteAllText(path ?? PathToSave, ToJson(g, true, path == null && g.started && !g.TitleSceneActive));
+                string file = path ?? PathToSave;
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
+                string tmp = file + ".tmp";
+                File.WriteAllText(tmp, ToJson(g, true, path == null && g.started && !g.TitleSceneActive, path == null ? activeName : null));
+                if (File.Exists(file)) File.Replace(tmp, file, path == null ? file + ".bak" : null); else File.Move(tmp, file);
                 Touch();
                 return true;
             }
@@ -298,12 +375,13 @@ namespace FoxLife
         }
 
         /// <summary>Весь мир одной строкой JSON: для файла сохранения и для друга по сети.</summary>
-        public static string ToJson(Game g, bool pretty, bool saveCamera = false)
+        public static string ToJson(Game g, bool pretty, bool saveCamera = false, string slotName = null)
         {
             {
                 var s = new SaveGame
                 {
                     savedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
+                    slotName = slotName,
                     minutes = g.minutes,
                     season = g.seasonSetting,
                     money = g.money,

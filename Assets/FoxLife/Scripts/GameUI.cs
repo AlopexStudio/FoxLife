@@ -344,11 +344,11 @@ namespace FoxLife
             menuNoteTime = Time.unscaledTime;
         }
 
-        void Quit()
+        void Quit(bool save)
         {
-            // сохранение делает Game.OnApplicationQuit
+            if (save && !G.SaveGame()) { Note("Не получилось сохранить игру."); return; }
+            G.skipQuitSave = true;
 #if UNITY_EDITOR
-            if (G.started) SaveSystem.Save(G);
             UnityEditor.EditorApplication.isPlaying = false;
 #else
             Application.Quit();
@@ -601,7 +601,7 @@ namespace FoxLife
             for (int lv = 0; lv < House.Levels; lv++)
             {
                 int k = lv;
-                if (Btn(new GUIContent((lv + 1) + " эт.", "Показать этаж (PageUp / PageDown)"), G.house.viewLevel == lv, W(52))) Defer(() => G.SetViewLevel(k));
+                if (Btn(new GUIContent((lv + 1) + " эт.", "Показать этаж (Shift + Page Up / Page Down)"), G.house.viewLevel == lv, W(52))) Defer(() => G.SetViewLevel(k));
             }
             if (Btn(new GUIContent("Крыша", "Показать или спрятать крыши"), G.house.showRoof)) Defer(() => { G.house.showRoof = !G.house.showRoof; G.house.ApplyVisibility(); });
             if (Btn(new GUIContent("Стены — " + G.house.WallModeName, "Авто — стены со стороны камеры опускаются")))
