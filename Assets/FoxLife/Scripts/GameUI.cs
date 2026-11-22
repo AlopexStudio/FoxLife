@@ -601,10 +601,10 @@ namespace FoxLife
             for (int lv = 0; lv < House.Levels; lv++)
             {
                 int k = lv;
-                if (Btn(new GUIContent((lv + 1) + " эт.", "Показать этаж (Shift + Page Up / Page Down)"), G.house.viewLevel == lv, W(52))) Defer(() => G.SetViewLevel(k));
+                if (Btn(new GUIContent((lv + 1) + " эт.", "Показать этаж (Page Up / Page Down)"), G.house.viewLevel == lv, W(52))) Defer(() => G.SetViewLevel(k));
             }
             if (Btn(new GUIContent("Крыша", "Показать или спрятать крыши"), G.house.showRoof)) Defer(() => { G.house.showRoof = !G.house.showRoof; G.house.ApplyVisibility(); });
-            if (Btn(new GUIContent("Стены — " + G.house.WallModeName, "Авто — стены со стороны камеры опускаются")))
+            if (Btn(new GUIContent("Стены — " + G.house.WallModeName, "Home / End. В автоматическом режиме стены со стороны камеры опускаются.")))
                 Defer(() => G.house.CycleWallMode());
             if (Btn(new GUIContent("Меню", "Сохранить, загрузить, настройки (Esc)"))) Defer(() => screen = MenuScreen.Pause);
             GUILayout.EndHorizontal();
@@ -1108,6 +1108,9 @@ namespace FoxLife
             if (G.townBuilder && GUILayout.Button("Участки", buildTab == 3 ? Fit(sBtnOn, "Ландшафт", tw) : tabSt, W(tw))) Defer(() => { buildTab = 3; G.CancelPlacing(); G.SetWallTool(Game.WallTool.None); G.SetLandTool(Game.LandTool.None); });
             GUILayout.EndHorizontal();
             GUILayout.Space(4);
+            WallTool("Кувалда", Game.WallTool.Sledgehammer, "ЛКМ — убрать мебель, стену, окно или дверь. Esc — выйти из инструмента.");
+            if (G.wallTool == Game.WallTool.Sledgehammer) GUILayout.Label("Кликни по предмету, стене или проёму.", sSmall);
+            if (G.MovingOpening) GUILayout.Label("Кликни по новой стене. ПКМ или Esc — отменить. Del — удалить проём.", sSmall);
             if (buildTab == 3 && !G.townBuilder) buildTab = 0;
             if (buildTab == 3)
             {
@@ -1137,7 +1140,7 @@ namespace FoxLife
                 GUILayout.Label(G.placeValid ? "Сюда можно поставить." : "Здесь не помещается.", sWrap);
                 GUILayout.BeginHorizontal();
                 if (Btn("Повернуть (R)")) Defer(() => G.RotateGhost());
-                if (Btn("Отмена (Esc)")) Defer(() => G.CancelPlacing());
+                if (Btn("Отмена (ПКМ / Esc)")) Defer(() => G.CancelPlacing());
                 GUILayout.EndHorizontal();
                 if (G.movingExisting && Btn("Удалить предмет (Del)")) Defer(() => G.DeleteGhost());
                 GUILayout.Space(8);
@@ -1167,7 +1170,7 @@ namespace FoxLife
             buildScroll = GUILayout.BeginScrollView(buildScroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
             CatalogGrid(cats, panelWidth - 40);
             GUILayout.EndScrollView();
-            GUILayout.Label("Клик по вещи в доме — переставить · Shift+клик — поставить ещё · Del — продать. Купленное сегодня сдаётся по полной цене, потом — за 75%.", sSmall);
+            GUILayout.Label("Клик по мебели, двери или окну — переставить · Shift+клик — поставить ещё · Del — продать. Купленная сегодня мебель сдаётся по полной цене, потом — за 75%.", sSmall);
             if (G.ghost != null && G.movingExisting && !G.freeBuild)
                 if (!G.freeBuild) ColorLabel($"Продать за {G.SellValue(G.ghost)} мон. (Del)" + (G.FullRefund(G.ghost) ? " — полная цена, куплено недавно" : ""), sBold, new Color(0.2f, 0.5f, 0.25f));
             End();

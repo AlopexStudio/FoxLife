@@ -237,6 +237,20 @@ namespace FoxLife
                     plan.edges.TryGetValue(item.Key, out var final) && final != item.Value)
                 { error = "При изменении пропадёт проём. Сначала перенеси его."; return null; }
 
+            EdgeKind PlannedEdge(int x, int z, bool v) => plan.edges.TryGetValue((x, z, v), out var kind) ? kind : house.GetEdge(level, x, z, v);
+            foreach (var key in plan.edges.Keys)
+            {
+                var next = House.AlongEdge(key, 1);
+                var previous = House.AlongEdge(key, -1);
+                var kind = PlannedEdge(key.x, key.z, key.v);
+                bool starts = House.IsCenteredOpening(kind);
+                bool ends = kind == EdgeKind.OpeningEnd;
+                if (starts != (PlannedEdge(next.x, next.z, next.v) == EdgeKind.OpeningEnd) ||
+                    ends != House.IsCenteredOpening(PlannedEdge(previous.x, previous.z, previous.v)) ||
+                    starts && !House.OpeningJointClear(key, PlannedEdge))
+                { error = "Сначала перенеси проём со стыка стен."; return null; }
+            }
+
             var stationary = new HashSet<Vector2Int>();
             foreach (var item in furniture)
             {

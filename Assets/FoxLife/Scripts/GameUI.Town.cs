@@ -230,8 +230,8 @@ namespace FoxLife
                     if (Btn("Продолжить", true, Hh(44))) Defer(() => G.ContinueGame());
                     GUILayout.Label(SaveSystem.SaveInfo ?? "", sub);
                 }
-                if (Btn("Сохранения", false, Hh(40))) Defer(OpenSaves);
                 if (Btn("Новая игра", !hasSave, Hh(44))) Defer(StartNew);
+                if (Btn("Сохранения", false, Hh(40))) Defer(OpenSaves);
                 if (Btn(new GUIContent("Играть вместе", "Зайти в город к другу по сети (Radmin VPN или домашняя сеть)"), false, Hh(40))) Defer(() => netPanel = true);
                 if (Btn("Настройки", false, Hh(40))) Defer(() => { settingsFrom = MenuScreen.Title; screen = MenuScreen.Settings; });
                 if (Btn("Выйти", false, Hh(40))) Defer(() => Quit(false));

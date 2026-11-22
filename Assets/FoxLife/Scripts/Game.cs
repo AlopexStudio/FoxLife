@@ -975,7 +975,7 @@ namespace FoxLife
 
         // ================= стены, двери, окна =================
 
-        public enum WallTool { None, Wall, Erase, Door, Window, Arch, Fence, Gate, Railing, RailingGap, MoveRoom, ResizeRoom }
+        public enum WallTool { None, Wall, Erase, Door, Window, Arch, Fence, Gate, Railing, RailingGap, MoveRoom, ResizeRoom, Sledgehammer }
         public WallTool wallTool;
         public const int WallPrice = 10, DoorPrice = 120, WindowPrice = 80, ArchPrice = 40, FencePrice = 6, GatePrice = 30, RailingPrice = 15, RailingGapPrice = 10;
         bool wallDragging;
@@ -985,9 +985,11 @@ namespace FoxLife
 
         public void SetWallTool(WallTool t)
         {
+            openingMove = null;
             if (t != WallTool.None) CancelPlacing();
             wallTool = t;
-            if (t != WallTool.None) landTool = LandTool.None;
+            if (t != WallTool.None) { landTool = LandTool.None; lotTool = false; }
+            ClearHover();
             wallDragging = false;
             roomDrag = null;
             RoomToolHint = null;
@@ -1036,7 +1038,16 @@ namespace FoxLife
 
         void UpdateWallTool()
         {
+            if (MovingOpening && Input.GetMouseButtonDown(1)) { SetWallTool(WallTool.None); return; }
+            if (MovingOpening && !ui.Typing && Input.GetKeyDown(KeyCode.Delete))
+            {
+                var source = openingMove.Value;
+                DemolishOpening(source.level, source.edge);
+                SetWallTool(WallTool.None);
+                return;
+            }
             if (wallTool == WallTool.MoveRoom || wallTool == WallTool.ResizeRoom) { UpdateRoomTool(); return; }
+            if (wallTool == WallTool.Sledgehammer) { UpdateSledgehammer(); return; }
             if (ui.MouseOverUI && !wallDragging) { HideWallGhost(); return; }
             if (!GroundPoint(out var p)) return;
             int lvl = house.viewLevel;
@@ -1072,31 +1083,7 @@ namespace FoxLife
                 return;
             }
 
-            // двери, окна, проёмы — на ребро под курсором
-            var c = new Vector2Int(Mathf.FloorToInt(p.x), Mathf.FloorToInt(p.z));
-            float fx = p.x - c.x, fz = p.z - c.y;
-            float[] d = { fx, 1 - fx, fz, 1 - fz };
-            int k = 0; for (int i = 1; i < 4; i++) if (d[i] < d[k]) k = i;
-            int ex = k == 1 ? c.x + 1 : c.x, ez = k == 3 ? c.y + 1 : c.y;
-            bool vert = k <= 1;
-            if (!House.ValidEdge(ex, ez, vert) || !MayEditLot(house.EdgeLot(ex, ez, vert))) { HideWallGhost(); return; }
-            var kind = house.GetEdge(lvl, ex, ez, vert);
-            var want = wallTool == WallTool.Door ? EdgeKind.Door : wallTool == WallTool.Window ? EdgeKind.Window : wallTool == WallTool.Gate ? EdgeKind.Gate : wallTool == WallTool.RailingGap ? EdgeKind.RailingOpen : EdgeKind.Arch;
-            bool ok = want == EdgeKind.Gate ? kind == EdgeKind.Fence : want == EdgeKind.RailingOpen ? kind == EdgeKind.Railing : House.IsWallLike(kind) && kind != want;
-            var center = vert ? new Vector3(ex, ly + 1f, ez + 0.5f) : new Vector3(ex + 0.5f, ly + 1f, ez);
-            ShowWallGhost(center, vert ? new Vector3(0.22f, 2.04f, 1f) : new Vector3(1f, 2.04f, 0.22f), ok ? new Color(0.45f, 0.7f, 1f) : new Color(0.95f, 0.35f, 0.3f));
-            if (Input.GetMouseButtonDown(0) && !ui.MouseOverUI)
-            {
-                if (!ok) { Log(want == EdgeKind.RailingOpen ? "Вход делается в перилах." : want == EdgeKind.Gate ? "Калитка ставится в забор." : kind == EdgeKind.None ? "Сначала поставь здесь стену." : "Здесь уже это стоит."); return; }
-                int price = want == EdgeKind.Door ? DoorPrice : want == EdgeKind.Window ? WindowPrice : want == EdgeKind.Gate ? GatePrice : want == EdgeKind.RailingOpen ? RailingGapPrice : ArchPrice;
-                if (!freeBuild && money < price) { Log($"Для покупки нужно {price} мон."); return; }
-                var doorBefore = Snap();
-                if (!freeBuild) AddMoney(-price, want == EdgeKind.Door ? "Дверь" : want == EdgeKind.Window ? "Окно" : want == EdgeKind.Gate ? "Калитка" : want == EdgeKind.RailingOpen ? "Вход в перилах" : "Проём");
-                house.SetEdge(lvl, ex, ez, vert, want);
-                house.Rebuild(house.LotById(house.EdgeLot(ex, ez, vert)) ?? house.PlayerLot);
-                PushBuild(want == EdgeKind.Door ? "дверь" : want == EdgeKind.Window ? "окно" : want == EdgeKind.Gate ? "калитка" : "проём", doorBefore, Snap());
-                foreach (var fx2 in foxes) fx2.OnEvent(new GameEvent { kind = "buy" });
-            }
+            UpdateOpeningTool(p, lvl);
         }
 
         bool EdgeCutsFurniture(int level, int x, int z, bool v)
@@ -1123,25 +1110,23 @@ namespace FoxLife
                 if (erase)
                 {
                     if (k == EdgeKind.None) continue;
-                    // стены, двери и окна возвращаются по полной цене — стройка без страха ошибиться
-                    refund += (House.IsFenceLike(k) ? FencePrice : House.IsRailing(k) ? RailingPrice : WallPrice) + (k == EdgeKind.Door ? DoorPrice : k == EdgeKind.Window ? WindowPrice : k == EdgeKind.Arch ? ArchPrice : k == EdgeKind.Gate ? GatePrice : k == EdgeKind.RailingOpen ? RailingGapPrice : 0);
-                    house.SetEdge(level, x, z, v, EdgeKind.None);
+                    refund += RemoveWallSegment(level, (x, z, v));
                     changed++;
                 }
                 else
                 {
                     if (k != EdgeKind.None) continue;
-                    if (EdgeCutsFurniture(level, x, z, v)) { blocked = true; continue; }
+                    if (EdgeCutsFurniture(level, x, z, v) || house.CrossesCenteredOpening(level, x, z, v)) { blocked = true; continue; }
                     if (!freeBuild && money - cost < unit) { Log("Не хватило монет на всю длину."); break; }
                     cost += unit;
                     house.SetEdge(level, x, z, v, build);
                     changed++;
                 }
             }
-            if (changed == 0) { if (blocked) Log("Стена не может пройти сквозь мебель."); return; }
+            if (changed == 0) { if (blocked) Log("Стена пересекает мебель или проём."); return; }
             if (!freeBuild && cost > 0) AddMoney(-cost, build == EdgeKind.Fence ? $"Забор ({changed} м)" : build == EdgeKind.Railing ? $"Перила ({changed} м)" : $"Стены ({changed} м)");
             if (!freeBuild && refund > 0) AddMoney(refund, "Снос стен");
-            if (blocked) Log("Часть стены не прошла сквозь мебель.");
+            if (blocked) Log("Стена построена до мебели или проёма.");
             var lotHere = house.LotById(house.EdgeLot(s.x, s.y, s.y != e.y));
             house.Rebuild(lotHere ?? house.PlayerLot);
         }
@@ -1330,6 +1315,7 @@ namespace FoxLife
         public void StartPlacing(FurnitureDef def)
         {
             if (!CanAfford(def)) { Log($"На «{def.name}» нужно {def.price} мон."); return; }
+            SetWallTool(WallTool.None);
             CancelPlacing();
             movingExisting = false;
             placeRot = 0;
@@ -1390,6 +1376,7 @@ namespace FoxLife
 
         public void CancelPlacing()
         {
+            if (MovingOpening) SetWallTool(WallTool.None);
             if (ghost == null) return;
             if (movingExisting)
             {
@@ -1426,6 +1413,7 @@ namespace FoxLife
         void UpdateBuild()
         {
             if (ghost == null) return;
+            if (Input.GetMouseButtonDown(1)) { CancelPlacing(); return; }
             var ray = camera3d.ScreenPointToRay(Input.mousePosition);
             if (FloorPoint(ray, out var p))
             {
@@ -1588,8 +1576,10 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             CleanOccupants();
             if (ui == null || ui.Typing) return;
             if (Input.GetKeyDown(KeyCode.Space)) TogglePause();
-            if (Input.GetKeyDown(KeyCode.PageUp)) PageKey(1);
-            if (Input.GetKeyDown(KeyCode.PageDown)) PageKey(-1);
+            if (Input.GetKeyDown(KeyCode.PageUp)) SetViewLevel(house.viewLevel + 1);
+            if (Input.GetKeyDown(KeyCode.PageDown)) SetViewLevel(house.viewLevel - 1);
+            if (Input.GetKeyDown(KeyCode.Home)) ChangeWalls(1);
+            if (Input.GetKeyDown(KeyCode.End)) ChangeWalls(-1);
             if (Input.GetKeyDown(KeyCode.Alpha1)) SetSpeed(1);
             if (Input.GetKeyDown(KeyCode.Alpha2)) SetSpeed(2);
             if (Input.GetKeyDown(KeyCode.Alpha3)) SetSpeed(3);
@@ -1613,10 +1603,15 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                 else if (mode == Mode.Style && styleTarget != null) styleTarget = null;
                 else ui.screen = GameUI.MenuScreen.Pause;
             }
-            if (mode == Mode.Build && ghost == null && Input.GetKeyDown(KeyCode.Delete) && hoverStyle != null)
+            if (mode == Mode.Build && ghost == null && wallTool == WallTool.None && Input.GetKeyDown(KeyCode.Delete))
             {
-                var f = hoverStyle.GetComponent<Furniture>();
-                if (f != null && f.lot == House.PlayerLotId) { SellFurniture(f); ClearHover(); }
+                if (!ui.MouseOverUI && RaycastWorld(out var hit, out var part))
+                {
+                    var f = part.owner.GetComponentInParent<Furniture>();
+                    if (f != null && f.level == house.viewLevel && MayEditLot(f.lot) && f.def.id != "plate") { SellFurniture(f); ClearHover(); }
+                    else if (house.TryHitEdge(hit.transform, house.viewLevel, out var edge, out bool opening) && opening)
+                        DemolishOpening(house.viewLevel, edge);
+                }
             }
         }
 
@@ -1711,7 +1706,8 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                         if (fox != null || (furn != null && furn.def.actions.Count > 0)) { st = o; col = new Color(0.12f, 0.08f, 0.02f); }
                         break;
                     case Mode.Build:
-                        if (furn != null && MayEditLot(furn.lot)) { st = o; col = new Color(0.1f, 0.12f, 0.02f); }
+                        if (furn != null && MayEditLot(furn.lot))
+                        { st = o; col = wallTool == WallTool.Sledgehammer ? new Color(0.36f, 0.07f, 0.04f) : new Color(0.1f, 0.12f, 0.02f); }
                         break;
                     case Mode.Style:
                         if (CanStyle(o)) { st = o; part = sr.part; col = new Color(0.16f, 0.12f, 0.04f); }
@@ -1740,6 +1736,8 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                 case Mode.Live: LiveClick(st, fox, furn, hit); break;
                 case Mode.Build:
                     if (lotTool) break;
+                    if (house.TryHitEdge(hit.transform, house.viewLevel, out var edge, out bool opening) && opening)
+                    { StartMovingOpening(house.viewLevel, edge); break; }
                     if (furn == null && IsRemovableProp(st, out var propRoot) && (townBuilder || MayEditLot(Town.LotIdAt(propRoot.position.x, propRoot.position.z))))
                     {
                         string pn = propRoot.name;
@@ -1970,12 +1968,6 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             cam.Focus(fox.transform.position, 6f);
             SetViewLevel(fox.Level);
         });
-
-        void PageKey(int step)
-        {
-            if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) SetViewLevel(house.viewLevel + step);
-            else ChangeWalls(step);
-        }
 
         internal void ChangeWalls(int step)
         {

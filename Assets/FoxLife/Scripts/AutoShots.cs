@@ -87,6 +87,42 @@ namespace FoxLife
             yield return new WaitForSeconds(0.5f);
         }
 
+        bool CheckCenteredOpenings(Game g, Vector2Int corner)
+        {
+            int x = corner.x, z = corner.y;
+            var doorCenter = new Vector3(x + 2, 0, z);
+            var windowCenter = new Vector3(x + 7, 0, z + 2);
+            var door = g.SnapOpening(0, (x + 2, z, false), doorCenter, EdgeKind.Door, out bool doorCentered);
+            var window = g.SnapOpening(0, (x + 7, z + 2, true), windowCenter, EdgeKind.Window, out bool windowCentered);
+            if (!doorCentered || !windowCentered || !g.PlaceOpening(0, door, EdgeKind.Door, true) ||
+                !g.PlaceOpening(0, window, EdgeKind.Window, true)) return false;
+
+            var grid = g.house.grids[0];
+            var walk = grid.FindPath(new Vector2Int(x + 1, z - 1), new Vector2Int(x + 1, z));
+            if (walk == null || !walk.Exists(p => p.x == doorCenter.x && p.z == doorCenter.z) ||
+                !grid.EdgeBlocked(new Vector2Int(x + 6, z + 2), new Vector2Int(x + 7, z + 2)) ||
+                !g.house.doors.Exists(d => d.pivot != null && d.pivot.gameObject.activeInHierarchy &&
+                    d.center.x == doorCenter.x && d.center.z == doorCenter.z)) return false;
+
+            g.StartMovingOpening(0, window);
+            g.CancelPlacing();
+            if (g.MovingOpening || g.house.GetEdge(0, window.x, window.z, window.v) != EdgeKind.CenterWindow) return false;
+            g.StartMovingOpening(0, window);
+            if (!g.MoveOpening(0, House.AlongEdge(window, 1), EdgeKind.Window, false) ||
+                g.house.GetEdge(0, window.x, window.z, window.v) != EdgeKind.Wall) return false;
+            g.Undo();
+            if (g.house.GetEdge(0, window.x, window.z, window.v) != EdgeKind.CenterWindow) return false;
+
+            var tail = House.AlongEdge(door, 1);
+            g.DemolishOpening(0, door);
+            if (g.house.GetEdge(0, door.x, door.z, door.v) != EdgeKind.Wall || g.house.GetEdge(0, tail.x, tail.z, tail.v) != EdgeKind.Wall) return false;
+            g.Undo();
+            g.DemolishWall(0, tail);
+            if (g.house.GetEdge(0, door.x, door.z, door.v) != EdgeKind.Wall || g.house.GetEdge(0, tail.x, tail.z, tail.v) != EdgeKind.None) return false;
+            g.Undo();
+            return g.house.GetEdge(0, door.x, door.z, door.v) == EdgeKind.CenterDoor && g.house.GetEdge(0, tail.x, tail.z, tail.v) == EdgeKind.OpeningEnd;
+        }
+
         void Dump()
         {
             var g = Game.I;
@@ -809,7 +845,7 @@ namespace FoxLife
             g.ResetWorld(true);
             g.SetupTitleScene(0);
             g.ui.screen = GameUI.MenuScreen.Title;
-            yield return null;
+            yield return Shot("0_title_saved");
             g.ContinueGame();
             yield return new WaitForSeconds(0.2f);
             while (g.loading) yield return null;
@@ -904,6 +940,15 @@ namespace FoxLife
                             g.Redo();
                             if (g.house.RoomAt(start)?.cells.Count != 35) Debug.LogError("КОМНАТЫ: повтор растяжения не сработал.");
                             log.WriteLine("КОМНАТЫ: перенос с дверью и стулом, растяжение 30→35 м², отмена и повтор.");
+                            g.house.wallMode = House.WallMode.Up;
+                            if (!CheckCenteredOpenings(g, start)) Debug.LogError("ПРОЁМЫ: не прошла проверка стройки, пути, переноса или сноса.");
+                            else log.WriteLine("ПРОЁМЫ: дверь и окно на стыке, путь через дверь, перенос, отмена и снос.");
+                            g.SetHour(13);
+                            g.cam.Focus(new Vector3(start.x + 3.5f, 0, start.y + 2.5f), 15f);
+                            g.SetMode(Mode.Build);
+                            g.SetWallTool(Game.WallTool.Sledgehammer);
+                            yield return Shot("9c_center_openings");
+                            g.SetMode(Mode.Live);
                         }
                     }
                     g.ChangeWalls(10);

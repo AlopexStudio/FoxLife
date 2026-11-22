@@ -14,6 +14,7 @@ namespace FoxLife
         readonly bool[,] wallX;   // ребро между (x-1,z) и (x,z)
         readonly bool[,] wallZ;   // ребро между (x,z-1) и (x,z)
         readonly bool[,] structX, structZ; // любая постройка на ребре
+        readonly Dictionary<Vector3Int, Vector3> doorCrossings = new Dictionary<Vector3Int, Vector3>();
         readonly bool[,] noFloor; // нет пола (вода, дыра, второй этаж вне комнат)
         readonly float[,] height;  // на какой высоте стоит лисичка в клетке
         public const float MaxStep = 0.8f; // выше этого перепада между соседними клетками не шагнуть
@@ -52,6 +53,13 @@ namespace FoxLife
         /// <summary>Сбросить стены и пол в прямоугольнике мира (при пересборке одного участка).</summary>
         public void ClearWalls(RectInt r)
         {
+            if (doorCrossings.Count > 0)
+            {
+                var removed = new List<Vector3Int>();
+                foreach (var key in doorCrossings.Keys)
+                    if (key.x >= r.xMin && key.x <= r.xMax && key.y >= r.yMin && key.y <= r.yMax) removed.Add(key);
+                foreach (var key in removed) doorCrossings.Remove(key);
+            }
             for (int x = r.xMin; x <= r.xMax; x++)
                 for (int z = r.yMin; z <= r.yMax; z++)
                 {
@@ -94,6 +102,16 @@ namespace FoxLife
             return false;
         }
 
+        internal void SetDoorCrossing(int x, int z, bool v, Vector3 center) => doorCrossings[new Vector3Int(x, z, v ? 1 : 0)] = center;
+
+        bool DoorCrossing(Vector2Int a, Vector2Int b, out Vector3 center)
+        {
+            center = default;
+            if (doorCrossings.Count == 0) return false;
+            if (a.y == b.y) return doorCrossings.TryGetValue(new Vector3Int(Mathf.Max(a.x, b.x), a.y, 1), out center);
+            return a.x == b.x && doorCrossings.TryGetValue(new Vector3Int(a.x, Mathf.Max(a.y, b.y), 0), out center);
+        }
+
         public static Vector2Int CellOf(Vector3 p) => new Vector2Int(Mathf.FloorToInt(p.x), Mathf.FloorToInt(p.z));
         public static Vector3 Center(Vector2Int c) => new Vector3(c.x + 0.5f, 0, c.y + 0.5f);
 
@@ -123,7 +141,8 @@ namespace FoxLife
             var v = new Vector2Int(a.x, a.y + d.y);
             if (!Passable(h, start) || !Passable(v, start)) return false;
             if (!StepOk(a, h) || !StepOk(a, v) || !StepOk(h, b) || !StepOk(v, b)) return false;
-            return !EdgeBlocked(a, h) && !EdgeBlocked(h, b) && !EdgeBlocked(a, v) && !EdgeBlocked(v, b);
+            return !EdgeBlocked(a, h) && !EdgeBlocked(h, b) && !EdgeBlocked(a, v) && !EdgeBlocked(v, b) &&
+                !DoorCrossing(a, h, out _) && !DoorCrossing(h, b, out _) && !DoorCrossing(a, v, out _) && !DoorCrossing(v, b, out _);
         }
 
         // переиспользуемые массивы поиска (метка поколения вместо очистки)
@@ -214,7 +233,12 @@ namespace FoxLife
             }
             if (!found) return null;
             var path = new List<Vector3>();
-            for (int i = gi; i != s; i = came[i]) { var cc = Cell(i); path.Add(Center(cc) + Vector3.up * height[cc.x - MinX, cc.y - MinZ]); }
+            for (int i = gi; i != s; i = came[i])
+            {
+                var cc = Cell(i);
+                path.Add(Center(cc) + Vector3.up * HeightAt(cc));
+                if (DoorCrossing(Cell(came[i]), cc, out var center)) path.Add(center);
+            }
             path.Reverse();
             return path;
         }

@@ -125,9 +125,9 @@ namespace FoxLife
             Section("Стены и проёмы");
             var a = new List<ToolCardDef>();
             WallCard(a, "Стена", PerM(Game.WallPrice), "wall", Game.WallTool.Wall, "Зажми мышь на углу сетки и протяни. Замкнутые стенами места сами становятся комнатами.");
-            WallCard(a, "Снести", "½ цены назад", "erase", Game.WallTool.Erase, "Протяни вдоль стен, которые нужно убрать.");
-            WallCard(a, "Дверь", Each(Game.DoorPrice), "door", Game.WallTool.Door, "Кликни по стене. Можно заменить окно на дверь и наоборот.");
-            WallCard(a, "Окно", Each(Game.WindowPrice), "window", Game.WallTool.Window, "Кликни по стене.");
+            WallCard(a, "Снести", "Возврат цены", "erase", Game.WallTool.Erase, "Протяни вдоль стен, которые нужно убрать.");
+            WallCard(a, "Дверь", Each(Game.DoorPrice), "door", Game.WallTool.Door, "Кликни по стене или по стыку двух секций.");
+            WallCard(a, "Окно", Each(Game.WindowPrice), "window", Game.WallTool.Window, "Кликни по стене или по стыку двух секций.");
             WallCard(a, "Проём", Each(Game.ArchPrice), "arch", Game.WallTool.Arch, "Арка без двери — проход между комнатами.");
             ToolCards(a, wdt);
             Section("Двор и веранды");
@@ -141,7 +141,8 @@ namespace FoxLife
                 : G.wallTool == Game.WallTool.Erase ? "Протяни вдоль стен, которые нужно снести."
                 : G.wallTool == Game.WallTool.MoveRoom ? "Зажми ЛКМ на полу комнаты, перетащи и отпусти. ПКМ — отменить."
                 : G.wallTool == Game.WallTool.ResizeRoom ? "Зажми ЛКМ у стены прямоугольной комнаты и потяни поперёк стены."
-                : G.wallTool == Game.WallTool.None ? "Page Up / Page Down — стены. Shift + Page Up / Page Down — этаж."
+                : G.wallTool == Game.WallTool.None ? "Page Up / Page Down — этажи. Home / End — стены."
+                : G.wallTool == Game.WallTool.Door || G.wallTool == Game.WallTool.Window ? "Кликни по середине секции стены или по стыку двух секций."
                 : "Кликни по стене или забору, чтобы поставить. Esc — выйти из инструмента.";
             ColorLabel(G.RoomToolHint ?? hint, sSmall, new Color(0.35f, 0.4f, 0.5f));
             Section("Планировка");
