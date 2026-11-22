@@ -19,7 +19,7 @@ public static class FoxLifeSetup
         EditorSceneManager.SaveScene(scene, ScenePath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
 
-        PlayerSettings.productName = "Лисья жизнь"; // не менять: от имени зависит папка сохранений и настроек (AppData/LocalLow)
+        PlayerSettings.productName = "Лисья Жизнь"; // в Windows регистр не меняет путь к сохранениям и настройкам
         PlayerSettings.colorSpace = ColorSpace.Linear;
         PlayerSettings.defaultScreenWidth = 1600;
         PlayerSettings.defaultScreenHeight = 900;
