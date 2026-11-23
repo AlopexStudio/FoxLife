@@ -426,8 +426,8 @@ namespace FoxLife
             house.SetViewLevel(level);
         }
 
-        /// <summary>Мебель верхних этажей прячется только на «открытом» участке.</summary>
-        public bool FurnitureHidden(Furniture fu) => fu.level > house.viewLevel && fu.lot == house.focusLot;
+        public bool FurnitureHidden(Furniture fu)
+            => (fu.level > house.viewLevel && fu.lot == house.focusLot) || MountedFurnitureHidden(fu);
 
         public void ApplyFurnitureVisibility()
         {
@@ -720,6 +720,16 @@ namespace FoxLife
                 var u = c + Vector2Int.up;
                 if (cells.Contains(r) && g.HasStructure(c, r)) return false;
                 if (cells.Contains(u) && g.HasStructure(c, u)) return false;
+            }
+            if (def.wallMounted)
+            {
+                foreach (var edge in MountEdges(def, a, rot))
+                    if (house.GetEdge(level, edge.x, edge.z, edge.v) != EdgeKind.Wall) return false;
+                foreach (var item in furniture)
+                {
+                    if (item == null || item == ignore || item.level != level || !item.def.wallMounted || item.rot != rot) continue;
+                    foreach (var occupied in item.Footprint()) if (cells.Contains(occupied)) return false;
+                }
             }
             return true;
         }
@@ -1104,6 +1114,7 @@ namespace FoxLife
             int to = alongX ? Mathf.Max(s.x, e.x) : Mathf.Max(s.y, e.y);
             int changed = 0, cost = 0, refund = 0;
             bool blocked = false;
+            bool hasWallDecor = false;
             for (int i = from; i < to; i++)
             {
                 int x = alongX ? i : s.x, z = alongX ? s.y : i;
@@ -1113,6 +1124,7 @@ namespace FoxLife
                 if (erase)
                 {
                     if (k == EdgeKind.None) continue;
+                    if (HasFurnitureOnWall(level, (x, z, v))) { hasWallDecor = true; continue; }
                     refund += RemoveWallSegment(level, (x, z, v));
                     changed++;
                 }
@@ -1126,6 +1138,7 @@ namespace FoxLife
                     changed++;
                 }
             }
+            if (hasWallDecor) Log("Сначала сними настенный ковёр.");
             if (changed == 0) { if (blocked) Log("Стена пересекает мебель или проём."); return; }
             if (!freeBuild && cost > 0) AddMoney(-cost, build == EdgeKind.Fence ? $"Забор ({changed} м)" : build == EdgeKind.Railing ? $"Перила ({changed} м)" : $"Стены ({changed} м)");
             if (!freeBuild && refund > 0) AddMoney(refund, "Снос стен");
@@ -1447,21 +1460,32 @@ namespace FoxLife
         {
             if (ghost == null) return;
             if (Input.GetMouseButtonDown(1)) { CancelPlacing(); return; }
-            var ray = camera3d.ScreenPointToRay(Input.mousePosition);
-            if (FloorPoint(ray, out var p))
+            if (ghost.def.wallMounted && TrySnapWallMount(ghost.def, out var anchor, out int rotation))
             {
-                ghost.fineYaw = placeFine;
+                placeRot = rotation;
+                PlaceBuildGhost(anchor);
+            }
+            else if (GroundPoint(out var p))
+            {
                 var e = Furniture.Size(ghost.def, placeRot);
                 var a = new Vector2Int(Mathf.RoundToInt(p.x - e.x / 2f), Mathf.RoundToInt(p.z - e.y / 2f));
-                ghost.level = house.viewLevel;
-                ghost.Place(a, placeRot);
-                placeValid = CanPlace(ghost.def, a, placeRot, null, house.viewLevel, mayorMode ? -1 : House.PlayerLotId) && (movingExisting || CanAfford(ghost.def));
-                ghost.style.SetHighlight(-1, placeValid ? new Color(0.05f, 0.3f, 0.08f) : new Color(0.45f, 0.05f, 0.05f));
+                PlaceBuildGhost(a);
             }
+            else placeValid = false;
             if (!ui.Typing && Input.GetKeyDown(KeyCode.R)) RotateGhost();
             if (Input.GetKeyDown(KeyCode.Delete) && movingExisting) { DeleteGhost(); return; }
             if (Input.GetMouseButtonDown(0) && !ui.MouseOverUI && placeValid)
                 CommitFurniturePlacement(Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
+        }
+
+        void PlaceBuildGhost(Vector2Int anchor)
+        {
+            ghost.fineYaw = placeFine;
+            ghost.level = house.viewLevel;
+            ghost.Place(anchor, placeRot);
+            placeValid = CanPlace(ghost.def, anchor, placeRot, null, house.viewLevel, mayorMode ? -1 : House.PlayerLotId) &&
+                (movingExisting || CanAfford(ghost.def));
+            ghost.style.SetHighlight(-1, placeValid ? new Color(0.05f, 0.3f, 0.08f) : new Color(0.45f, 0.05f, 0.05f));
         }
 
         internal void CommitFurniturePlacement(bool repeat)
@@ -1887,7 +1911,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             }
         }
 
-        void OpenFurnitureMenu(Furniture f)
+        internal void OpenFurnitureMenu(Furniture f, Vector3? screenPosition = null)
         {
             var me = selected;
             var items = new List<PieItem>();
@@ -1902,7 +1926,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                 else if (inter.blocked != null && inter.blocked(me, f) is string why) { pi.enabled = false; pi.reason = why; }
                 items.Add(pi);
             }
-            ui.OpenPie(Input.mousePosition, f.def.name, items);
+            ui.OpenPie(screenPosition ?? Input.mousePosition, f.def.name, items);
         }
 
         static readonly string[] Friendly = { "Поболтать", "Пошутить", "Обсудить идеи", "Рассказать историю", "Сделать комплимент", "Обнять", "Бупнуть", "Утешить", "Пожаловаться на жизнь" };
@@ -1989,7 +2013,9 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
         }
 
         /// <summary>Клик по своей выбранной лисичке: подумать о себе, телефон, переодеться.</summary>
-        void OpenSelfMenu(Fox me)
+        void OpenSelfMenu(Fox me) => ui.OpenPie(Input.mousePosition, me.foxName, SelfMenuItems(me));
+
+        internal List<PieItem> SelfMenuItems(Fox me)
         {
             var items = new List<PieItem>
             {
@@ -2008,7 +2034,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
                 new PieItem("Телефон", () => ui.OpenPhone(me)),
             };
             if (CanDeveloperEdit(me)) items.Add(DeveloperEditItem(me));
-            ui.OpenPie(Input.mousePosition, me.foxName, items);
+            return items;
         }
 
         internal bool CanDeveloperEdit(Fox fox) => ui.DeveloperMode && fox != null && (!Net.Active || IsPlayer(fox));

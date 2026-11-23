@@ -20,30 +20,110 @@ namespace FoxLife
     /// </summary>
     public partial class GameUI
     {
-        List<PieItem> pieRoot, pieItems;
-        Vector2 pieCenter;
+        const int PiePageSize = 11;
+        const float PieCenterSize = 96f;
+        List<PieItem> pieItems, laidOutPie;
+        readonly Stack<(List<PieItem> items, string subtitle, int page)> pieParents = new Stack<(List<PieItem>, string, int)>();
+        readonly List<(PieItem item, Rect rect, GUIStyle style)> pieButtons = new List<(PieItem, Rect, GUIStyle)>();
+        Vector2 pieAnchor, pieCenter;
+        Vector2 pieViewport;
+        int piePage, laidOutPage;
+        Rect piePager;
         string pieTitle, pieSubTitle;
 
         public void OpenPie(Vector3 screenPos, string title, List<PieItem> items)
         {
-            pieRoot = pieItems = items;
-            pieTitle = title; pieSubTitle = null;
-            pieCenter = new Vector2(screenPos.x / scale, (Screen.height - screenPos.y) / scale);
-            float R = items.Count > 7 ? 150 : 125;
-            pieCenter.x = Mathf.Clamp(pieCenter.x, R + 110, vw - R - 110);
-            pieCenter.y = Mathf.Clamp(pieCenter.y, R + 40, vh - R - 40);
+            pieItems = items;
+            pieParents.Clear();
+            laidOutPie = null;
+            piePage = 0;
+            pieTitle = title;
+            pieSubTitle = null;
+            pieAnchor = new Vector2(screenPos.x / scale, (Screen.height - screenPos.y) / scale);
             menuItems = null;
+            menuRect = default;
             menuOpen = true;
+        }
+
+        internal void EnterPieCategory(PieItem item)
+        {
+            pieParents.Push((pieItems, pieSubTitle, piePage));
+            pieItems = item.sub;
+            pieSubTitle = item.label;
+            piePage = 0;
+            laidOutPie = null;
+        }
+
+        void ReturnToPieParent()
+        {
+            if (pieParents.Count == 0) return;
+            (pieItems, pieSubTitle, piePage) = pieParents.Pop();
+            laidOutPie = null;
+        }
+
+        void LayoutPie()
+        {
+            var viewport = new Vector2(vw, vh);
+            if (laidOutPie == pieItems && laidOutPage == piePage && pieViewport == viewport) return;
+            laidOutPie = pieItems;
+            laidOutPage = piePage;
+            pieViewport = viewport;
+            pieButtons.Clear();
+            float radius = PieCenterSize * 0.5f;
+            var bounds = new Rect(-radius, -radius, PieCenterSize, PieCenterSize);
+            int start = piePage * PiePageSize;
+            int count = Mathf.Min(PiePageSize, pieItems.Count - start);
+            bool crown = count % 2 == 1;
+            int rightCount = (count - (crown ? 1 : 0)) / 2;
+            int leftCount = count - (crown ? 1 : 0) - rightCount;
+            float maxWidth = Mathf.Clamp((vw - PieCenterSize - 50f) / 2f, 92f, 226f);
+            const float row = 43f;
+
+            for (int i = 0; i < count; i++)
+            {
+                var item = pieItems[start + i];
+                var label = new GUIContent(item.DisplayLabel);
+                float width = Mathf.Clamp(sBtn.CalcSize(label).x + 12f, 92f, maxWidth);
+                var style = Fit(sBtn, label.text, width, 38f);
+                float height = Mathf.Clamp(style.CalcHeight(label, width), 32f, 38f);
+                Rect rect;
+                if (crown && i == 0)
+                {
+                    float y = -Mathf.Max(radius + 25f, (rightCount - 1) * row * 0.5f + row);
+                    rect = new Rect(-width / 2f, y - height / 2f, width, height);
+                }
+                else
+                {
+                    int index = i - (crown ? 1 : 0);
+                    bool right = index < rightCount;
+                    int rowIndex = right ? index : leftCount - 1 - (index - rightCount);
+                    int sideCount = right ? rightCount : leftCount;
+                    float y = (rowIndex - (sideCount - 1) * 0.5f) * row;
+                    float edge = radius + 13f - Mathf.Min(23f, Mathf.Abs(y) * 0.27f);
+                    rect = new Rect(right ? edge : -edge - width, y - height / 2f, width, height);
+                }
+                pieButtons.Add((item, rect, style));
+                bounds = Rect.MinMaxRect(Mathf.Min(bounds.xMin, rect.xMin), Mathf.Min(bounds.yMin, rect.yMin),
+                    Mathf.Max(bounds.xMax, rect.xMax), Mathf.Max(bounds.yMax, rect.yMax));
+            }
+
+            if (pieItems.Count > PiePageSize)
+            {
+                piePager = new Rect(-53, bounds.yMax + 8, 106, 26);
+                bounds.yMax = piePager.yMax;
+            }
+            else piePager = default;
+
+            pieCenter = new Vector2(Mathf.Clamp(pieAnchor.x, 12 - bounds.xMin, vw - 12 - bounds.xMax),
+                Mathf.Clamp(pieAnchor.y, 12 - bounds.yMin, vh - 12 - bounds.yMax));
         }
 
         void Pie()
         {
             if (!menuOpen || pieItems == null) return;
             EnsureSims();
-            int n = pieItems.Count;
-            float R = n > 7 ? 150 : 125;
-            // середина: название; нажатие — назад
-            var cr = new Rect(pieCenter.x - 58, pieCenter.y - 58, 116, 116);
+            LayoutPie();
+            var cr = new Rect(pieCenter.x - PieCenterSize / 2, pieCenter.y - PieCenterSize / 2, PieCenterSize, PieCenterSize);
             Reg(cr);
             if (Event.current.type == EventType.Repaint)
             {
@@ -56,22 +136,25 @@ namespace FoxLife
                 GUI.DrawTexture(cr, texRing);
                 GUI.color = old;
             }
-            string ctitle = pieSubTitle != null ? "← " + pieSubTitle : pieTitle;
-            var ts = Fit(new GUIStyle(sBold) { alignment = TextAnchor.MiddleCenter, fontSize = 13 }, ctitle, cr.width - 16, cr.height - 16);
+            bool inSubmenu = pieParents.Count > 0;
+            string ctitle = pieSubTitle ?? pieTitle;
+            var titleRect = inSubmenu ? new Rect(cr.x + 8, cr.y + 22, cr.width - 16, 34) : new Rect(cr.x + 8, cr.y + 8, cr.width - 16, cr.height - 16);
+            var ts = Fit(new GUIStyle(sBold) { alignment = TextAnchor.MiddleCenter, fontSize = 13 }, ctitle, titleRect.width, titleRect.height);
             ts.normal.textColor = SimsInk;
-            GUI.Label(new Rect(cr.x + 8, cr.y + 8, cr.width - 16, cr.height - 16), ctitle, ts);
-            if (pieSubTitle != null && GUI.Button(cr, GUIContent.none, GUIStyle.none)) Defer(() => { pieItems = pieRoot; pieSubTitle = null; });
-
-            for (int i = 0; i < n; i++)
+            GUI.Label(titleRect, ctitle, ts);
+            if (inSubmenu)
             {
-                var it = pieItems[i];
-                float a = (i / (float)n) * Mathf.PI * 2f;
-                var c = pieCenter + new Vector2(Mathf.Sin(a), -Mathf.Cos(a)) * R;
+                GUI.Label(new Rect(cr.x, cr.y + 51, cr.width, 26), "←", ts);
+                if (GUI.Button(cr, GUIContent.none, GUIStyle.none)) Defer(ReturnToPieParent);
+            }
+
+            foreach (var button in pieButtons)
+            {
+                var it = button.item;
                 string text = it.DisplayLabel;
-                float w = Mathf.Min(230, sBtn.CalcSize(new GUIContent(text)).x + 18);
-                var bs = Fit(sBtn, text, w, 52);
-                float bh = Mathf.Max(34, bs.CalcHeight(new GUIContent(text), w) + 4);
-                var r = new Rect(c.x - w / 2, c.y - bh / 2, w, bh);
+                var bs = button.style;
+                var r = button.rect;
+                r.position += pieCenter;
                 Reg(r);
                 if (!it.enabled)
                 {
@@ -86,9 +169,22 @@ namespace FoxLife
                 if (Btn(r, text, bs))
                 {
                     var item = it;
-                    if (item.sub != null) Defer(() => { pieItems = item.sub; pieSubTitle = item.label; });
+                    if (item.sub != null) Defer(() => EnterPieCategory(item));
                     else Defer(() => { CloseMenu(); item.act?.Invoke(); });
                 }
+            }
+
+            if (piePager.width > 0)
+            {
+                var pager = piePager;
+                pager.position += pieCenter;
+                Reg(pager);
+                GUI.Box(pager, GUIContent.none, sPanel);
+                int pages = Mathf.CeilToInt((float)pieItems.Count / PiePageSize);
+                GUI.Label(new Rect(pager.x + 30, pager.y, 46, pager.height), $"{piePage + 1} / {pages}",
+                    new GUIStyle(sSmall) { alignment = TextAnchor.MiddleCenter });
+                if (piePage > 0 && Btn(new Rect(pager.x, pager.y, 28, pager.height), "‹")) Defer(() => piePage--);
+                if (piePage + 1 < pages && Btn(new Rect(pager.xMax - 28, pager.y, 28, pager.height), "›")) Defer(() => piePage++);
             }
         }
 

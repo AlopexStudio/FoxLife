@@ -279,6 +279,13 @@ namespace FoxLife
                     }
                     foreach (var c in item.Footprint()) stationary.Add(c);
                 }
+                if (item.def.wallMounted)
+                {
+                    var anchor = moving && inside ? item.anchor + delta : item.anchor;
+                    foreach (var support in MountEdges(item.def, anchor, item.rot))
+                        if (PlannedEdge(support.x, support.z, support.v) != EdgeKind.Wall)
+                        { error = "Сначала сними настенный ковёр."; return null; }
+                }
             }
             foreach (var item in plan.furniture)
                 foreach (var c in item.Footprint())

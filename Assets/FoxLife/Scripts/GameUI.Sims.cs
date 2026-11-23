@@ -66,6 +66,25 @@ namespace FoxLife
         }
         static float Max(params float[] v) { float m = 0; foreach (var f in v) m = Mathf.Max(m, f); return m; }
 
+        static Shape CenterToolIcon(Shape shape)
+        {
+            const int samples = 96;
+            var min = Vector2.one;
+            var max = Vector2.zero;
+            for (int j = 0; j < samples; j++)
+                for (int i = 0; i < samples; i++)
+                {
+                    var p = new Vector2((i + 0.5f) / samples, (j + 0.5f) / samples);
+                    if (shape(p.x, p.y) <= 0) continue;
+                    min = Vector2.Min(min, p);
+                    max = Vector2.Max(max, p);
+                }
+            var center = (min + max) * 0.5f;
+            var size = max - min;
+            float sampleScale = Mathf.Max(size.x, size.y) / 0.87f;
+            return (x, y) => shape(center.x + (x - 0.5f) * sampleScale, center.y + (y - 0.5f) * sampleScale);
+        }
+
         Texture2D Icon(string id)
         {
             if (icons.TryGetValue(id, out var t)) return t;
@@ -129,7 +148,7 @@ namespace FoxLife
                 case "storm": s = (x, y) => Max(Circle(x, y, 0.36f, 0.36f, 0.17f), Circle(x, y, 0.58f, 0.28f, 0.2f), Box(x, y, 0.2f, 0.38f, 0.8f, 0.5f), Tri(x, y, new Vector2(0.55f, 0.5f), new Vector2(0.35f, 0.75f), new Vector2(0.52f, 0.72f)), Tri(x, y, new Vector2(0.52f, 0.66f), new Vector2(0.42f, 0.95f), new Vector2(0.62f, 0.68f))); break;
                 default: s = (x, y) => Circle(x, y, 0.5f, 0.5f, 0.3f); break;
             }
-            t = Paint(64, s);
+            t = Paint(64, id == "hammer" || id == "eyedropper" ? CenterToolIcon(s) : s);
             icons[id] = t;
             return t;
         }

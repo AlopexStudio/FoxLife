@@ -87,6 +87,49 @@ namespace FoxLife
             yield return new WaitForSeconds(0.5f);
         }
 
+        IEnumerator CheckWallRug(Game g, Vector2Int corner)
+        {
+            var def = Catalog.Get("wallrug");
+            var anchor = corner + new Vector2Int(4, 4);
+            if (def == null || !g.CanPlace(def, anchor, 0, null, 0) || g.CanPlace(def, anchor, 2, null, 0))
+            {
+                Debug.LogError("КОВЁР: неверная проверка крепления к стене.");
+                yield break;
+            }
+            var rug = g.SpawnFurniture(def, anchor, 0, false);
+            g.DemolishWall(0, (anchor.x, anchor.y + 1, false));
+            if (g.CanPlace(def, anchor, 0, null, 0) || g.house.GetEdge(anchor.x, anchor.y + 1, false) != EdgeKind.Wall)
+                Debug.LogError("КОВЁР: можно поставить второй ковёр на то же место или снести его опору.");
+
+            var fox = g.selected;
+            int openness = fox.pers.O;
+            fox.pers[Trait.Openness] = 2;
+            float score = fox.ScoreInteraction(def.actions[0], rug);
+            fox.pers[Trait.Openness] = 9;
+            bool stronger = fox.ScoreInteraction(def.actions[0], rug) > score;
+            fox.pers[Trait.Openness] = openness;
+            if (!stronger) Debug.LogError("КОВЁР: творческие лисички не предпочитают рассматривание.");
+
+            g.cam.Focus(rug.transform.position + Vector3.forward * 0.38f);
+            g.cam.dist = 4.4f;
+            g.cam.yaw = 0f;
+            g.cam.pitch = 18f;
+            g.cam.Snap();
+            g.house.wallMode = House.WallMode.Down;
+            yield return new WaitForEndOfFrame();
+            if (rug.gameObject.activeSelf) Debug.LogError("КОВЁР: виден с опущенными стенами.");
+            g.house.wallMode = House.WallMode.Up;
+            yield return new WaitForEndOfFrame();
+            if (!rug.gameObject.activeSelf) Debug.LogError("КОВЁР: скрыт с поднятыми стенами.");
+            g.cam.target = rug.transform.position + new Vector3(0f, 0.8f, 0.38f);
+            g.cam.Snap();
+            yield return null;
+            g.OpenFurnitureMenu(rug, new Vector3(Screen.width * 0.77f, Screen.height * 0.60f));
+            yield return Shot("9e_wall_rug");
+            g.ui.CloseMenu();
+            log.WriteLine("КОВЁР: крепление, опускание стен и предпочтение творческих лисичек проверены.");
+        }
+
         bool CheckCenteredOpenings(Game g, Vector2Int corner)
         {
             int x = corner.x, z = corner.y;
@@ -504,6 +547,11 @@ namespace FoxLife
             yield return Shot("1c_social_cases");
             g.OpenSocialMenu(nameFox);
             yield return Shot("1d_social_menu");
+            g.ui.CloseMenu();
+            var selfItems = g.SelfMenuItems(speaker);
+            g.ui.OpenPie(new Vector3(Screen.width * 0.5f, Screen.height * 0.56f), speaker.foxName, selfItems);
+            g.ui.EnterPieCategory(selfItems[0]);
+            yield return Shot("1e_thought_menu");
             g.ui.CloseMenu();
             var oldCareer = speaker.career;
             int oldCareerLevel = speaker.careerLevel;
@@ -1075,6 +1123,7 @@ namespace FoxLife
                             yield return Shot("9d_path_grid");
                             g.ui.buildTab = 0;
                             g.SetMode(Mode.Live);
+                            yield return CheckWallRug(g, start);
                         }
                     }
                     g.ChangeWalls(10);

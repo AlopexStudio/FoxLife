@@ -74,6 +74,7 @@ namespace FoxLife
         {
             int lot = house.EdgeLot(edge.x, edge.z, edge.v);
             if (house.LotById(lot) == null || !MayEditLot(lot)) return false;
+            if (HasFurnitureOnWall(level, edge) || centered && HasFurnitureOnWall(level, House.AlongEdge(edge, 1))) return false;
             var kind = OpeningSupport(level, edge);
             if (centered) return CanCenterOpening(level, edge) && (MovingOpening ? kind == EdgeKind.Wall : House.OpeningKind(kind) != want);
             if (MovingOpening) return kind == EdgeKind.Wall;
@@ -190,6 +191,7 @@ namespace FoxLife
         {
             var lot = house.LotById(house.EdgeLot(edge.x, edge.z, edge.v));
             if (lot == null || !MayEditLot(lot.id) || house.GetEdge(level, edge.x, edge.z, edge.v) == EdgeKind.None) return;
+            if (HasFurnitureOnWall(level, edge)) { Log("Сначала сними настенный ковёр."); return; }
             Recorded("снос стены", () =>
             {
                 int refund = RemoveWallSegment(level, edge);
@@ -200,6 +202,7 @@ namespace FoxLife
 
         void UpdateSledgehammer()
         {
+            if (Input.GetMouseButtonDown(1)) { SetWallTool(WallTool.None); return; }
             if (ui.MouseOverUI)
             {
                 ClearHover();

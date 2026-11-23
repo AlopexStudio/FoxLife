@@ -8,7 +8,7 @@ namespace FoxLife
     {
         static Mesh cone, pyramid;
 
-        public static GameObject Part(PrimitiveType t, Transform parent, Vector3 pos, Vector3 scale, Styleable st, int part, Vector3 euler = default)
+        public static GameObject Part(PrimitiveType t, Transform parent, Vector3 pos, Vector3 scale, Styleable st, int part, Vector3 euler = default, bool expand = true)
         {
             var go = GameObject.CreatePrimitive(t);
             go.name = t.ToString();
@@ -17,7 +17,7 @@ namespace FoxLife
             go.transform.localRotation = Quaternion.Euler(euler);
             // Совпадающие грани соседних деталей мерцают (z-fighting). Каждая следующая
             // коробка или цилиндр предмета чуть-чуть больше предыдущей — грани больше не совпадают.
-            if ((st.kind == SurfaceKind.Object || st.kind == SurfaceKind.Fox) && (t == PrimitiveType.Cube || t == PrimitiveType.Cylinder))
+            if (expand && (st.kind == SurfaceKind.Object || st.kind == SurfaceKind.Fox) && (t == PrimitiveType.Cube || t == PrimitiveType.Cylinder))
             {
                 float eps = 0.0009f * (++st.primCount);
                 scale += new Vector3(eps, t == PrimitiveType.Cylinder ? eps * 0.5f : eps, eps);
@@ -27,8 +27,8 @@ namespace FoxLife
             return go;
         }
 
-        public static GameObject Box(Styleable st, int part, Transform m, Vector3 pos, Vector3 size, Vector3 euler = default)
-            => Part(PrimitiveType.Cube, m, pos, size, st, part, euler);
+        public static GameObject Box(Styleable st, int part, Transform m, Vector3 pos, Vector3 size, Vector3 euler = default, bool expand = true)
+            => Part(PrimitiveType.Cube, m, pos, size, st, part, euler, expand);
 
         public static GameObject Ball(Styleable st, int part, Transform m, Vector3 pos, Vector3 size, Vector3 euler = default)
             => Part(PrimitiveType.Sphere, m, pos, size, st, part, euler);

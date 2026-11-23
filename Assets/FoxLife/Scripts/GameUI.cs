@@ -107,7 +107,7 @@ namespace FoxLife
             menuOpen = true;
         }
 
-        public void CloseMenu() { menuOpen = false; pieItems = null; pieRoot = null; }
+        public void CloseMenu() { menuOpen = false; pieItems = laidOutPie = null; pieParents.Clear(); pieButtons.Clear(); }
 
         void Defer(System.Action a) => deferred += a;
 

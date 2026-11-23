@@ -68,6 +68,7 @@ namespace FoxLife
         public bool walkable;
         public bool buildable = true;
         public bool stair;               // лестница на этаж выше
+        public bool wallMounted;
         public int price;
         public List<UseSlot> slots = new List<UseSlot>();
         public List<Interaction> actions = new List<Interaction>();
@@ -360,6 +361,54 @@ namespace FoxLife
         static Vector2Int C(int x, int z) => new Vector2Int(x, z);
         static Vector3 V(float x, float y, float z) => new Vector3(x, y, z);
 
+        static void BuildWallRug(Styleable st, Transform model)
+        {
+            st.AddPart("Бордовое поле", StyleData.Make("Ворс", "#8B383C"));
+            st.AddPart("Тёмная кайма", StyleData.Make("Ткань", "#49272D"));
+            st.AddPart("Золотистый орнамент", StyleData.Make("Ткань", "#C9995E"));
+            st.AddPart("Светлая нить", StyleData.Make("Ткань", "#E6D1A5"));
+            st.AddPart("Зелёные акценты", StyleData.Make("Ткань", "#697263"));
+            const int width = 29, height = 19;
+            const float pixel = Voxelizer.FurnitureVoxel, middle = 1.25f;
+            Shapes.Box(st, 1, model, V(0, middle, 0.40625f), V(width * pixel, height * pixel, pixel), expand: false);
+
+            for (int row = 0; row < height; row++)
+            {
+                int first = 0;
+                while (first < width)
+                {
+                    int part = Pattern(first, row);
+                    int end = first + 1;
+                    while (end < width && Pattern(end, row) == part) end++;
+                    Shapes.Box(st, part, model, V(((first + end - width) * 0.5f) * pixel,
+                        middle + (row + 0.5f - height * 0.5f) * pixel, 0.34375f), V((end - first) * pixel, pixel, pixel), expand: false);
+                    first = end;
+                }
+            }
+            for (int i = -8; i <= 8; i += 2)
+                foreach (int side in new[] { -1, 1 })
+                    Shapes.Box(st, 3, model, V(side * 0.9375f, middle + i * pixel, 0.375f), V(pixel, pixel, pixel), expand: false);
+
+            int Pattern(int col, int row)
+            {
+                int x = Mathf.Abs(col - width / 2), y = Mathf.Abs(row - height / 2);
+                if (x == 14 || y == 9) return 1;
+                if (x == 13 || y == 8) return (x + y) % 3 == 0 ? 3 : 2;
+                if (x == 12 || y == 7) return 1;
+                int medallion = 2 * x + 3 * y;
+                if (medallion <= 5) return x == 0 || y == 0 ? 3 : 2;
+                if (medallion <= 11) return 1;
+                if (medallion <= 15) return 2;
+                if (medallion <= 17) return 1;
+                int flower = Mathf.Abs(x - 8) + Mathf.Abs(y - 4);
+                if (flower == 0) return 3;
+                if (flower == 1) return 2;
+                if (flower == 2 && (x == 8 || y == 4)) return 4;
+                if (x == 10 && y == 1 || x == 4 && y == 5) return 3;
+                return 0;
+            }
+        }
+
         static UseSlot Slot(Vector3 pose, float yaw, params Vector2Int[] stands)
         {
             var s = new UseSlot { pose = pose, yaw = yaw };
@@ -382,7 +431,7 @@ namespace FoxLife
                 { "bed", 300 }, { "doublebed", 550 }, { "foxbed", 120 }, { "wardrobe", 250 }, { "fridge", 600 }, { "stove", 450 },
                 { "counter", 150 }, { "sink", 200 }, { "table", 220 }, { "chair", 60 }, { "sofa", 500 }, { "armchair", 280 },
                 { "tv", 400 }, { "bookshelf", 220 }, { "easel", 180 }, { "guitar", 260 }, { "computer", 700 }, { "ball", 15 },
-                { "bath", 650 }, { "plant", 40 }, { "lamp", 90 }, { "rug", 150 }, { "roundrug", 90 }, { "stairs", 400 },
+                { "bath", 650 }, { "plant", 40 }, { "lamp", 90 }, { "rug", 150 }, { "roundrug", 90 }, { "wallrug", 180 }, { "stairs", 400 },
                 { "dresser", 220 }, { "nightstand", 90 }, { "pouf", 70 }, { "painting", 120 }, { "clock", 60 }, { "vase", 45 },
                 { "bench", 160 }, { "gardenlamp", 110 }, { "swing", 320 }, { "flowerbed", 60 }, { "birdbath", 140 }, { "fountain", 900 }, { "cafecounter", 700 },
                 { "telescope", 600 }, { "bridge", 350 }, { "piano", 900 }, { "schooldesk", 120 }, { "chalkboard", 150 }, { "marketstall", 400 }, { "campfire", 250 }, { "berrybush", 80 },
@@ -1017,6 +1066,16 @@ namespace FoxLife
                     st.AddPart("Коврик", StyleData.Make("Ворс", "#9DB7C9"));
                     Shapes.Cyl(st, 0, m, V(0, 0.008f, 0), 1.8f, 0.015f);
                 },
+            });
+
+            all.Add(new FurnitureDef
+            {
+                id = "wallrug", name = "Настенный ковёр", category = "Декор", w = 2, walkable = true, wallMounted = true,
+                description = "Бордовый ковёр с вязаной бахромой и узором. Нужны две секции стены рядом.",
+                slots = { Slot(Vector3.zero, 0, C(0, -1), C(1, -1), C(0, -2), C(1, -2), C(0, 0), C(1, 0)) },
+                actions = { new Interaction { name = "Рассматривать", verb = "Рассматривает настенный ковёр", duration = 24,
+                    fun = 0.5f, cooldown = 100, pose = Pose.Stand, tags = ActTag.Creative | ActTag.Solitary, bubble = "Какой узор!" } },
+                build = (_, st, m) => BuildWallRug(st, m),
             });
 
             // ===== Декор для дома =====

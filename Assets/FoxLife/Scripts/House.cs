@@ -251,6 +251,9 @@ namespace FoxLife
         public EdgeKind GetEdge(int level, int x, int z, bool v) => edges.TryGetValue(Key(level, x, z, v), out var e) ? e.kind : EdgeKind.None;
         public EdgeKind GetEdge(int x, int z, bool v) => GetEdge(0, x, z, v);
 
+        internal bool WallMountVisible(int level, (int x, int z, bool v) edge)
+            => edges.TryGetValue(Key(level, edge.x, edge.z, edge.v), out var e) && e.kind == EdgeKind.Wall && e.state < 1;
+
         public int EdgeLot(int x, int z, bool v)
         {
             Sides(x, z, v, out var a, out var b);
@@ -1545,6 +1548,7 @@ namespace FoxLife
                 if (f != focusLot) { focusLot = f; ApplyVisibility(); }
             }
             Vector3 toCam = -cam.transform.forward; toCam.y = 0; toCam.Normalize();
+            bool wallsChanged = false;
             foreach (var kv in edges)
             {
                 var e = kv.Value;
@@ -1573,6 +1577,7 @@ namespace FoxLife
                 }
                 if (state == e.state) continue;
                 e.state = state;
+                wallsChanged = true;
                 // спрятанные и опущенные стены остаются «тенью»: свет в окна падает как надо
                 bool hidden = state == 2, down = state == 1;
                 e.root.SetActive(true);
@@ -1584,6 +1589,7 @@ namespace FoxLife
                     float by = e.baseY;
                 foreach (var s in e.lowSlabs) SetHeight(s, by, down ? CutH : WallH);
             }
+            if (wallsChanged && Game.I != null) Game.I.RefreshMountedFurnitureVisibility();
         }
     }
 }
