@@ -96,9 +96,29 @@ namespace FoxLife
                 case "walls": s = (x, y) => Max(Box(x, y, 0.12f, 0.2f, 0.3f, 0.82f), Box(x, y, 0.41f, 0.42f, 0.59f, 0.82f), Box(x, y, 0.7f, 0.64f, 0.88f, 0.82f)); break;
                 case "hammer": s = (x, y) =>
                 {
-                    float u = 0.5f + (x + y - 1f) * 0.7071f, v = 0.5f + (y - x) * 0.7071f;
-                    return Max(Box(u, v, 0.42f, 0.23f, 0.58f, 0.91f), Box(u, v, 0.19f, 0.14f, 0.8f, 0.42f));
+                    float u = 0.5f + (x - y) * 0.7071f, v = 0.5f + (x + y - 1f) * 0.7071f;
+                    return Mathf.Max(Box(u, v, 0.41f, 0.28f, 0.59f, 0.88f), Box(u, v, 0.18f, 0.14f, 0.82f, 0.39f));
                 }; break;
+                case "eyedropper": s = (x, y) =>
+                {
+                    float u = 0.5f + (x + y - 1f) * 0.7071f, v = 0.5f + (y - x) * 0.7071f;
+                    return Max(Circle(u, v, 0.5f, 0.23f, 0.135f), Box(u, v, 0.365f, 0.23f, 0.635f, 0.4f),
+                        Box(u, v, 0.35f, 0.38f, 0.65f, 0.47f), Box(u, v, 0.427f, 0.47f, 0.573f, 0.74f),
+                        Tri(u, v, new Vector2(0.427f, 0.73f), new Vector2(0.573f, 0.73f), new Vector2(0.5f, 0.91f)));
+                }; break;
+                case "grid": s = (x, y) =>
+                {
+                    if (Box(x, y, 0.15f, 0.15f, 0.85f, 0.85f) == 0) return 0;
+                    return x < 0.23f || x > 0.77f || y < 0.23f || y > 0.77f || Mathf.Abs(x - 0.5f) < 0.038f || Mathf.Abs(y - 0.5f) < 0.038f ? 1 : 0;
+                }; break;
+                case "undo": case "redo":
+                    bool left = id == "undo";
+                    s = (x, y) =>
+                    {
+                        if (!left) x = 1f - x;
+                        return Max(Tri(x, y, new Vector2(0.09f, 0.43f), new Vector2(0.39f, 0.17f), new Vector2(0.39f, 0.69f)),
+                            Box(x, y, 0.34f, 0.36f, 0.57f, 0.5f), Ring(x, y, 0.57f, 0.67f, 0.24f, 0.066f) * (x >= 0.57f && y <= 0.72f ? 1 : 0));
+                    }; break;
                 case "names": s = (x, y) => Mathf.Max(Max(Box(x, y, 0.14f, 0.3f, 0.72f, 0.7f), Tri(x, y, new Vector2(0.72f, 0.3f), new Vector2(0.72f, 0.7f), new Vector2(0.9f, 0.5f))) - Circle(x, y, 0.27f, 0.5f, 0.06f), 0); break;
                 case "phrases": s = (x, y) => Max(Box(x, y, 0.14f, 0.22f, 0.86f, 0.62f), Tri(x, y, new Vector2(0.28f, 0.6f), new Vector2(0.48f, 0.6f), new Vector2(0.22f, 0.86f))); break;
                 case "auto": s = (x, y) => Mathf.Max(Ring(x, y, 0.5f, 0.5f, 0.3f, 0.07f) - Box(x, y, 0.45f, 0.1f, 0.9f, 0.32f), Tri(x, y, new Vector2(0.62f, 0.12f), new Vector2(0.62f, 0.38f), new Vector2(0.86f, 0.25f))); break;
@@ -298,6 +318,7 @@ namespace FoxLife
             Reg(area);
             bool town = G.mode == Mode.Town || G.townBuilder;
             bool plan = !town && (G.mode == Mode.Build || G.mode == Mode.Style);
+            bool quickBuild = G.CanQuickBuild;
             if (town)
             {
                 (string icon, int k, string name)[] tm = { ("live", 0, "Семьи (F1)"), ("build", 1, "Участки, дома и ландшафт (F2)"), ("style", 2, "Стили (F3)") };
@@ -320,11 +341,13 @@ namespace FoxLife
                     if (RoundBtn(r, pm[i].icon, G.mode == mm, pm[i].name)) Defer(() => G.SetMode(mm));
                 }
             }
+            else if (quickBuild && RoundBtn(new Rect(x0 + 2 * 62, y0, 54, 54), "build", false, "Строительство (F2)"))
+                Defer(() => G.QuickBuild());
             if (RoundBtn(new Rect(x0 + 3 * 62, y0, 54, 54), "walls", showViewTools, "Показать или спрятать кнопки этажей, крыши, стен и свободы воли (F4)")) Defer(() => showViewTools = !showViewTools);
             if (RoundBtn(new Rect(x0 + 4 * 62 + 10, y0 + 6, 42, 42), "menu", false, "Открыть меню игры (Esc)")) Defer(() => screen = MenuScreen.Pause);
             if (!showViewTools) return;
             // вид: этажи, крыша, стены, свобода воли. Если кнопок режимов нет (в жизни) — в один ряд на их месте, иначе под ними
-            bool side = !town && !plan;
+            bool side = !town && !plan && !quickBuild;
             float y1 = side ? y0 + 7 : y0 + 62;
             float xs = side ? x0 + 180 - 7 * 44 : x0;
             if (side) Reg(new Rect(xs - 4, y1 - 4, 7 * 44 + 8, 48));

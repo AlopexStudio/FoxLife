@@ -203,7 +203,7 @@ namespace FoxLife
             if (ui.MouseOverUI)
             {
                 ClearHover();
-                house.ClearSledgeHighlight();
+                house.ClearBuildHighlight();
                 return;
             }
             int level = house.viewLevel;
@@ -213,32 +213,27 @@ namespace FoxLife
                 var item = part.owner.GetComponentInParent<Furniture>();
                 if (item != null)
                 {
-                    house.ClearSledgeHighlight();
+                    house.ClearBuildHighlight();
                     bool allowed = item.level == level && MayEditLot(item.lot) && item.def.id != "plate";
                     SetHover(allowed ? item.style : null, -1, SledgeRed);
                     if (click && allowed) SellFurniture(item);
                     return;
                 }
-                if (house.TryHitEdge(hit.transform, level, out var picked, out bool opening))
-                {
-                    SledgeWall(level, picked, opening, click);
-                    return;
-                }
             }
-            if (GroundPoint(out var point))
+            if (TryBuildEdgeAtCursor(level, hit, out var edge, out bool opening))
             {
-                var edge = NearestWall(point, out float distance);
-                if (distance < 0.25f) { SledgeWall(level, edge, false, click); return; }
+                SledgeWall(level, edge, opening, click);
+                return;
             }
             ClearHover();
-            house.ClearSledgeHighlight();
+            house.ClearBuildHighlight();
         }
 
         void SledgeWall(int level, (int x, int z, bool v) edge, bool opening, bool click)
         {
             ClearHover();
-            if (!MayEditLot(house.EdgeLot(edge.x, edge.z, edge.v))) { house.ClearSledgeHighlight(); return; }
-            house.SetSledgeHighlight(level, edge, opening, SledgeRed);
+            if (!MayEditLot(house.EdgeLot(edge.x, edge.z, edge.v))) { house.ClearBuildHighlight(); return; }
+            house.SetBuildHighlight(level, edge, opening, SledgeRed);
             if (!click) return;
             if (opening) DemolishOpening(level, edge); else DemolishWall(level, edge);
         }

@@ -7,26 +7,24 @@ namespace FoxLife
     public partial class Game
     {
         public bool showBuildGrid = true;
-        public bool showBuildBorders = true;
         MeshRenderer guideRenderer;
         Mesh guideMesh;
-        (int lot, int level, int revision, bool grid, bool borders, bool town) guideState;
+        (int lot, int level, int revision) guideState;
 
         void UpdateBuildGuides()
         {
-            bool visible = !loading && house != null && mode == Mode.Build && ui.screen == GameUI.MenuScreen.None &&
-                (showBuildGrid || showBuildBorders);
-            if (!visible)
+            var lot = !loading && house != null && mode == Mode.Build && ui.screen == GameUI.MenuScreen.None && showBuildGrid
+                ? (townBuilder ? house.LotAt(GridMap.CellOf(cam.target)) : house.PlayerLot) : null;
+            if (lot == null || lot.removed)
             {
                 if (guideRenderer != null) guideRenderer.enabled = false;
                 return;
             }
 
-            var lot = townBuilder ? house.LotAt(GridMap.CellOf(cam.target)) : house.PlayerLot;
-            var state = (lot?.id ?? -1, house.viewLevel, house.BuildGuideRevision, showBuildGrid, showBuildBorders, townBuilder);
+            var state = (lot.id, house.viewLevel, house.BuildGuideRevision);
             if (guideRenderer == null)
             {
-                var go = new GameObject("Сетка и границы строительства");
+                var go = new GameObject("Сетка строительства");
                 go.transform.SetParent(house.transform, false);
                 guideMesh = new Mesh { indexFormat = IndexFormat.UInt32 };
                 go.AddComponent<MeshFilter>().sharedMesh = guideMesh;
@@ -49,44 +47,25 @@ namespace FoxLife
             var triangles = new List<int>();
             int level = house.viewLevel;
 
-            if (showBuildGrid && lot != null && !lot.removed)
-            {
-                var rect = lot.rect;
-                var color = new Color32(255, 255, 255, 92);
-                for (int x = rect.xMin; x <= rect.xMax; x++) Strip(x, rect.yMin, rect.yMax, true, false, 0.021f, color);
-                for (int z = rect.yMin; z <= rect.yMax; z++) Strip(z, rect.xMin, rect.xMax, false, false, 0.021f, color);
-            }
-            if (showBuildBorders)
-            {
-                if (townBuilder) foreach (var entry in house.lots) Border(entry);
-                else Border(lot);
-            }
+            var rect = lot.rect;
+            var color = new Color32(255, 255, 255, 92);
+            for (int x = rect.xMin; x <= rect.xMax; x++) Strip(x, rect.yMin, rect.yMax, true);
+            for (int z = rect.yMin; z <= rect.yMax; z++) Strip(z, rect.xMin, rect.xMax, false);
             guideMesh.Clear();
             guideMesh.SetVertices(vertices);
             guideMesh.SetColors(colors);
             guideMesh.SetTriangles(triangles, 0);
 
-            void Border(House.Lot entry)
-            {
-                if (entry == null || entry.removed) return;
-                var rect = entry.rect;
-                var color = new Color32(255, 255, 255, 208);
-                Strip(rect.xMin, rect.yMin, rect.yMax, true, true, 0.064f, color);
-                Strip(rect.xMax, rect.yMin, rect.yMax, true, true, 0.064f, color);
-                Strip(rect.yMin, rect.xMin, rect.xMax, false, true, 0.064f, color);
-                Strip(rect.yMax, rect.xMin, rect.xMax, false, true, 0.064f, color);
-            }
-
-            void Strip(float fixedAxis, float from, float to, bool alongZ, bool border, float width, Color32 color)
+            void Strip(float fixedAxis, float from, float to, bool alongZ)
             {
                 for (float p = from; p < to; p += VoxelTerrain.S)
                 {
                     float next = Mathf.Min(p + VoxelTerrain.S, to);
                     float mid = (p + next) * 0.5f;
                     float x = alongZ ? fixedAxis : mid, z = alongZ ? mid : fixedAxis;
-                    float y = Mathf.Max(Height(x - (alongZ ? 0.02f : 0), z - (alongZ ? 0 : 0.02f), border),
-                        Height(x + (alongZ ? 0.02f : 0), z + (alongZ ? 0 : 0.02f), border)) + (border ? 0.043f : 0.027f);
-                    float a = fixedAxis - width * 0.5f, b = fixedAxis + width * 0.5f;
+                    float y = Mathf.Max(Height(x - (alongZ ? 0.02f : 0), z - (alongZ ? 0 : 0.02f)),
+                        Height(x + (alongZ ? 0.02f : 0), z + (alongZ ? 0 : 0.02f))) + 0.027f;
+                    float a = fixedAxis - 0.0105f, b = fixedAxis + 0.0105f;
                     int i = vertices.Count;
                     vertices.Add(alongZ ? new Vector3(a, y, p) : new Vector3(p, y, a));
                     vertices.Add(alongZ ? new Vector3(b, y, p) : new Vector3(p, y, b));
@@ -98,10 +77,10 @@ namespace FoxLife
                 }
             }
 
-            float Height(float x, float z, bool border)
+            float Height(float x, float z)
             {
                 var cell = GridMap.CellOf(new Vector3(x, 0, z));
-                if (!border && (level > 0 || house.RoomAt(0, cell) != null)) return house.FloorY(level, cell);
+                if (level > 0 || house.RoomAt(0, cell) != null) return house.FloorY(level, cell);
                 return house.terrain.GroundAt(x, z);
             }
         }

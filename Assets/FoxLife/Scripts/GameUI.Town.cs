@@ -386,7 +386,8 @@ namespace FoxLife
             }
             GUILayout.Space(8);
             GUILayout.Label("Режим разработчика", sBig);
-            if (Btn(DeveloperMode ? "Выключить режим разработчика" : "Включить режим разработчика", DeveloperMode, Hh(34)))
+            if (Btn(new GUIContent(DeveloperMode ? "Выключить режим разработчика" : "Включить режим разработчика",
+                "В режиме разработчика F2 сразу открывает стройку в игре за семью."), DeveloperMode, Hh(34)))
                 Defer(() => { PlayerPrefs.SetInt("foxlife.developer", DeveloperMode ? 0 : 1); PlayerPrefs.Save(); });
             if (DeveloperMode && inGame && !Net.IsClient)
             {

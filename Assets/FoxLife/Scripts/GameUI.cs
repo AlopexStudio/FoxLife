@@ -318,7 +318,7 @@ namespace FoxLife
                 switch (G.mode)
                 {
                     case Mode.Live: PortraitCard(); InfoPanel(); Notifications(); KnockNotice(); break;
-                    case Mode.Build: BuildPanel(); break;
+                    case Mode.Build: BuildToolbar(); BuildPanel(); break;
                     case Mode.Style: StylePanel(); break;
                     case Mode.Create: CreatePanel(); break;
                 }
@@ -1095,7 +1095,6 @@ namespace FoxLife
             GUILayout.BeginHorizontal();
             GUILayout.Label(G.townBuilder ? "Город" : "Обустройство", sTitle);
             GUILayout.FlexibleSpace();
-            UndoButtons();
             if (G.townBuilder) { if (Btn(new GUIContent("Готово", "Закончить строительство и вернуться к семьям"), true, W(100))) Defer(() => G.ExitTownBuilder()); }
             else if (Btn(new GUIContent("Переезд…", "Продать свой дом, купить свободный дом или участок и переехать всей семьёй"))) Defer(() => MoveMenu());
             GUILayout.EndHorizontal();
@@ -1105,16 +1104,9 @@ namespace FoxLife
             if (GUILayout.Button("Мебель", buildTab == 0 ? Fit(sBtnOn, "Ландшафт", tw) : tabSt, W(tw))) Defer(() => { buildTab = 0; G.lotTool = false; G.SetWallTool(Game.WallTool.None); G.SetLandTool(Game.LandTool.None); });
             if (GUILayout.Button("Стены", buildTab == 1 ? Fit(sBtnOn, "Ландшафт", tw) : tabSt, W(tw))) Defer(() => { buildTab = 1; G.lotTool = false; G.CancelPlacing(); G.SetLandTool(Game.LandTool.None); });
             if (GUILayout.Button("Ландшафт", buildTab == 2 ? Fit(sBtnOn, "Ландшафт", tw) : tabSt, W(tw))) Defer(() => { buildTab = 2; G.lotTool = false; G.CancelPlacing(); G.SetWallTool(Game.WallTool.None); });
-            var hammer = GUILayoutUtility.GetRect(28, 28, W(28), Hh(28));
-            if (RoundBtn(hammer, "hammer", G.wallTool == Game.WallTool.Sledgehammer, "Кувалда · ЛКМ — убрать подсвеченный объект"))
-                Defer(() => G.SetWallTool(G.wallTool == Game.WallTool.Sledgehammer ? Game.WallTool.None : Game.WallTool.Sledgehammer));
             if (G.townBuilder && GUILayout.Button("Участки", buildTab == 3 ? Fit(sBtnOn, "Ландшафт", tw) : tabSt, W(tw))) Defer(() => { buildTab = 3; G.CancelPlacing(); G.SetWallTool(Game.WallTool.None); G.SetLandTool(Game.LandTool.None); });
             GUILayout.EndHorizontal();
             GUILayout.Space(4);
-            GUILayout.BeginHorizontal();
-            if (Btn("Сетка", G.showBuildGrid, W(96))) Defer(() => G.showBuildGrid = !G.showBuildGrid);
-            if (Btn(G.townBuilder ? "Границы участков" : "Границы участка", G.showBuildBorders)) Defer(() => G.showBuildBorders = !G.showBuildBorders);
-            GUILayout.EndHorizontal();
             if (G.MovingOpening) GUILayout.Label("Кликни по новой стене. ПКМ или Esc — отменить. Del — удалить проём.", sSmall);
             if (buildTab == 3 && !G.townBuilder) buildTab = 0;
             if (buildTab == 3)
@@ -1182,6 +1174,16 @@ namespace FoxLife
         }
 
         public int buildTab;
+
+        internal void ShowBuildSample(FurnitureDef item = null)
+        {
+            buildTab = item == null ? 1 : 0;
+            buildScroll = Vector2.zero;
+            if (item == null) return;
+            buildSearch = "";
+            var categories = G.townBuilder ? Catalog.TownCategories : Catalog.Categories;
+            buildCat = Mathf.Max(0, System.Array.IndexOf(categories, item.category));
+        }
 
         void WallTool(string text, Game.WallTool t, string hint)
         {

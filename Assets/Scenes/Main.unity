@@ -149,7 +149,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FoxLife.Game
   showBuildGrid: 1
-  showBuildBorders: 1
   townName: "\u041B\u0438\u0441\u044C\u044F \u0414\u043E\u043B\u0438\u043D\u0430"
   townBuilder: 0
   lotsDirty: 0

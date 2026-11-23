@@ -104,11 +104,11 @@ namespace FoxLife
 
         readonly Dictionary<Vector3Int, Edge> edges = new Dictionary<Vector3Int, Edge>();
         readonly Dictionary<Transform, Vector3Int> edgeHits = new Dictionary<Transform, Vector3Int>();
-        readonly List<Renderer> sledgeRenderers = new List<Renderer>();
-        MaterialPropertyBlock sledgeProperties;
+        readonly List<Renderer> highlightedBuildRenderers = new List<Renderer>();
+        MaterialPropertyBlock buildHighlightProperties;
         static readonly int HighlightProperty = Shader.PropertyToID("_Highlight");
-        Edge sledgeEdge;
-        bool sledgeOpening;
+        Edge highlightedBuildEdge;
+        bool highlightedOpening;
         Transform roomsRoot, wallsRoot, roofsRoot, treesRoot;
         public Transform propsRoot;
         public Transform WallsRoot => wallsRoot;
@@ -293,48 +293,48 @@ namespace FoxLife
             return false;
         }
 
-        internal void SetSledgeHighlight(int level, (int x, int z, bool v) edge, bool opening, Color color)
+        internal void SetBuildHighlight(int level, (int x, int z, bool v) edge, bool opening, Color color)
         {
             edges.TryGetValue(Key(level, edge.x, edge.z, edge.v), out var segment);
-            if (segment == sledgeEdge && opening == sledgeOpening) return;
-            ClearSledgeHighlight();
+            if (segment == highlightedBuildEdge && opening == highlightedOpening) return;
+            ClearBuildHighlight();
             if (segment == null) return;
-            sledgeEdge = segment;
-            sledgeOpening = opening;
-            if (!opening) AppendSledgeRenderers(segment.root);
-            if (opening || IsCenteredOpening(segment.kind)) AppendSledgeRenderers(segment.opening);
+            highlightedBuildEdge = segment;
+            highlightedOpening = opening;
+            if (!opening) CollectBuildRenderers(segment.root);
+            if (opening || IsCenteredOpening(segment.kind)) CollectBuildRenderers(segment.opening);
             else if (segment.kind == EdgeKind.OpeningEnd)
             {
                 var first = AlongEdge(edge, -1);
-                if (edges.TryGetValue(Key(level, first.x, first.z, first.v), out var paired)) AppendSledgeRenderers(paired.opening);
+                if (edges.TryGetValue(Key(level, first.x, first.z, first.v), out var paired)) CollectBuildRenderers(paired.opening);
             }
-            ApplySledgeColor(color);
+            ApplyBuildHighlight(color);
         }
 
-        void AppendSledgeRenderers(GameObject target)
+        void CollectBuildRenderers(GameObject target)
         {
             if (target == null) return;
-            sledgeRenderers.AddRange(target.GetComponentsInChildren<Renderer>(true));
+            highlightedBuildRenderers.AddRange(target.GetComponentsInChildren<Renderer>(true));
         }
 
-        void ApplySledgeColor(Color color)
+        void ApplyBuildHighlight(Color color)
         {
-            sledgeProperties ??= new MaterialPropertyBlock();
-            foreach (var renderer in sledgeRenderers)
+            buildHighlightProperties ??= new MaterialPropertyBlock();
+            foreach (var renderer in highlightedBuildRenderers)
             {
                 if (renderer == null) continue;
-                renderer.GetPropertyBlock(sledgeProperties);
-                sledgeProperties.SetColor(HighlightProperty, color);
-                renderer.SetPropertyBlock(sledgeProperties);
+                renderer.GetPropertyBlock(buildHighlightProperties);
+                buildHighlightProperties.SetColor(HighlightProperty, color);
+                renderer.SetPropertyBlock(buildHighlightProperties);
             }
         }
 
-        internal void ClearSledgeHighlight()
+        internal void ClearBuildHighlight()
         {
-            if (sledgeEdge == null) return;
-            ApplySledgeColor(Color.clear);
-            sledgeRenderers.Clear();
-            sledgeEdge = null;
+            if (highlightedBuildEdge == null) return;
+            ApplyBuildHighlight(Color.clear);
+            highlightedBuildRenderers.Clear();
+            highlightedBuildEdge = null;
         }
 
         public static void Sides(int x, int z, bool v, out Vector2Int a, out Vector2Int b)
@@ -645,7 +645,7 @@ namespace FoxLife
         public void Rebuild(Lot lot)
         {
             if (lot == null) return;
-            ClearSledgeHighlight();
+            ClearBuildHighlight();
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var pt = new long[4];
             FindRooms(lot);

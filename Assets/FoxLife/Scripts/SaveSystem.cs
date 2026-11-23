@@ -323,7 +323,7 @@ namespace FoxLife
         }
 
         /// <summary>Цвета всех частей предмета (у построек города — и вложенных: башня, циферблат, крылья мельницы…).</summary>
-        static List<StyleData> AllStyles(Furniture f)
+        internal static List<StyleData> AllStyles(Furniture f)
         {
             var l = new List<StyleData>();
             foreach (var st in f.GetComponentsInChildren<Styleable>(true))
@@ -331,7 +331,7 @@ namespace FoxLife
             return l;
         }
 
-        static void ApplyAllStyles(Furniture f, List<StyleData> styles)
+        internal static void ApplyAllStyles(Furniture f, List<StyleData> styles)
         {
             if (styles == null) return;
             int i = 0;

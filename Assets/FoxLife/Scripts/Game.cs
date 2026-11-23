@@ -976,7 +976,7 @@ namespace FoxLife
 
         // ================= стены, двери, окна =================
 
-        public enum WallTool { None, Wall, Erase, Door, Window, Arch, Fence, Gate, Railing, RailingGap, MoveRoom, ResizeRoom, Sledgehammer }
+        public enum WallTool { None, Wall, Erase, Door, Window, Arch, Fence, Gate, Railing, RailingGap, MoveRoom, ResizeRoom, Sledgehammer, Eyedropper }
         public WallTool wallTool;
         public const int WallPrice = 10, DoorPrice = 120, WindowPrice = 80, ArchPrice = 40, FencePrice = 6, GatePrice = 30, RailingPrice = 15, RailingGapPrice = 10;
         bool wallDragging;
@@ -991,7 +991,7 @@ namespace FoxLife
             wallTool = t;
             if (t != WallTool.None) { SetLandTool(LandTool.None); lotTool = false; }
             ClearHover();
-            if (house != null) house.ClearSledgeHighlight();
+            if (house != null) house.ClearBuildHighlight();
             wallDragging = false;
             roomDrag = null;
             RoomToolHint = null;
@@ -1050,6 +1050,7 @@ namespace FoxLife
             }
             if (wallTool == WallTool.MoveRoom || wallTool == WallTool.ResizeRoom) { UpdateRoomTool(); return; }
             if (wallTool == WallTool.Sledgehammer) { UpdateSledgehammer(); return; }
+            if (wallTool == WallTool.Eyedropper) { UpdateEyedropper(); return; }
             if (ui.MouseOverUI && !wallDragging) { HideWallGhost(); return; }
             if (!GroundPoint(out var p)) return;
             int lvl = house.viewLevel;
@@ -1330,15 +1331,28 @@ namespace FoxLife
             foreach (var f in foxes) f.OnEvent(new GameEvent { kind = "style" });
         }
 
-        public void StartPlacing(FurnitureDef def)
+        bool copyingFurniture;
+
+        public void StartPlacing(FurnitureDef def) => StartPlacing(def, null);
+
+        bool StartPlacing(FurnitureDef def, Furniture original)
         {
-            if (!CanAfford(def)) { Log($"На «{def.name}» нужно {def.price} мон."); return; }
+            if (!CanAfford(def)) { Log($"На «{def.name}» нужно {def.price} мон."); return false; }
             SetWallTool(WallTool.None);
             CancelPlacing();
-            movingExisting = false;
-            placeRot = 0;
-            placeFine = 0;
-            ghost = SpawnFurniture(def, Vector2Int.zero, 0, true, house.viewLevel);
+            copyingFurniture = original != null;
+            placeRot = original != null ? original.rot : 0;
+            placeFine = original != null ? original.fineYaw : 0f;
+            ghost = SpawnFurniture(def, Vector2Int.zero, placeRot, true, house.viewLevel);
+            if (original != null)
+            {
+                SaveSystem.ApplyAllStyles(ghost, SaveSystem.AllStyles(original));
+                ghost.fineYaw = placeFine;
+                ghost.lightLevel = original.lightLevel;
+                ghost.lightColor = original.lightColor;
+                ghost.ApplyLight();
+            }
+            return true;
         }
 
         void StartMoving(Furniture f)
@@ -1395,6 +1409,7 @@ namespace FoxLife
         public void CancelPlacing()
         {
             if (MovingOpening) SetWallTool(WallTool.None);
+            copyingFurniture = false;
             if (ghost == null) return;
             if (movingExisting)
             {
@@ -1446,23 +1461,29 @@ namespace FoxLife
             if (!ui.Typing && Input.GetKeyDown(KeyCode.R)) RotateGhost();
             if (Input.GetKeyDown(KeyCode.Delete) && movingExisting) { DeleteGhost(); return; }
             if (Input.GetMouseButtonDown(0) && !ui.MouseOverUI && placeValid)
+                CommitFurniturePlacement(Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
+        }
+
+        internal void CommitFurniturePlacement(bool repeat)
+        {
+            var placed = ghost;
+            var def = placed.def;
+            bool wasNew = !movingExisting;
+            var undoBefore = wasNew ? Snap() : (pendingBefore ?? Snap());
+            pendingBefore = null;
+            if (wasNew)
             {
-                var def = ghost.def;
-                bool wasNew = !movingExisting;
-                var undoBefore = wasNew ? Snap() : (pendingBefore ?? Snap());
-                pendingBefore = null;
-                if (wasNew)
-                {
-                    if (!freeBuild && def.price > 0) AddMoney(-def.price, "Покупка предмета «" + def.name + "»");
-                    foreach (var fx in foxes) fx.OnEvent(new GameEvent { kind = "buy", arg = def.id });
-                }
-                if (wasNew) ghost.boughtAt = minutes;
-                FinishGhost();
-                ghost = null;
-                movingExisting = false;
-                PushBuild((wasNew ? "покупка" : "перенос") + " предмета «" + def.name + "»", undoBefore, Snap());
-                if (wasNew && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))) StartPlacing(def);
+                if (!freeBuild && def.price > 0) AddMoney(-def.price, "Покупка предмета «" + def.name + "»");
+                foreach (var fx in foxes) fx.OnEvent(new GameEvent { kind = "buy", arg = def.id });
+                placed.boughtAt = minutes;
             }
+            FinishGhost();
+            if (wasNew) { MediaFX.Attach(placed); WaterFX.Attach(placed); }
+            ghost = null;
+            movingExisting = false;
+            PushBuild((wasNew ? "покупка" : "перенос") + " предмета «" + def.name + "»", undoBefore, Snap());
+            if (wasNew && repeat) StartPlacing(def, copyingFurniture ? placed : null);
+            else copyingFurniture = false;
         }
 
         // ================= ввод =================
@@ -1492,7 +1513,7 @@ namespace FoxLife
             }
             if (ui.screen != GameUI.MenuScreen.None)
             {
-                if (wallTool == WallTool.Sledgehammer) { ClearHover(); house.ClearSledgeHighlight(); }
+                if (wallTool == WallTool.Sledgehammer || wallTool == WallTool.Eyedropper) { ClearHover(); house.ClearBuildHighlight(); }
                 // в меню время стоит, лисички только дышат, камера медленно облетает дом на титульном экране
                 UpdateSky();
                 foreach (var f in foxes) if (f != null) f.Tick(0, dt);
@@ -1605,10 +1626,19 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             if (Input.GetKeyDown(KeyCode.Alpha3)) SetSpeed(3);
             UndoKeys();
             TownKeys();
-            // в игре за семью строительство и стили открываются через мольберт: F2/F3 переключают их, пока план открыт
+            if (Input.GetKeyDown(KeyCode.F2) && !townBuilder)
+            {
+                if (CanQuickBuild) QuickBuild();
+                else if (mode == Mode.Build || mode == Mode.Style) SetMode(Mode.Build);
+            }
+            if (mode == Mode.Build)
+            {
+                if (Input.GetKeyDown(KeyCode.I)) ToggleBuildTool(WallTool.Eyedropper);
+                if (Input.GetKeyDown(KeyCode.K)) ToggleBuildTool(WallTool.Sledgehammer);
+                if (Input.GetKeyDown(KeyCode.G)) showBuildGrid = !showBuildGrid;
+            }
             if (!townBuilder && (mode == Mode.Build || mode == Mode.Style))
             {
-                if (Input.GetKeyDown(KeyCode.F2)) SetMode(Mode.Build);
                 if (Input.GetKeyDown(KeyCode.F3)) SetMode(Mode.Style);
                 if (Input.GetKeyDown(KeyCode.F1)) SetMode(Mode.Live);
             }

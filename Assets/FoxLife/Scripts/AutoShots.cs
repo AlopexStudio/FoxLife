@@ -123,6 +123,54 @@ namespace FoxLife
             return g.house.GetEdge(0, door.x, door.z, door.v) == EdgeKind.CenterDoor && g.house.GetEdge(0, tail.x, tail.z, tail.v) == EdgeKind.OpeningEnd;
         }
 
+        static bool CheckQuickBuild(Game g)
+        {
+            const string option = "foxlife.developer";
+            bool hadOption = PlayerPrefs.HasKey(option);
+            int previous = PlayerPrefs.GetInt(option);
+            try
+            {
+                g.SetMode(Mode.Live);
+                PlayerPrefs.SetInt(option, 0);
+                g.QuickBuild();
+                if (g.mode != Mode.Live) return false;
+                PlayerPrefs.SetInt(option, 1);
+                g.QuickBuild();
+                return g.mode == Mode.Build;
+            }
+            finally
+            {
+                if (hadOption) PlayerPrefs.SetInt(option, previous);
+                else PlayerPrefs.DeleteKey(option);
+            }
+        }
+
+        static bool CheckBuildEyedropper(Game g, Furniture chair, Vector2Int corner)
+        {
+            g.SetViewLevel(0);
+            var part = StyleData.Make("Гладкий", "#709FC9");
+            chair.style.SetStyle(0, part);
+            var source = chair.anchor;
+            chair.Place(source, 1);
+            var target = source + new Vector2Int(0, 2);
+            if (!g.CanPlace(chair.def, target, chair.rot, null, 0) || !g.SampleBuildFurniture(chair)) return false;
+            if (g.ghost == chair || g.ghost.def != chair.def || g.ghost.rot != chair.rot || g.ghost.style.Get(0).c1 != part.c1) return false;
+
+            bool free = g.freeBuild;
+            float money = g.money;
+            g.freeBuild = false;
+            var duplicate = g.ghost;
+            duplicate.Place(target, duplicate.rot);
+            g.CommitFurniturePlacement(true);
+            bool correct = g.furniture.Contains(duplicate) && g.furniture.Contains(chair) && chair.anchor == source &&
+                g.money == money - chair.def.price && g.ghost != null && g.ghost.style.Get(0).c1 == part.c1;
+            g.Undo();
+            g.freeBuild = free;
+            if (!correct || g.furniture.Contains(duplicate) || g.ghost != null || g.money != money) return false;
+
+            return g.SampleBuildWall(0, (corner.x + 2, corner.y, false)) && g.wallTool == Game.WallTool.Door && g.ui.buildTab == 1;
+        }
+
         bool CheckInteriorArch(Game g, Vector2Int corner)
         {
             int x = corner.x + 3, z = corner.y;
@@ -145,10 +193,10 @@ namespace FoxLife
             if (frame == null) return false;
             var color = new Color(0.36f, 0.07f, 0.04f);
             var properties = new MaterialPropertyBlock();
-            g.house.SetSledgeHighlight(0, arch, true, color);
+            g.house.SetBuildHighlight(0, arch, true, color);
             frame.GetPropertyBlock(properties);
             if (properties.GetColor("_Highlight").r < 0.3f) return false;
-            g.house.ClearSledgeHighlight();
+            g.house.ClearBuildHighlight();
             frame.GetPropertyBlock(properties);
             if (properties.GetColor("_Highlight").r > 0f) return false;
             openings.SetStyle(House.ArchFramePart, StyleData.Make("Гладкий", "#C5A3BA"));
@@ -1015,7 +1063,10 @@ namespace FoxLife
                             else log.WriteLine("ДОРОЖКА: плитки внутри и снаружи участка, стирание возвращает исходное покрытие.");
                             g.SetHour(13);
                             g.cam.Focus(new Vector3(start.x + 3.5f, 0, start.y + 2.5f), 15f);
-                            g.SetMode(Mode.Build);
+                            if (!CheckQuickBuild(g)) { Debug.LogError("СТРОЙКА: проверка входа в режиме разработчика не прошла."); g.SetMode(Mode.Build); }
+                            else log.WriteLine("СТРОЙКА: быстрый вход доступен в режиме разработчика.");
+                            if (!CheckBuildEyedropper(g, chair, start)) Debug.LogError("ПИПЕТКА: проверка копирования мебели или выбора проёма не прошла.");
+                            else log.WriteLine("ПИПЕТКА: копия с цветом и поворотом, оплата, отмена и выбор двери на стыке.");
                             g.SetWallTool(Game.WallTool.Sledgehammer);
                             yield return Shot("9c_center_openings");
                             g.SetWallTool(Game.WallTool.None);

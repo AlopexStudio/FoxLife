@@ -111,6 +111,31 @@ namespace FoxLife
             }
         }
 
+        void BuildToolbar()
+        {
+            var bar = new Rect((vw - 213) * 0.5f, 14, 213, 46);
+            Reg(bar);
+            GUI.Box(bar, GUIContent.none, sPanel);
+            Rect Button(int i) => new Rect(bar.x + 9 + i * 39 + (i >= 3 ? 9 : 0), bar.y + 7, 32, 32);
+
+            if (RoundBtn(Button(0), "eyedropper", G.wallTool == Game.WallTool.Eyedropper, "Пипетка · скопировать предмет или выбрать инструмент по стене (I)"))
+                Defer(() => G.ToggleBuildTool(Game.WallTool.Eyedropper));
+            if (RoundBtn(Button(1), "hammer", G.wallTool == Game.WallTool.Sledgehammer, "Кувалда · убрать подсвеченный объект (K)"))
+                Defer(() => G.ToggleBuildTool(Game.WallTool.Sledgehammer));
+            if (RoundBtn(Button(2), "grid", G.showBuildGrid, "Показать или скрыть сетку (G)"))
+                Defer(() => G.showBuildGrid = !G.showBuildGrid);
+
+            if (Event.current.type == EventType.Repaint)
+                Fill(new Rect(bar.x + 126, bar.y + 11, 1, 24), new Color(0.34f, 0.46f, 0.53f, 0.32f));
+            var disabled = new Color(0.58f, 0.65f, 0.7f);
+            bool enabled = GUI.enabled;
+            GUI.enabled = enabled && G.CanUndo;
+            if (RoundBtn(Button(3), "undo", false, "Отменить (Ctrl+Z)", G.CanUndo ? SimsInk : disabled)) Defer(G.Undo);
+            GUI.enabled = enabled && G.CanRedo;
+            if (RoundBtn(Button(4), "redo", false, "Повторить (Ctrl+Y)", G.CanRedo ? SimsInk : disabled)) Defer(G.Redo);
+            GUI.enabled = enabled;
+        }
+
         // ---------- стены ----------
 
         void WallCard(List<ToolCardDef> l, string name, string sub, string pict, Game.WallTool t, string hint) =>
@@ -139,6 +164,7 @@ namespace FoxLife
             ToolCards(b, wdt);
             string hint = G.wallTool == Game.WallTool.Wall ? "Зажми мышь на углу сетки и протяни стену. ПКМ — отменить."
                 : G.wallTool == Game.WallTool.Sledgehammer ? "ЛКМ — убрать подсвеченную стену, мебель или проём."
+                : G.wallTool == Game.WallTool.Eyedropper ? "ЛКМ — взять образец мебели, стены или проёма."
                 : G.wallTool == Game.WallTool.Erase ? "Протяни вдоль стен, которые нужно снести."
                 : G.wallTool == Game.WallTool.MoveRoom ? "Зажми ЛКМ на полу комнаты, перетащи и отпусти. ПКМ — отменить."
                 : G.wallTool == Game.WallTool.ResizeRoom ? "Зажми ЛКМ у стены прямоугольной комнаты и потяни поперёк стены."
