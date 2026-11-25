@@ -1919,7 +1919,7 @@ if (!Net.IsClient) // жизнь города ведёт хост; у друга
             {
                 var inter = it;
                 var busy = f.HasFreeSlot(me) ? null : System.Array.Find(f.occupants, o => o != null && o != me);
-                var pi = new PieItem(inter.name + (busy == null ? (f.HasFreeSlot(me) ? "" : " (занято)") : " (занято: " + busy.foxName + ")"),
+                var pi = new PieItem(inter.name + (busy == null ? (f.HasFreeSlot(me) ? "" : " (занято)") : " (занято " + busy.NameIn(NameCase.Instrumental) + ")"),
                     () => me.Command(new FoxAction { kind = ActKind.UseObject, furn = f, inter = inter, label = inter.verb ?? inter.name }));
                 if (me.stage < inter.minStage) { pi.enabled = false; pi.reason = inter.minStage >= LifeStage.Adult ? "Только для взрослых" : "Пока мал" + (me.female ? "а" : "") + " для этого"; }
                 else if (me.stage > inter.maxStage) { pi.enabled = false; pi.reason = "Это для лисят и подростков"; }
